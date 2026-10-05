@@ -7,6 +7,8 @@ import type { AttributeId, GameState } from './types';
 /** A possible result of an action, ready for display. */
 export interface Gain {
   label: string;
+  /** The item gained, so the UI can show its icon. */
+  itemId?: string;
   /** Probability in [0, 1]; undefined when certain. */
   chance?: number;
 }
@@ -31,6 +33,7 @@ export function resolveGains(state: GameState, defs: readonly GainDef[]): Gain[]
     const chance = def.chance === undefined || def.chance >= 1 ? undefined : def.chance;
     return {
       label: `${getItemDef(def.itemId).name}${quantityLabel(def.quantity)}`,
+      itemId: def.itemId,
       chance: chance !== undefined && def.perception ? Math.min(0.95, chance * perceptionFactor(perception)) : chance,
     };
   });

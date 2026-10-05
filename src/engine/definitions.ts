@@ -1,5 +1,6 @@
 import type { Severity } from './conditions';
 import type { ActionContext } from './context';
+import type { IconName } from '../icons/gameIcons';
 import type { AttributeId, BuildingId, GameState, TimedConditionId } from './types';
 
 // Static content definitions (items, locations, recipes, buildings). They are code, not save data, but renaming or
@@ -8,7 +9,20 @@ import type { AttributeId, BuildingId, GameState, TimedConditionId } from './typ
 export type ItemCategory = 'resource' | 'food' | 'equipment';
 
 /** Crafting types: a recipe asking for a type accepts any item that has it. */
-export type ResourceType = 'stick' | 'fuel' | 'heavy' | 'stone' | 'threads' | 'rope' | 'sharp' | 'knife' | 'cloth';
+export type ResourceType =
+  | 'stick'
+  | 'fuel'
+  | 'heavy'
+  | 'stone'
+  | 'threads'
+  | 'rope'
+  | 'sharp'
+  | 'knife'
+  | 'cloth'
+  | 'pebble'
+  | 'feather'
+  | 'coconut_shell'
+  | 'bottle';
 
 export type AttributeXp = Partial<Record<AttributeId, number>>;
 
@@ -31,10 +45,15 @@ interface ItemDefBase {
   types?: readonly ResourceType[];
   /** Game minutes one unit keeps a campfire burning; required for items of the fuel type. */
   fuelMinutes?: number;
+  icon: IconName;
+  /** Small badge drawn over the icon, e.g. to tell cooked food from raw food with a similar icon. */
+  iconBadge?: 'cooked';
 }
 
 export interface ResourceDef extends ItemDefBase {
   category: 'resource';
+  /** Makes the item an arrow for the bow: better accuracy and a lower chance to lose it per shot. */
+  arrow?: { accuracy: number; lossChance: number };
 }
 
 export interface FoodRisk {
@@ -52,6 +71,8 @@ export interface FoodDef extends ItemDefBase {
   risks?: readonly FoodRisk[];
   /** Item this food turns into when cooked over a campfire. */
   cooksInto?: string;
+  /** Items that may be left over after eating, e.g. an empty shell. */
+  byproducts?: readonly { itemId: string; chance: number }[];
   requires?: Requirement[];
 }
 
@@ -61,6 +82,8 @@ export interface EquipmentDef extends ItemDefBase {
   slot: 'hand' | 'head' | 'body';
   /** Bonus added to fighting and hunting power while held. */
   combat?: number;
+  /** Only works as a weapon with arrows in the bag (the best arrow adds its accuracy). */
+  needsArrows?: boolean;
 }
 
 export type ItemDef = ResourceDef | FoodDef | EquipmentDef;
@@ -138,8 +161,12 @@ export interface LocationInfo {
 export interface LocationDef extends LocationInfo {
   id: string;
   objects: ObjectDef[];
-  /** Buildings can only be built at buildable locations. */
-  buildable?: boolean;
+  /** Actions of the location itself rather than of one of its objects (shown under "Around you"). */
+  actions?: ActionDef[];
+  /** Named stocks the location's own actions can use. */
+  stocks?: Record<string, StockDef>;
+  /** Buildings that can be built here, in the order they are offered. */
+  buildings?: readonly BuildingId[];
   /** Name, type and description that replace the defaults once something is built here. */
   whenBuilt?: LocationInfo;
   onArrive?: (ctx: ActionContext) => void;
@@ -154,10 +181,23 @@ export interface RouteDef {
   requiresFlag?: string;
 }
 
+/** Something the player can build at the locations that list it. */
 export interface BuildingDef {
   id: BuildingId;
   name: string;
   description: string;
+  icon: IconName;
+  /** Building is done in steps; each step takes this time and energy. */
+  steps: number;
+  minutesPerStep: number;
+  energyPerStep: number;
+  /** Materials, all used up by the first step. */
+  ingredients: readonly Ingredient[];
+  /** Tools that are needed for every step but not consumed. */
+  tools?: readonly Requirement[];
+  /** Logged when the building is finished. */
+  message: string;
+  trains?: AttributeXp;
 }
 
 export interface RecipeDef {
@@ -171,9 +211,7 @@ export interface RecipeDef {
   tools?: readonly Requirement[];
   /** Buildings or location objects that must be present where the recipe is made (a campfire must be lit). */
   stations?: readonly string[];
-  result?: { itemId: string; quantity: number };
-  /** Builds this building at the current location instead of producing an item. */
-  builds?: BuildingId;
+  result: { itemId: string; quantity: number };
   /** Logged when the recipe is completed. */
   message: string;
   visibleIf?: (state: GameState) => boolean;

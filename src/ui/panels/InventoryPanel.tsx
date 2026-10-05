@@ -7,6 +7,7 @@ import { EQUIP_SLOTS, type EquipSlot, type GameState } from '../../engine/types'
 import { getLocationState } from '../../engine/world';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
+import { ItemIcon } from '../components/Icon';
 
 interface InventoryPanelProps {
   state: GameState;
@@ -26,10 +27,10 @@ function itemStats(def: ItemDef): string {
   const parts: string[] = [];
   if (def.category === 'food') {
     if (def.nutrition) {
-      parts.push(`${def.nutrition > 0 ? '+' : ''}${def.nutrition} hunger`);
+      parts.push(`${def.nutrition > 0 ? '−' : '+'}${Math.abs(def.nutrition)} hunger`);
     }
     if (def.hydration) {
-      parts.push(`${def.hydration > 0 ? '+' : ''}${def.hydration} thirst`);
+      parts.push(`${def.hydration > 0 ? '−' : '+'}${Math.abs(def.hydration)} thirst`);
     }
   }
   if (def.category === 'equipment' && def.combat) {
@@ -86,7 +87,10 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
             return (
               <li key={slot} className="slot">
                 <span className="slot__name">{SLOT_NAMES[slot]}</span>
-                <span className={itemId ? 'slot__item' : 'slot__item muted'}>{itemId ? getItemDef(itemId).name : 'empty'}</span>
+                <span className={itemId ? 'slot__item' : 'slot__item muted'}>
+                  {itemId && <ItemIcon itemId={itemId} size={22} />}
+                  {itemId ? getItemDef(itemId).name : 'empty'}
+                </span>
                 {unequip && <ActionButton view={unequip} onPerform={onPerform} compact />}
               </li>
             );
@@ -113,6 +117,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
                   <li key={stack.itemId} className="card item">
                     <div className="item__heading">
                       <span className="item__name">
+                        <ItemIcon itemId={def.id} size={28} />
                         {def.name}
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
                       </span>
@@ -153,6 +158,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
                   <li key={stack.itemId} className="card item">
                     <div className="item__heading">
                       <span className="item__name">
+                        <ItemIcon itemId={def.id} size={28} />
                         {def.name}
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
                       </span>

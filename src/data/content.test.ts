@@ -3,6 +3,8 @@ import { getActions } from '../engine/actions';
 import { performAction } from '../engine/game';
 import { createTestGame, giveItem } from '../engine/testUtils';
 import { BODY_PART_IDS } from '../engine/types';
+import { ICON_BODIES } from '../icons/gameIcons';
+import { BUILDINGS } from './buildings';
 import { ITEMS } from './items';
 import { getRoutesFrom, LOCATIONS, ROUTES } from './locations';
 import { RECIPES } from './recipes';
@@ -64,6 +66,10 @@ describe('island content', () => {
       Vine: ['fuel', 'rope'],
       Rope: ['fuel', 'rope'],
       Flint: ['stone', 'sharp', 'knife'],
+      Pebble: ['pebble'],
+      Feather: ['feather'],
+      'Coconut shell': ['coconut_shell'],
+      'Empty bottle': ['bottle'],
       Hammer: ['heavy'],
       Knife: ['knife'],
       Threads: ['threads', 'fuel'],
@@ -71,6 +77,27 @@ describe('island content', () => {
       Cloth: ['fuel', 'cloth'],
       Bandage: ['fuel'],
     });
+  });
+
+  it('has an icon for every item and building', () => {
+    // Act
+    const missing = [
+      ...Object.values(ITEMS).filter((i) => !ICON_BODIES[i.icon]),
+      ...Object.values(BUILDINGS).filter((b) => !ICON_BODIES[b.icon]),
+    ].map((d) => d.id);
+
+    // Assert
+    expect(missing).toEqual([]);
+  });
+
+  it('builds only from existing items and types', () => {
+    // Act
+    const bad = Object.values(BUILDINGS)
+      .flatMap((b) => b.ingredients)
+      .filter((i) => ('itemId' in i ? !ITEMS[i.itemId] : !Object.values(ITEMS).some((d) => d.types?.includes(i.type))));
+
+    // Assert
+    expect(bad).toEqual([]);
   });
 
   it('has unique object ids within every location', () => {
@@ -93,6 +120,7 @@ describe('island content', () => {
     state.player.body.torso = [{ id: 'injured', remaining: 100 }];
     state.locations[locationId] = {
       visited: true,
+      constructions: {},
       groundItems: [{ id: 999, itemId: 'stone', quantity: 2, droppedAt: 0 }],
       stock: {},
       finds: {},

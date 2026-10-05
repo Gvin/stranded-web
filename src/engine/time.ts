@@ -63,5 +63,12 @@ export function formatDuration(minutes: number): string {
   return hours === 0 ? `${days} d` : `${days} d ${hours} h`;
 }
 
+/** Game minutes from now until the clock next shows the given full hour (a whole day if it shows it right now). */
+export function minutesUntilHour(time: number, hour: number): number {
+  const minuteOfDay = (time + START_HOUR * MINUTES_PER_HOUR) % MINUTES_PER_DAY;
+  const until = (hour * MINUTES_PER_HOUR - minuteOfDay + MINUTES_PER_DAY) % MINUTES_PER_DAY;
+  return until === 0 ? MINUTES_PER_DAY : until;
+}
+
 export const hours = (value: number): number => value * MINUTES_PER_HOUR;
 export const days = (value: number): number => value * MINUTES_PER_DAY;

@@ -73,6 +73,13 @@ export interface LocationState {
   /** How many times each limited find has already been found. */
   finds: Record<string, number>;
   buildings: LocationBuildings;
+  /** Buildings started here but not finished yet. */
+  constructions: Partial<Record<BuildingId, Construction>>;
+}
+
+export interface Construction {
+  /** Building steps done so far; the materials were used up by the first one. */
+  stepsDone: number;
 }
 
 export interface BuildingState {

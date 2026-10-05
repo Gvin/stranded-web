@@ -33,9 +33,10 @@ describe('overflow damage', () => {
     const state = createTestGame('forest');
     state.player.stats.energy = 0;
     state.player.stats.health = 5;
+    giveItem(state, 'axe');
 
     // Act
-    const next = performAction(state, 'obj:boars:hunt');
+    const next = performAction(state, 'obj:location:chop');
 
     // Assert
     expect(next.status).toBe('dead');
@@ -139,7 +140,7 @@ describe('action details', () => {
   it('lists the remaining finds of the wreckage with perception-based chances', () => {
     // Arrange
     const state = createTestGame('beach');
-    state.locations.beach = { visited: true, groundItems: [], stock: {}, finds: { 'wreckage:knife': 1 }, buildings: {} };
+    state.locations.beach = { visited: true, constructions: {}, groundItems: [], stock: {}, finds: { 'wreckage:knife': 1 }, buildings: {} };
 
     // Act
     const gains = findAction(state, 'obj:wreckage:search')?.gains ?? [];
@@ -157,7 +158,7 @@ describe('action details', () => {
     const gains = findAction(state, 'obj:palms:climb')?.gains;
 
     // Assert
-    expect(gains).toEqual([{ label: 'Coconut ×1–3', chance: checkChance(20, 15) }]);
+    expect(gains).toEqual([{ label: 'Coconut ×1–3', itemId: 'coconut', chance: checkChance(20, 15) }]);
   });
 
   it('describes what food does to hunger and thirst', () => {
@@ -192,5 +193,99 @@ describe('coconut palms', () => {
     expect(blockedReason(state, 'obj:palms:fallen')).toMatch(/^Nothing left \(more in /);
     expect(blockedReason(state, 'obj:palms:climb')).toBeUndefined();
     expect(getActions(state).some((a) => a.id.startsWith('obj:fallen-coconuts'))).toBe(false);
+  });
+});
+
+describe('round of refinements', () => {
+  it('needs both arms and legs unbroken to climb a palm', () => {
+    // Arrange
+    const splinted = createTestGame('beach');
+    splinted.player.body.leftLeg = [{ id: 'splinted', remaining: 100 }];
+    const fractured = createTestGame('beach');
+    fractured.player.body.rightArm = [{ id: 'fractured' }];
+    const healthy = createTestGame('beach');
+
+    // Act
+    const reasons = [splinted, fractured, healthy].map((s) => blockedReason(s, 'obj:palms:climb'));
+
+    // Assert
+    expect(reasons).toEqual(['Requires: Both arms and legs unbroken', 'Requires: Both arms and legs unbroken', undefined]);
+  });
+
+  it('quenches thirst completely at the spring', () => {
+    // Arrange
+    const state = createTestGame('spring');
+    state.player.stats.thirst = 90;
+
+    // Act
+    const next = performAction(state, 'obj:pool:drink');
+
+    // Assert
+    expect(next.player.stats.thirst).toBe(0);
+  });
+
+  it('offers sleeping till 06:00 only in the evening and at night', () => {
+    // Arrange
+    const evening = createTestGame('beach');
+    evening.time = 13 * 60;
+    evening.player.stats.energy = 20;
+    const morning = createTestGame('beach');
+    morning.time = 60;
+    morning.player.stats.energy = 20;
+
+    // Act
+    const sleep = findAction(evening, 'sleep-till-morning');
+    const woke = performAction(evening, 'sleep-till-morning');
+
+    // Assert
+    expect(sleep?.minutes).toBe(10 * 60);
+    expect(findAction(morning, 'sleep-till-morning')).toBeUndefined();
+    expect(woke.time).toBe(23 * 60);
+  });
+
+  it('describes type requirements by what is needed, not by listing items', () => {
+    // Arrange
+    const state = createTestGame('camp');
+
+    // Act
+    const workbench = findAction(state, 'build:workbench');
+
+    // Assert
+    expect(workbench?.requirements.map((r) => r.describe())).toEqual(['A working arm', '2× Log', '4× Stick', '2× Rope', 'Something sharp']);
+  });
+
+  it('crafts an axe from a stick, a rope and something sharp', () => {
+    // Arrange
+    const state = createTestGame('beach');
+    giveItem(state, 'stick');
+    giveItem(state, 'vine');
+    giveItem(state, 'flint');
+
+    // Act
+    const next = performAction(state, 'craft:axe');
+
+    // Assert
+    expect(next.player.inventory).toEqual([{ itemId: 'axe', quantity: 1 }]);
+  });
+
+  it('relights a cold campfire without a bow', () => {
+    // Arrange
+    const state = createTestGame('camp');
+    state.locations.camp = {
+      visited: true,
+      constructions: {},
+      groundItems: [],
+      stock: {},
+      finds: {},
+      buildings: { campfire: { builtAt: 0, litUntil: 0 } },
+    };
+    giveItem(state, 'stick', 2);
+    giveItem(state, 'grass');
+
+    // Act
+    const next = performAction(state, 'campfire:relight');
+
+    // Assert
+    expect(next.locations.camp?.buildings.campfire?.litUntil).toBe(15 + 180);
   });
 });

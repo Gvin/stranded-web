@@ -1,11 +1,21 @@
 import { BUILDINGS, CAMPFIRE_INITIAL_BURN, CAMPFIRE_MAX_BURN, STORAGE_CAPACITY } from '../data/buildings';
 import { getItemDef } from '../data/items';
-import { getLocationDef, getRoutesFrom, LOCATIONS } from '../data/locations';
+import { getLocationDef, getRoutesFrom } from '../data/locations';
 import { RECIPES } from '../data/recipes';
 import { getCharacterSheet } from './character';
 import { bodyPartName, canHoldWith, hasBodyCondition, TIMED_CONDITIONS } from './conditions';
 import { type ActionContext, formatAmount } from './context';
-import type { ActionDef, AttributeXp, EquipmentDef, FoodDef, Ingredient, ObjectDef, RecipeDef, Requirement, TimeMode } from './definitions';
+import type {
+  ActionDef,
+  AttributeXp,
+  EquipmentDef,
+  FoodDef,
+  Ingredient,
+  LocationDef,
+  ObjectDef,
+  Requirement,
+  TimeMode,
+} from './definitions';
 import { type Gain, resolveGains } from './gains';
 import {
   addToInventory,
@@ -18,13 +28,13 @@ import {
   stackWeight,
   unequip,
 } from './inventory';
-import { carried, ingredient, station, workingArm } from './requirements';
+import { ingredient, station, workingArm } from './requirements';
 import { speedFactor, SURVIVAL_RULES } from './rules';
-import { formatDuration, hours } from './time';
-import { BODY_PART_IDS, EQUIP_SLOTS, type EquipSlot, type GameState, HAND_SLOTS, type LocationBuildings } from './types';
+import { formatDuration, hours, minutesUntilHour } from './time';
+import { BODY_PART_IDS, type BuildingId, EQUIP_SLOTS, type EquipSlot, type GameState, HAND_SLOTS, type LocationBuildings } from './types';
 import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, isCampfireLit } from './world';
 
-export type ActionCategory = 'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'body';
+export type ActionCategory = 'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'build' | 'body';
 
 /** A concrete action available in the current state, ready to be shown and performed. */
 export interface GameAction {
@@ -50,6 +60,8 @@ export interface GameAction {
   targetId?: string;
   /** Sub-group for compact display, e.g. all ways to feed a fire. */
   group?: 'fuel';
+  /** The item the action uses or works on, so the UI can show its icon. */
+  itemId?: string;
   run(ctx: ActionContext): void;
 }
 
@@ -89,6 +101,7 @@ export function getActions(state: GameState): GameAction[] {
     ...inventoryActions(state),
     ...storageActions(state),
     ...craftActions(state),
+    ...buildActions(state),
     ...bodyActions(state),
   ];
 }
@@ -127,7 +140,7 @@ function signed(value: number): string {
 
 function locationActions(state: GameState): GameAction[] {
   const hut = getLocationState(state, state.player.locationId).buildings.hut !== undefined;
-  const sleepEnergy = (SURVIVAL_RULES.energyRegenPerHour.sleeping + (hut ? SURVIVAL_RULES.shelteredSleepEnergyBonusPerHour : 0)) * 8;
+  const untilMorning = minutesUntilHour(state.time, SURVIVAL_RULES.wakeUpHour);
   return [
     {
       id: 'rest',
@@ -142,30 +155,43 @@ function locationActions(state: GameState): GameAction[] {
       requirements: [],
       run: (ctx) => ctx.log('You sit down and rest for a while.'),
     },
-    {
-      id: 'sleep',
-      label: 'Sleep',
-      category: 'location',
-      description: 'Sleep through the next hours. A hut makes it far more restful.',
-      details: `Only possible when your energy is below ${SURVIVAL_RULES.sleepBelowEnergy}. Thirst and hunger grow more slowly while you sleep, and health recovers faster.`,
-      gains: [{ label: `+${sleepEnergy} energy${hut ? ' (hut)' : ''}` }, { label: 'Faster healing' }],
-      minutes: hours(8),
-      energy: 0,
-      timeMode: 'sleeping',
-      requirements: [],
-      block: (s) =>
-        s.player.stats.energy >= SURVIVAL_RULES.sleepBelowEnergy
-          ? `You are not tired enough to sleep (energy must be below ${SURVIVAL_RULES.sleepBelowEnergy})`
-          : undefined,
-      run: (ctx) => {
-        ctx.log(
-          ctx.location().buildings.hut
-            ? 'You sleep soundly in your hut and wake up refreshed.'
-            : 'You sleep fitfully in the open and wake up stiff.',
-        );
-      },
-    },
+    sleepAction('sleep', 'Sleep', hours(8), hut),
+    ...(untilMorning > 0 && untilMorning <= hours(SURVIVAL_RULES.sleepTillMorningMaxHours)
+      ? [sleepAction('sleep-till-morning', 'Sleep till morning', untilMorning, hut)]
+      : []),
   ];
+}
+
+function sleepAction(id: string, label: string, minutes: number, hut: boolean): GameAction {
+  const energy = Math.round(
+    (minutes / 60) * (SURVIVAL_RULES.energyRegenPerHour.sleeping + (hut ? SURVIVAL_RULES.shelteredSleepEnergyBonusPerHour : 0)),
+  );
+  return {
+    id,
+    label,
+    category: 'location',
+    description:
+      id === 'sleep'
+        ? 'Sleep through the next hours. A hut makes it far more restful.'
+        : `Sleep until ${String(SURVIVAL_RULES.wakeUpHour).padStart(2, '0')}:00. A hut makes it far more restful.`,
+    details: `Only possible when your energy is below ${SURVIVAL_RULES.sleepBelowEnergy}. Thirst and hunger grow more slowly while you sleep, and health recovers faster.`,
+    gains: [{ label: `+${energy} energy${hut ? ' (hut)' : ''}` }, { label: 'Faster healing' }],
+    minutes,
+    energy: 0,
+    timeMode: 'sleeping',
+    requirements: [],
+    block: (s) =>
+      s.player.stats.energy >= SURVIVAL_RULES.sleepBelowEnergy
+        ? `You are not tired enough to sleep (energy must be below ${SURVIVAL_RULES.sleepBelowEnergy})`
+        : undefined,
+    run: (ctx) => {
+      ctx.log(
+        ctx.location().buildings.hut
+          ? 'You sleep soundly in your hut and wake up refreshed.'
+          : 'You sleep fitfully in the open and wake up stiff.',
+      );
+    },
+  };
 }
 
 function fromActionDef(state: GameState, def: ActionDef, object: ObjectDef): GameAction {
@@ -202,9 +228,23 @@ export function isObjectPresent(state: GameState, object: ObjectDef): boolean {
   return object.visibleIf?.(state) ?? true;
 }
 
+/** Id under which a location's own actions and stocks are kept, as if they belonged to a hidden object. */
+export const LOCATION_OBJECT_ID = 'location';
+
+function locationObject(def: LocationDef): ObjectDef {
+  return {
+    id: LOCATION_OBJECT_ID,
+    name: def.name,
+    description: def.description,
+    hidden: true,
+    stocks: def.stocks,
+    actions: def.actions ?? [],
+  };
+}
+
 function objectActions(state: GameState): GameAction[] {
   const location = getLocationDef(state.player.locationId);
-  return location.objects
+  return [...location.objects, locationObject(location)]
     .filter((object) => isObjectPresent(state, object))
     .flatMap((object) => object.actions.filter((def) => def.visibleIf?.(state) ?? true).map((def) => fromActionDef(state, def, object)));
 }
@@ -225,18 +265,18 @@ function campfireActions(state: GameState): GameAction[] {
         ...base,
         id: 'campfire:relight',
         label: 'Relight the campfire',
-        description: 'Spin a bow drill over fresh tinder.',
+        description: 'Coax a new fire out of fresh tinder.',
         gains: [{ label: `Fire burns ${formatDuration(CAMPFIRE_INITIAL_BURN)}` }],
         minutes: 15,
         energy: 2,
-        requirements: [...relight.map(ingredient), carried('bow')],
+        requirements: relight.map(ingredient),
         run: (ctx) => {
           consumeIngredients(ctx, relight);
           const campfire = ctx.location().buildings.campfire;
           if (campfire) {
             campfire.litUntil = ctx.state.time + CAMPFIRE_INITIAL_BURN;
           }
-          ctx.log('You spin the bow drill until the tinder catches. The fire crackles back to life.', 'good');
+          ctx.log('You blow on the smouldering tinder until it catches. The fire crackles back to life.', 'good');
         },
       },
     ];
@@ -250,6 +290,7 @@ function campfireActions(state: GameState): GameAction[] {
       ...base,
       id: `campfire:fuel:${def.id}`,
       label: def.name,
+      itemId: def.id,
       description: `Burn one ${def.name.toLowerCase()} to keep the fire going.`,
       details: `The fire can hold at most ${formatDuration(CAMPFIRE_MAX_BURN)} of fuel.`,
       gains: [{ label: `+${formatDuration(def.fuelMinutes ?? 0)} of fire` }],
@@ -276,6 +317,7 @@ function campfireActions(state: GameState): GameAction[] {
       ...base,
       id: `campfire:cook:${def.id}`,
       label: `Cook ${def.name.toLowerCase()}`,
+      itemId: def.id,
       description: `Turns it into ${getItemDef(def.cooksInto as string).name.toLowerCase()}.`,
       details: 'Cooked food is more filling and safe to eat. Careless hands can get burnt; agility helps.',
       gains: resolveGains(state, [{ itemId: def.cooksInto as string }]),
@@ -380,7 +422,10 @@ function eatAction(def: FoodDef): GameAction {
     category: 'item',
     description: def.description,
     details: risks.length > 0 ? `Risky: ${risks.join(', ')}.` : undefined,
-    gains: effects.map((label) => ({ label })),
+    gains: [
+      ...effects.map((label) => ({ label })),
+      ...(def.byproducts ?? []).map((b) => ({ label: getItemDef(b.itemId).name, itemId: b.itemId, chance: b.chance })),
+    ],
     minutes: def.verb === 'drink' ? 2 : 5,
     energy: 0,
     timeMode: 'awake',
@@ -408,6 +453,11 @@ function eatAction(def: FoodDef): GameAction {
       for (const risk of def.risks ?? []) {
         if (ctx.chance(risk.chance)) {
           ctx.addTimedCondition(risk.condition, risk.severity);
+        }
+      }
+      for (const byproduct of def.byproducts ?? []) {
+        if (ctx.chance(byproduct.chance)) {
+          ctx.addItem(byproduct.itemId);
         }
       }
     },
@@ -560,22 +610,7 @@ function storageActions(state: GameState): GameAction[] {
   ];
 }
 
-function isRecipeVisible(state: GameState, recipe: RecipeDef): boolean {
-  if (!(recipe.visibleIf?.(state) ?? true)) {
-    return false;
-  }
-  return !recipe.builds || getLocationState(state, state.player.locationId).buildings[recipe.builds] === undefined;
-}
-
-function blockOutsideBuildSites(state: GameState): string | undefined {
-  if (getLocationDef(state.player.locationId).buildable) {
-    return undefined;
-  }
-  const sites = LOCATIONS.filter((l) => l.buildable).map((l) => getLocationInfo(state, l.id).name);
-  return `Can only be built at the ${sites.join(' or ')}`;
-}
-
-function newBuilding(id: keyof LocationBuildings, time: number): LocationBuildings {
+function newBuilding(id: BuildingId, time: number): LocationBuildings {
   switch (id) {
     case 'campfire':
       return { campfire: { builtAt: time, litUntil: time + CAMPFIRE_INITIAL_BURN } };
@@ -586,50 +621,89 @@ function newBuilding(id: keyof LocationBuildings, time: number): LocationBuildin
   }
 }
 
+/** Building steps for the buildings this location allows: starting new ones and continuing unfinished ones. */
+function buildActions(state: GameState): GameAction[] {
+  const locationId = state.player.locationId;
+  const location = getLocationState(state, locationId);
+  return (getLocationDef(locationId).buildings ?? [])
+    .map((id) => BUILDINGS[id])
+    .filter((building) => location.buildings[building.id] === undefined)
+    .map((building): GameAction => {
+      const started = location.constructions[building.id] !== undefined;
+      const step = (location.constructions[building.id]?.stepsDone ?? 0) + 1;
+      const name = building.name.toLowerCase();
+      return {
+        id: `build:${building.id}`,
+        label: started ? `Continue building (step ${step} of ${building.steps})` : 'Start building',
+        category: 'build',
+        description: building.description,
+        details:
+          `Building takes ${building.steps} ${building.steps === 1 ? 'step' : 'steps'} of ${formatDuration(building.minutesPerStep)}. ` +
+          'The materials are used up by the first step; tools are needed for every step.',
+        gains: [{ label: step >= building.steps ? `The ${name} is finished` : `Step ${step} of ${building.steps} done` }],
+        minutes: building.minutesPerStep,
+        energy: building.energyPerStep,
+        timeMode: 'awake',
+        requirements: [workingArm(), ...(started ? [] : building.ingredients.map(ingredient)), ...(building.tools ?? [])],
+        block: started
+          ? undefined
+          : (s) => (allocateIngredients(s.player, building.ingredients) ? undefined : 'Not enough materials for all ingredients'),
+        trains: building.trains,
+        targetId: building.id,
+        run: (ctx) => {
+          const target = ensureLocationState(ctx.state, locationId);
+          const nameBefore = getLocationInfo(ctx.state, locationId).name;
+          const current = target.constructions[building.id];
+          if (!current) {
+            const used = consumeIngredients(ctx, building.ingredients);
+            ctx.log(`You start building the ${name}. (Used: ${used})`, 'info');
+          }
+          const done = (current?.stepsDone ?? 0) + 1;
+          const constructions = { ...target.constructions };
+          if (done >= building.steps) {
+            delete constructions[building.id];
+            target.buildings = { ...target.buildings, ...newBuilding(building.id, ctx.state.time) };
+            ctx.log(building.message, 'good');
+          } else {
+            constructions[building.id] = { stepsDone: done };
+            ctx.log(`You work on the ${name}. ${done} of ${building.steps} steps done.`);
+          }
+          target.constructions = constructions;
+          const nameAfter = getLocationInfo(ctx.state, locationId).name;
+          if (nameAfter !== nameBefore) {
+            ctx.log(`The ${nameBefore.toLowerCase()} is starting to feel like home. This is your ${nameAfter.toLowerCase()} now.`, 'info');
+          }
+        },
+      };
+    });
+}
+
 function craftActions(state: GameState): GameAction[] {
-  return RECIPES.filter((recipe) => isRecipeVisible(state, recipe)).map((recipe) => ({
+  return RECIPES.filter((recipe) => recipe.visibleIf?.(state) ?? true).map((recipe) => ({
     id: `craft:${recipe.id}`,
     label: recipe.name,
     category: 'craft',
     description: recipe.description,
-    details: recipe.builds
-      ? 'Built where you stand. Buildings can only be built at the clearing in the forest.'
-      : 'Ingredients that ask for a type accept any item of that type; the cheapest ones are used first.',
-    gains: recipe.result
-      ? resolveGains(state, [{ itemId: recipe.result.itemId, quantity: recipe.result.quantity }])
-      : [{ label: recipe.builds ? BUILDINGS[recipe.builds].name : recipe.name }],
+    details: 'Ingredients that ask for a type accept any item of that type; the cheapest ones are used first.',
+    gains: resolveGains(state, [{ itemId: recipe.result.itemId, quantity: recipe.result.quantity }]),
     minutes: recipe.minutes,
     energy: recipe.energy,
     timeMode: 'awake',
     requirements: [workingArm(), ...recipe.ingredients.map(ingredient), ...(recipe.tools ?? []), ...(recipe.stations ?? []).map(station)],
-    block: (s) =>
-      (recipe.builds ? blockOutsideBuildSites(s) : undefined) ??
-      (allocateIngredients(s.player, recipe.ingredients) ? undefined : 'Not enough materials for all ingredients'),
+    block: (s) => (allocateIngredients(s.player, recipe.ingredients) ? undefined : 'Not enough materials for all ingredients'),
     trains: recipe.trains,
     targetId: recipe.id,
     run: (ctx) => {
-      const locationId = ctx.state.player.locationId;
-      const nameBefore = getLocationInfo(ctx.state, locationId).name;
       const used = consumeIngredients(ctx, recipe.ingredients);
-      if (recipe.builds) {
-        const location = ensureLocationState(ctx.state, locationId);
-        location.buildings = { ...location.buildings, ...newBuilding(recipe.builds, ctx.state.time) };
-      }
       const { craftedRecipes } = ctx.state.player;
       if (!craftedRecipes.includes(recipe.id)) {
         craftedRecipes.push(recipe.id);
       }
-      ctx.log(recipe.message, recipe.builds ? 'good' : 'neutral');
+      ctx.log(recipe.message);
       if (used) {
         ctx.log(`Used: ${used}`, 'info');
       }
-      const nameAfter = getLocationInfo(ctx.state, locationId).name;
-      if (nameAfter !== nameBefore) {
-        ctx.log(`The ${nameBefore.toLowerCase()} is starting to feel like home. This is your ${nameAfter.toLowerCase()} now.`, 'info');
-      }
-      if (recipe.result) {
-        ctx.addItem(recipe.result.itemId, recipe.result.quantity);
-      }
+      ctx.addItem(recipe.result.itemId, recipe.result.quantity);
     },
   }));
 }

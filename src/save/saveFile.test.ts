@@ -237,3 +237,21 @@ describe('migration from save format 2', () => {
     expect(state.locations.beach?.stock).toEqual({ 'palms:fallen': { amount: 1, updatedAt: 200 } });
   });
 });
+
+describe('migration from save format 3', () => {
+  it('adds an empty list of unfinished buildings to every location', () => {
+    // Arrange
+    const state = createNewGame(5) as unknown as { locations: Record<string, Record<string, unknown>> };
+    for (const location of Object.values(state.locations)) {
+      delete location.constructions;
+    }
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 3, gameVersion: '0.5.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 3 });
+    const migrated = (result as { state: GameState }).state;
+    expect(Object.values(migrated.locations).every((l) => JSON.stringify(l.constructions) === '{}')).toBe(true);
+  });
+});

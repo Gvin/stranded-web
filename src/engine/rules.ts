@@ -94,6 +94,9 @@ export const SURVIVAL_RULES = {
   exhaustionDizziness: 'medium' as Severity,
   /** Sleeping is only possible while energy is below this value. */
   sleepBelowEnergy: 50,
+  /** "Sleep till morning" wakes the player at this hour and is offered only when that is at most this many hours away. */
+  wakeUpHour: 6,
+  sleepTillMorningMaxHours: 12,
   /** Simulation step in game minutes. */
   tickMinutes: 10,
   maxLogEntries: 200,

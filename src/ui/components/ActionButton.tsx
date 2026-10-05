@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useId, useRef, useState } from 'react';
+import { type PointerEvent, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { formatDuration } from '../../engine/time';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionPopup } from './ActionPopup';
@@ -9,12 +9,13 @@ interface ActionButtonProps {
   /** Compact buttons skip the description, e.g. inside item rows. */
   compact?: boolean;
   label?: string;
+  icon?: ReactNode;
 }
 
 const HOVER_DELAY = 300;
 const LONG_PRESS = 450;
 
-export function ActionButton({ view, onPerform, compact, label }: ActionButtonProps) {
+export function ActionButton({ view, onPerform, compact, label, icon }: ActionButtonProps) {
   const { action, blocked, energyShortfall } = view;
   const popupId = useId();
   const button = useRef<HTMLButtonElement>(null);
@@ -78,7 +79,7 @@ export function ActionButton({ view, onPerform, compact, label }: ActionButtonPr
     }
   };
 
-  const time = action.minutes > 0 ? formatDuration(action.minutes) : 'instant';
+  const time = action.minutes > 0 ? formatDuration(action.minutes) : undefined;
   return (
     <>
       <button
@@ -96,10 +97,14 @@ export function ActionButton({ view, onPerform, compact, label }: ActionButtonPr
         onContextMenu={(event) => event.preventDefault()}
       >
         <span className="action__row">
-          <span className="action__label">{label ?? action.label}</span>
+          <span className="action__label">
+            {icon}
+            {label ?? action.label}
+          </span>
           <span className="action__meta">
             {time}
-            {action.energy > 0 && <span className={energyShortfall > 0 ? 'action__energy--short' : undefined}> · ⚡{action.energy}</span>}
+            {time && action.energy > 0 && ' · '}
+            {action.energy > 0 && <span className={energyShortfall > 0 ? 'action__energy--short' : undefined}>⚡{action.energy}</span>}
           </span>
         </span>
         {!compact && blocked && <span className="action__reason">{blocked}</span>}

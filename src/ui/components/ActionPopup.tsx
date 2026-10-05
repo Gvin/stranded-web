@@ -1,9 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ATTRIBUTE_NAMES } from '../../engine/rules';
 import { formatDuration } from '../../engine/time';
-import { ATTRIBUTE_IDS } from '../../engine/types';
 import type { ActionView } from '../actionView';
+import { ItemIcon } from './Icon';
 
 interface ActionPopupProps {
   id: string;
@@ -18,7 +17,6 @@ export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>();
   const { action, blocked, requirements, energyShortfall } = view;
-  const trained = ATTRIBUTE_IDS.filter((a) => action.trains?.[a]).map((a) => ATTRIBUTE_NAMES[a]);
 
   useLayoutEffect(() => {
     const popup = ref.current;
@@ -44,8 +42,9 @@ export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
       <div className="popup__heading">
         <strong>{action.label}</strong>
         <span className="popup__meta">
-          {action.minutes > 0 ? formatDuration(action.minutes) : 'instant'}
-          {action.energy > 0 && ` · ⚡${action.energy}`}
+          {[action.minutes > 0 ? formatDuration(action.minutes) : undefined, action.energy > 0 ? `⚡${action.energy}` : undefined]
+            .filter(Boolean)
+            .join(' · ')}
         </span>
       </div>
       {action.description && <p>{action.description}</p>}
@@ -74,8 +73,8 @@ export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
           <h4 className="popup__title">Possible gains</h4>
           <ul className="popup__list">
             {action.gains.map((gain) => (
-              <li key={gain.label}>
-                • {gain.label}
+              <li key={gain.label} className="popup__gain">
+                {gain.itemId ? <ItemIcon itemId={gain.itemId} size={16} /> : '•'} {gain.label}
                 {gain.chance !== undefined && <span className="popup__chance"> — {Math.round(gain.chance * 100)}%</span>}
               </li>
             ))}
@@ -83,7 +82,6 @@ export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
         </section>
       )}
 
-      {trained.length > 0 && <p className="popup__trains">Practises: {trained.join(', ')}</p>}
       {blocked && <p className="popup__blocked">{blocked}</p>}
     </div>,
     document.body,

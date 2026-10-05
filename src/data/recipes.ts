@@ -1,8 +1,19 @@
 import type { RecipeDef } from '../engine/definitions';
-import { carried, ofType } from '../engine/requirements';
+import { ofType } from '../engine/requirements';
 
 /** Crafting recipes. Set `stations` to require a building or location object nearby (e.g. 'workbench', 'pool'). */
-export const CRAFTING_RECIPES: readonly RecipeDef[] = [
+export const RECIPES: readonly RecipeDef[] = [
+  {
+    id: 'opened-coconut',
+    name: 'Opened coconut',
+    description: 'Crack a coconut open on something heavy.',
+    minutes: 5,
+    energy: 1,
+    ingredients: [{ itemId: 'coconut', quantity: 1 }],
+    tools: [ofType('heavy')],
+    result: { itemId: 'opened-coconut', quantity: 1 },
+    message: 'You smash the coconut against something hard until it cracks open.',
+  },
   {
     id: 'threads',
     name: 'Threads',
@@ -55,6 +66,76 @@ export const CRAFTING_RECIPES: readonly RecipeDef[] = [
     message: 'You fold the cloth into a neat dressing and tie it off.',
   },
   {
+    id: 'spear',
+    name: 'Spear',
+    description: 'Bind a sharp point to a long stick. A weapon, and good for fishing.',
+    minutes: 30,
+    energy: 3,
+    ingredients: [
+      { type: 'stick', quantity: 1 },
+      { type: 'sharp', quantity: 1 },
+      { type: 'rope', quantity: 1 },
+    ],
+    result: { itemId: 'spear', quantity: 1 },
+    trains: { agility: 1, strength: 1 },
+    message: 'You bind the sharp point tightly to the end of a long stick.',
+  },
+  {
+    id: 'bad-arrow',
+    name: 'Bad wooden arrows',
+    description: 'Whittle sticks into crude arrows. They fly badly and are often lost.',
+    minutes: 30,
+    energy: 2,
+    ingredients: [{ type: 'stick', quantity: 1 }],
+    tools: [ofType('knife')],
+    result: { itemId: 'bad-arrow', quantity: 5 },
+    trains: { agility: 1 },
+    message: 'You split a stick and whittle the pieces into five crude arrows.',
+  },
+  {
+    id: 'wooden-arrow',
+    name: 'Wooden arrow',
+    description: 'Fletch a crude arrow with a feather so it flies true.',
+    minutes: 10,
+    energy: 1,
+    ingredients: [
+      { itemId: 'bad-arrow', quantity: 1 },
+      { type: 'feather', quantity: 1 },
+    ],
+    result: { itemId: 'wooden-arrow', quantity: 1 },
+    trains: { agility: 1, perception: 1 },
+    message: 'You split the feather and bind it to the arrow shaft.',
+  },
+  {
+    id: 'stone-arrow',
+    name: 'Stone tip arrow',
+    description: 'Fit a pebble tip to a fletched arrow. Hits harder and breaks less.',
+    minutes: 10,
+    energy: 1,
+    ingredients: [
+      { itemId: 'wooden-arrow', quantity: 1 },
+      { type: 'pebble', quantity: 1 },
+    ],
+    result: { itemId: 'stone-arrow', quantity: 1 },
+    trains: { agility: 1, perception: 1 },
+    message: 'You notch a pebble into the tip of the arrow.',
+  },
+  {
+    id: 'axe',
+    name: 'Axe',
+    description: 'Lash a sharp blade to a stick handle. Needed to chop wood.',
+    minutes: 40,
+    energy: 4,
+    ingredients: [
+      { type: 'stick', quantity: 1 },
+      { type: 'rope', quantity: 1 },
+      { type: 'sharp', quantity: 1 },
+    ],
+    result: { itemId: 'axe', quantity: 1 },
+    trains: { strength: 1, agility: 1 },
+    message: 'You wedge the sharp blade into a split handle and lash it tight.',
+  },
+  {
     id: 'hammer',
     name: 'Hammer',
     description: 'Lash a stone head to a stick handle. Needed for building.',
@@ -73,7 +154,7 @@ export const CRAFTING_RECIPES: readonly RecipeDef[] = [
   {
     id: 'bow',
     name: 'Bow',
-    description: 'String a bent stick. Lights fires with a drill, and hunts when held.',
+    description: 'String a bent stick. Shoots arrows when held.',
     minutes: 30,
     energy: 3,
     ingredients: [
@@ -86,74 +167,3 @@ export const CRAFTING_RECIPES: readonly RecipeDef[] = [
     message: 'You bend a springy stick and string it taut.',
   },
 ];
-
-/** Buildings; they can only be built at buildable locations. */
-export const BUILDING_RECIPES: readonly RecipeDef[] = [
-  {
-    id: 'build-campfire',
-    name: 'Campfire',
-    description: 'A ring of stones and a fire lit with a bow drill. Burns for 3 hours; feed it to keep it going.',
-    minutes: 30,
-    energy: 5,
-    ingredients: [
-      { type: 'stick', quantity: 4 },
-      { type: 'threads', quantity: 1 },
-      { type: 'stone', quantity: 3 },
-    ],
-    tools: [carried('bow')],
-    builds: 'campfire',
-    trains: { perception: 1 },
-    message: 'You spin the drill with the bow until the tinder smokes and catches. A small campfire crackles to life.',
-  },
-  {
-    id: 'build-workbench',
-    name: 'Workbench',
-    description: 'A sturdy work surface for more advanced crafting.',
-    minutes: 60,
-    energy: 12,
-    ingredients: [
-      { itemId: 'log', quantity: 2 },
-      { type: 'stick', quantity: 4 },
-      { type: 'rope', quantity: 2 },
-    ],
-    tools: [ofType('knife')],
-    builds: 'workbench',
-    trains: { strength: 1, agility: 1 },
-    message: 'You lash sticks across two logs into a solid work surface.',
-  },
-  {
-    id: 'build-storage',
-    name: 'Small storage',
-    description: 'A raised, covered rack that keeps up to 40 kg of items safe from rotting.',
-    minutes: 60,
-    energy: 10,
-    ingredients: [
-      { itemId: 'log', quantity: 2 },
-      { type: 'stick', quantity: 6 },
-      { type: 'rope', quantity: 2 },
-    ],
-    tools: [carried('hammer')],
-    builds: 'storage',
-    trains: { strength: 2 },
-    message: 'You hammer together a raised rack and cover it. Your things will be safe here.',
-  },
-  {
-    id: 'build-hut',
-    name: 'Hut',
-    description: 'A small hut of logs, sticks and grass. Sleeping inside is far more restful.',
-    minutes: 120,
-    energy: 20,
-    ingredients: [
-      { itemId: 'log', quantity: 4 },
-      { type: 'stick', quantity: 8 },
-      { type: 'rope', quantity: 4 },
-      { itemId: 'grass', quantity: 6 },
-    ],
-    tools: [carried('hammer')],
-    builds: 'hut',
-    trains: { strength: 2, endurance: 1 },
-    message: 'You thatch the last of the roof. It is small and crooked, but it is a hut.',
-  },
-];
-
-export const RECIPES: readonly RecipeDef[] = [...CRAFTING_RECIPES, ...BUILDING_RECIPES];

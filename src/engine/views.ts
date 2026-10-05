@@ -5,7 +5,8 @@ import { isObjectPresent } from './actions';
 import type { ItemDef, LocationInfo } from './definitions';
 import { stackWeight } from './inventory';
 import { formatDuration } from './time';
-import { BUILDING_IDS, type GameState } from './types';
+import type { IconName } from '../icons/gameIcons';
+import { BUILDING_IDS, type BuildingId, type GameState } from './types';
 import { getLocationInfo, getLocationState, getStock, groundItemExpiresAt, isCampfireLit } from './world';
 
 // Read-only projections of the state for the UI.
@@ -17,6 +18,9 @@ export interface ObjectView {
   status?: string;
   /** Built by the player rather than part of the location. */
   building?: boolean;
+  icon?: IconName;
+  /** Set for an unfinished building; its build actions continue the work. */
+  construction?: BuildingId;
 }
 
 export interface GroundItemView {
@@ -34,10 +38,29 @@ export interface LocationView extends LocationInfo {
   groundItems: GroundItemView[];
 }
 
+function constructionViews(state: GameState): ObjectView[] {
+  const location = getLocationState(state, state.player.locationId);
+  return BUILDING_IDS.filter((id) => location.constructions[id] !== undefined).map((id) => ({
+    id: `construction:${id}`,
+    name: `${BUILDINGS[id].name} (unfinished)`,
+    description: `The ${BUILDINGS[id].name.toLowerCase()} is taking shape, but there is more work to do.`,
+    status: `${location.constructions[id]?.stepsDone ?? 0} of ${BUILDINGS[id].steps} steps done`,
+    building: true,
+    icon: BUILDINGS[id].icon,
+    construction: id,
+  }));
+}
+
 function buildingViews(state: GameState): ObjectView[] {
   const location = getLocationState(state, state.player.locationId);
   return BUILDING_IDS.filter((id) => location.buildings[id] !== undefined).map((id) => {
-    const view: ObjectView = { id, name: BUILDINGS[id].name, description: BUILDINGS[id].description, building: true };
+    const view: ObjectView = {
+      id,
+      name: BUILDINGS[id].name,
+      description: BUILDINGS[id].description,
+      building: true,
+      icon: BUILDINGS[id].icon,
+    };
     const { campfire, storage } = location.buildings;
     if (id === 'campfire' && campfire) {
       const lit = isCampfireLit(location, state.time);
@@ -67,7 +90,7 @@ export function getLocationView(state: GameState): LocationView {
   return {
     id,
     ...getLocationInfo(state, id),
-    objects: [...buildingViews(state), ...objects],
+    objects: [...buildingViews(state), ...constructionViews(state), ...objects],
     groundItems: location.groundItems.map((g) => ({
       id: g.id,
       def: getItemDef(g.itemId),

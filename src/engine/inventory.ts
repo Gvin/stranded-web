@@ -1,6 +1,6 @@
 import { getItemDef, ITEM_ORDER } from '../data/items';
 import { canHoldWith } from './conditions';
-import type { EquipmentDef, Ingredient, ItemDef, ResourceType } from './definitions';
+import type { EquipmentDef, Ingredient, ItemDef, ResourceDef, ResourceType } from './definitions';
 import { EQUIP_SLOTS, type EquipSlot, HAND_SLOTS, type HandSlot, type InventoryStack, type PlayerState } from './types';
 
 export const HAND_ARM: Record<HandSlot, 'leftArm' | 'rightArm'> = { leftHand: 'leftArm', rightHand: 'rightArm' };
@@ -120,7 +120,37 @@ export function carriedWeight(player: PlayerState): number {
 
 /** Best weapon bonus among the items held in hands. */
 export function combatBonus(player: PlayerState): number {
-  return Math.max(0, ...HAND_SLOTS.map((slot) => getEquipped(player, slot)?.combat ?? 0));
+  return bestWeapon(player)?.bonus ?? 0;
+}
+
+/** The most accurate arrow in the bag, if any. */
+export function bestArrow(player: PlayerState): ResourceDef | undefined {
+  return player.inventory
+    .map((s) => getItemDef(s.itemId))
+    .filter((def): def is ResourceDef => def.category === 'resource' && def.arrow !== undefined)
+    .sort((a, b) => (b.arrow?.accuracy ?? 0) - (a.arrow?.accuracy ?? 0))[0];
+}
+
+/** Accuracy bonus of the arrow the bow would shoot next (0 without arrows). */
+export function arrowAccuracy(player: PlayerState): number {
+  return bestArrow(player)?.arrow?.accuracy ?? 0;
+}
+
+/** The held item that gives the best fighting bonus; a bow only counts with arrows in the bag. */
+export function bestWeapon(player: PlayerState): { def: EquipmentDef; bonus: number } | undefined {
+  const arrow = bestArrow(player);
+  let best: { def: EquipmentDef; bonus: number } | undefined;
+  for (const slot of HAND_SLOTS) {
+    const def = getEquipped(player, slot);
+    if (!def?.combat || (def.needsArrows && !arrow)) {
+      continue;
+    }
+    const bonus = def.combat + (def.needsArrows ? (arrow?.arrow?.accuracy ?? 0) : 0);
+    if (!best || bonus > best.bonus) {
+      best = { def, bonus };
+    }
+  }
+  return best;
 }
 
 /** Moves the item in the slot back into the bag and returns its id. */

@@ -5,7 +5,7 @@ import type { LocationInfo, ObjectDef, StockDef } from './definitions';
 import { BUILDING_IDS, type BuildingId, type GameState, type GroundItem, type LocationState } from './types';
 
 export function createLocationState(): LocationState {
-  return { visited: false, groundItems: [], stock: {}, finds: {}, buildings: {} };
+  return { visited: false, groundItems: [], stock: {}, finds: {}, buildings: {}, constructions: {} };
 }
 
 /** Read-only access: returns a fresh default for locations that have no state yet. */
@@ -101,9 +101,9 @@ export function removeExpiredGroundItems(state: GameState): GroundItem[] {
   return removed;
 }
 
-/** Whether the player has built anything at the location. */
+/** Whether the player has built, or started building, anything at the location. */
 export function hasBuildings(location: LocationState): boolean {
-  return BUILDING_IDS.some((id) => location.buildings[id] !== undefined);
+  return BUILDING_IDS.some((id) => location.buildings[id] !== undefined || location.constructions[id] !== undefined);
 }
 
 /** Name, type and description of a location as the player currently knows it. */

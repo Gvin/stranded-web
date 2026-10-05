@@ -55,6 +55,17 @@ export function MenuDialog({ onClose, onNewGame }: MenuDialogProps) {
         </div>
       )}
       <p className="version">
+        Icons by Lorc, Delapouite and contributors from{' '}
+        <a href="https://game-icons.net" target="_blank" rel="noreferrer">
+          game-icons.net
+        </a>
+        , licensed under{' '}
+        <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">
+          CC BY 3.0
+        </a>
+        .
+      </p>
+      <p className="version">
         Version {GAME_VERSION} · save format {SAVE_VERSION}
       </p>
     </Modal>

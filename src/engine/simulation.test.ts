@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyBodyCondition, bodyConditionSeverity } from './conditions';
 import { advanceTime } from './simulation';
 import { createTestGame } from './testUtils';
-import { days, hours } from './time';
+import { days, hours, minutesUntilHour } from './time';
 import { dropOnGround } from './world';
 
 describe('advanceTime', () => {
@@ -157,5 +157,19 @@ describe('advanceTime', () => {
     // Assert
     expect(state.locations.beach?.groundItems.map((g) => g.itemId)).toEqual(['stone']);
     expect(state.log.at(-1)?.text).toBe('The raw fish you left here has rotted away.');
+  });
+});
+
+describe('minutesUntilHour', () => {
+  it('counts the minutes until the clock next shows the hour', () => {
+    // Act
+    const fromStart = minutesUntilHour(0, 6);
+    const fromEvening = minutesUntilHour(13 * 60, 6);
+    const atSix = minutesUntilHour(23 * 60, 6);
+
+    // Assert
+    expect(fromStart).toBe(23 * 60);
+    expect(fromEvening).toBe(10 * 60);
+    expect(atSix).toBe(24 * 60);
   });
 });

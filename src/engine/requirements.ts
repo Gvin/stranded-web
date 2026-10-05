@@ -1,16 +1,31 @@
 import { getItemDef } from '../data/items';
 import { hasWorkingArm } from './conditions';
 import type { Ingredient, Requirement, ResourceType } from './definitions';
-import { countItem, countType, hasType, holdingItem, holdingType, itemsOfType, possesses } from './inventory';
+import { bestArrow, countItem, countType, hasType, holdingItem, holdingType, possesses } from './inventory';
 import { isStationPresent, stationName } from './world';
 
 // Reusable requirement factories for content. Descriptions are computed lazily, so they can be
 // created while the item catalogue module is still loading.
 
-function typeLabel(type: ResourceType): string {
-  const names = itemsOfType(type).map((d) => d.name);
-  const label = capitalize(type);
-  return names.length === 1 && names[0] === label ? label : `${label} (${names.join(', ')})`;
+/** How a crafting type reads in requirements: what the player needs, not a list of every matching item. */
+const TYPE_LABELS: Record<ResourceType, string> = {
+  stick: 'Stick',
+  fuel: 'Something that burns',
+  heavy: 'Something heavy',
+  stone: 'Stone',
+  threads: 'Threads',
+  rope: 'Rope',
+  sharp: 'Something sharp',
+  knife: 'Something sharp',
+  cloth: 'Cloth',
+  pebble: 'Pebble',
+  feather: 'Feather',
+  coconut_shell: 'Coconut shell',
+  bottle: 'Bottle',
+};
+
+export function typeLabel(type: ResourceType): string {
+  return TYPE_LABELS[type];
 }
 
 /** An item of the crafting type must be held in a hand. */
@@ -64,6 +79,14 @@ export function ingredient(needed: Ingredient): Requirement {
   };
 }
 
+/** An arrow in the bag, for shooting with the bow. */
+export function arrow(): Requirement {
+  return {
+    describe: () => 'An arrow',
+    test: (state) => bestArrow(state.player) !== undefined,
+  };
+}
+
 /** A building or location object must be present here. */
 export function station(id: string): Requirement {
   return {
@@ -79,13 +102,20 @@ export function anyOf(...requirements: Requirement[]): Requirement {
   };
 }
 
+/** Both arms and both legs whole: not broken, splinted or missing (e.g. for climbing). */
+export function unbrokenLimbs(): Requirement {
+  return {
+    describe: () => 'Both arms and legs unbroken',
+    test: (state) =>
+      (['leftArm', 'rightArm', 'leftLeg', 'rightLeg'] as const).every((part) =>
+        state.player.body[part].every((c) => c.id !== 'fractured' && c.id !== 'splinted' && c.id !== 'missing'),
+      ),
+  };
+}
+
 export function workingArm(): Requirement {
   return {
     describe: () => 'A working arm',
     test: (state) => hasWorkingArm(state.player),
   };
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }

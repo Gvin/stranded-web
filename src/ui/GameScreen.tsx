@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getActions } from '../engine/actions';
-import { getCharacterSheet } from '../engine/character';
+import { type CharacterSheet, getCharacterSheet } from '../engine/character';
 import { BODY_CONDITIONS } from '../engine/conditions';
 import type { GameState } from '../engine/types';
 import { BODY_PART_IDS } from '../engine/types';
 import { type ActionView, toActionView } from './actionView';
+import type { IconName } from '../icons/gameIcons';
+import { Icon } from './components/Icon';
 import { MenuDialog } from './components/MenuDialog';
 import { StatBars } from './components/StatBars';
 import { TopBar } from './components/TopBar';
@@ -20,12 +22,12 @@ import { useMediaQuery } from './useMediaQuery';
 
 type TabId = 'explore' | 'bag' | 'body' | 'craft' | 'journal';
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'explore', label: 'Explore', icon: '🧭' },
-  { id: 'bag', label: 'Bag', icon: '🎒' },
-  { id: 'body', label: 'Body', icon: '❤️' },
-  { id: 'craft', label: 'Craft', icon: '🔨' },
-  { id: 'journal', label: 'Journal', icon: '📜' },
+const TABS: { id: TabId; label: string; icon: IconName }[] = [
+  { id: 'explore', label: 'Explore', icon: 'compass' },
+  { id: 'bag', label: 'Bag', icon: 'knapsack' },
+  { id: 'body', label: 'Body', icon: 'heart-beats' },
+  { id: 'craft', label: 'Craft', icon: 'hammer-nails' },
+  { id: 'journal', label: 'Journal', icon: 'tied-scroll' },
 ];
 
 interface GameScreenProps {
@@ -38,6 +40,12 @@ function needsTreatment(state: GameState): boolean {
 }
 
 /** Recipes the player can make right now but has never made. */
+/** One key per condition on the body or its parts, to notice conditions the player has not looked at yet. */
+function conditionKeys(state: GameState, sheet: CharacterSheet): string[] {
+  const parts = BODY_PART_IDS.flatMap((part) => state.player.body[part].map((c) => `${part}:${c.id}`));
+  return [...parts, ...sheet.conditions.map((c) => `player:${c.id}`)];
+}
+
 export function newCraftableRecipes(state: GameState, actions: readonly ActionView[]): string[] {
   return actions
     .filter((a) => a.action.category === 'craft' && !a.blocked && !state.player.craftedRecipes.includes(a.action.targetId ?? ''))
@@ -56,6 +64,14 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
 
   const tabs = wide ? TABS.filter((t) => t.id !== 'explore') : TABS;
   const activeTab = wide && tab === 'explore' ? 'bag' : tab;
+  const currentConditions = useMemo(() => conditionKeys(state, sheet), [state, sheet]);
+  const [seenConditions, setSeenConditions] = useState(() => new Set(currentConditions));
+  const bodyOpen = activeTab === 'body';
+  useEffect(() => {
+    // why: viewing the Body tab marks every condition as seen; healed ones are forgotten so they count as new if they return.
+    setSeenConditions((seen) => new Set(bodyOpen ? currentConditions : currentConditions.filter((key) => seen.has(key))));
+  }, [bodyOpen, currentConditions]);
+  const newCondition = currentConditions.some((key) => !seenConditions.has(key));
   const alerts: Partial<Record<TabId, string>> = {
     body: needsTreatment(state) ? 'Wounds need treatment' : undefined,
     craft: newCraftableRecipes(state, actions).length > 0 ? 'You can craft something new' : undefined,
@@ -87,9 +103,14 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
           onClick={() => setTab(t.id)}
         >
           <span className="tab__icon" aria-hidden="true">
-            {t.icon}
+            <Icon name={t.icon} size={wide ? 18 : 24} />
           </span>
           <span className="tab__label">{t.label}</span>
+          {t.id === 'body' && newCondition && (
+            <span className="tab__new" role="status" aria-label="New condition" title="New condition">
+              !
+            </span>
+          )}
           {alerts[t.id] && (
             <span className={`tab__alert tab__alert--${t.id}`} role="status" aria-label={alerts[t.id]} title={alerts[t.id]} />
           )}

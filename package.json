@@ -1,7 +1,7 @@
 {
   "name": "stranded-web",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.6.0",
   "description": "Text-based browser RPG about surviving stranded on an island.",
   "type": "module",
   "scripts": {
@@ -12,13 +12,15 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.1.2",

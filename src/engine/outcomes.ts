@@ -1,7 +1,7 @@
 import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, canHaveCondition, hasBodyCondition, type Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { GainDef } from './definitions';
-import { combatBonus } from './inventory';
+import { bestArrow, bestWeapon } from './inventory';
 import { fightPower, fightWinChance } from './rules';
 import type { BodyPartId, GameState } from './types';
 import { getLocationState } from './world';
@@ -121,7 +121,11 @@ export interface EnemyDef {
 
 /** Resolves a fight using strength, agility and the best held weapon; returns whether the player won. */
 export function fight(ctx: ActionContext, enemy: EnemyDef): boolean {
-  const power = fightPower(ctx.attribute('strength'), ctx.attribute('agility'), combatBonus(ctx.state.player));
+  const weapon = bestWeapon(ctx.state.player);
+  const power = fightPower(ctx.attribute('strength'), ctx.attribute('agility'), weapon?.bonus ?? 0);
+  if (weapon?.def.needsArrows) {
+    fireArrow(ctx);
+  }
   const won = ctx.chance(fightWinChance(power, enemy.difficulty));
   if (won) {
     if (ctx.chance(0.25)) {
@@ -134,6 +138,22 @@ export function fight(ctx: ActionContext, enemy: EnemyDef): boolean {
   ctx.log(`The ${enemy.name} overpowers you.`, 'bad');
   injure(ctx, { parts: [...LEGS, 'torso', ...ARMS], bleedingChance: 0.5, fractureChance: 0.1 });
   return false;
+}
+
+/**
+ * Shoots the most accurate arrow in the bag and returns its accuracy bonus.
+ * The arrow may be lost; call only when an arrow is available.
+ */
+export function fireArrow(ctx: ActionContext): number {
+  const arrow = bestArrow(ctx.state.player);
+  if (!arrow?.arrow) {
+    return 0;
+  }
+  if (ctx.chance(arrow.arrow.lossChance)) {
+    ctx.removeItem(arrow.id);
+    ctx.log(`Your ${arrow.name.toLowerCase()} is lost.`, 'info');
+  }
+  return arrow.arrow.accuracy;
 }
 
 /** A fall from a height: damage plus an injured limb that may break. */

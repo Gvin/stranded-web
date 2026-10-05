@@ -1280,3 +1280,104 @@ html[data-theme-ready],
 .tab__alert--craft {
   background: var(--sand);
 }
+
+/* ---------- Icons ---------- */
+
+.icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.item-icon {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text);
+}
+
+.item-icon__badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  color: var(--bad);
+  background: var(--panel);
+  border-radius: 50%;
+  padding: 1px;
+}
+
+.item__name,
+.slot__item,
+.object__name,
+.action__label,
+.popup__gain,
+.need {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.need .item-icon {
+  color: inherit;
+}
+
+.recipe__heading .icon,
+.recipe__heading .item-icon {
+  color: var(--sand);
+}
+
+.ground__item {
+  justify-content: flex-start;
+}
+
+.ground__text {
+  flex: 1;
+}
+
+.version a {
+  color: inherit;
+}
+
+/* ---------- New condition badge and build section ---------- */
+
+.tab__new {
+  position: absolute;
+  top: 4px;
+  left: calc(50% - 22px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--treated);
+  color: var(--on-accent);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+
+.tabs--top .tab__new {
+  position: static;
+}
+
+.build__summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.build__summary::-webkit-details-marker {
+  display: none;
+}
+
+.build__summary::before {
+  content: '▸';
+  transition: transform 0.2s ease;
+}
+
+.build[open] > .build__summary::before {
+  transform: rotate(90deg);
+}

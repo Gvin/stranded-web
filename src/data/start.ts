@@ -40,7 +40,7 @@ export function createStartingState(seed: number): GameState {
       craftedRecipes: [],
     },
     locations: {
-      [START_LOCATION_ID]: { visited: true, groundItems: [], stock: {}, finds: {}, buildings: {} },
+      [START_LOCATION_ID]: { visited: true, groundItems: [], stock: {}, finds: {}, buildings: {}, constructions: {} },
     },
     flags: {},
     log: INTRO.map((text, index) => ({ id: index + 1, time: 0, text, tone: index === 0 ? 'info' : 'neutral' })),
