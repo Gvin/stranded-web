@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getActions } from '../engine/actions';
-import { createNewGame, performAction } from '../engine/game';
+import { createNewGame, findAction, performAction } from '../engine/game';
 import type { GameState } from '../engine/types';
 import { MIGRATIONS, runMigrations } from './migrations';
 import { deserializeGame, serializeGame } from './saveFile';
@@ -8,6 +8,24 @@ import { GAME_VERSION, MIN_SUPPORTED_SAVE_VERSION, SAVE_VERSION } from './versio
 
 const envelope = (saveVersion: number, state: unknown = createNewGame(1)) =>
   JSON.stringify({ saveVersion, gameVersion: '0.0.1', savedAt: '2026-01-01T00:00:00.000Z', state });
+
+type Json = Record<string, unknown>;
+
+/** A new game in save format 5 (game 0.7.0): no weather or exposure, equipment as item ids, no item health. */
+function format5Game(seed: number): Json & { player: Json; locations: Record<string, Json> } {
+  const { environment: _environment, ...state } = createNewGame(seed);
+  void _environment;
+  const { exposure: _exposure, ...player } = state.player;
+  void _exposure;
+  return {
+    ...state,
+    player: {
+      ...player,
+      equipment: Object.fromEntries(Object.entries(player.equipment).map(([slot, item]) => [slot, item?.itemId])),
+      inventory: player.inventory.map(({ itemId, quantity }) => ({ itemId, quantity })),
+    },
+  } as unknown as Json & { player: Json; locations: Record<string, Json> };
+}
 
 describe('save versioning', () => {
   it('has a migration for every supported save version below the current one', () => {
@@ -163,7 +181,7 @@ describe('migration from save format 1', () => {
       { itemId: 'ship-biscuit', quantity: 2 },
       { itemId: 'flint', quantity: 1 },
     ]);
-    expect(state.player.equipment).toEqual({ leftHand: 'hammer', body: 'clothes' });
+    expect(state.player.equipment).toEqual({ leftHand: { itemId: 'hammer' }, body: { itemId: 'clothes', health: 60 } });
     expect(state.player.stats).toMatchObject({ thirst: 40, hunger: 30 });
     expect(state.player.craftedRecipes.sort()).toEqual(['build-campfire', 'build-hut']);
     expect(state.player.body.leftArm).toEqual([{ id: 'injured', remaining: 4320 - 600 }]);
@@ -232,7 +250,7 @@ describe('migration from save format 2', () => {
     expect(result).toMatchObject({ status: 'ok', migratedFrom: 2 });
     const state = (result as { state: GameState }).state;
     expect(state.player.stats).toEqual({ health: 70, thirst: 25, hunger: 60, energy: 60 });
-    expect(state.player.equipment).toEqual({ leftHand: 'knife', body: 'clothes' });
+    expect(state.player.equipment).toEqual({ leftHand: { itemId: 'knife' }, body: { itemId: 'clothes', health: 60 } });
     expect(state.player.craftedRecipes).toEqual(['build-workbench']);
     expect(state.locations.beach?.stock).toEqual({ 'palms:fallen': { amount: 1, updatedAt: 200 } });
   });
@@ -241,7 +259,7 @@ describe('migration from save format 2', () => {
 describe('migration from save format 3', () => {
   it('adds an empty list of unfinished buildings to every location', () => {
     // Arrange
-    const state = createNewGame(5) as unknown as { locations: Record<string, Record<string, unknown>> };
+    const state = format5Game(5);
     for (const location of Object.values(state.locations)) {
       delete location.constructions;
     }
@@ -259,7 +277,7 @@ describe('migration from save format 3', () => {
 describe('migration from save format 4', () => {
   it('gives the player an even split of nutrition', () => {
     // Arrange
-    const state = createNewGame(6) as unknown as { player: Record<string, unknown> };
+    const state = format5Game(6);
     delete state.player.nutrition;
 
     // Act
@@ -268,5 +286,78 @@ describe('migration from save format 4', () => {
     // Assert
     expect(result).toMatchObject({ status: 'ok', migratedFrom: 4 });
     expect((result as { state: GameState }).state.player.nutrition).toEqual({ vegetables: 33, meat: 33, fruits: 33 });
+  });
+});
+
+describe('migration from save format 5', () => {
+  it('adds the weather and gives clothes health, one entry per piece', () => {
+    // Arrange
+    const state = format5Game(7);
+    state.player.inventory = [{ itemId: 'stick', quantity: 2 }];
+    state.locations.beach = {
+      ...state.locations.beach,
+      groundItems: [{ id: 40, itemId: 'clothes', quantity: 2, droppedAt: 0 }],
+      buildings: { storage: { builtAt: 0, items: [{ itemId: 'clothes', quantity: 1 }] } },
+    };
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 5, gameVersion: '0.7.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 5 });
+    const migrated = (result as { state: GameState }).state;
+    expect(migrated.environment).toEqual({ weather: 'clear', until: 240 });
+    expect(migrated.player.exposure).toEqual({ veryHot: 0, veryCold: 0, rain: 0 });
+    expect(migrated.player.equipment).toEqual({ body: { itemId: 'clothes', health: 60 } });
+    expect(migrated.player.inventory).toEqual([{ itemId: 'stick', quantity: 2 }]);
+    expect(migrated.locations.beach?.groundItems.map((g) => [g.quantity, g.health])).toEqual([
+      [1, 60],
+      [1, 60],
+    ]);
+    expect(new Set(migrated.locations.beach?.groundItems.map((g) => g.id)).size).toBe(2);
+    expect(migrated.locations.beach?.buildings.storage?.items).toEqual([{ itemId: 'clothes', quantity: 1, health: 60 }]);
+  });
+});
+
+describe('migration from save format 6', () => {
+  it('keeps the game as it is, unfinished buildings keeping the steps already done', () => {
+    // Arrange
+    const state = createNewGame(8);
+    state.locations.camp = {
+      visited: true,
+      groundItems: [],
+      stock: {},
+      finds: {},
+      buildings: {},
+      constructions: { hut: { stepsDone: 3 } },
+    };
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 6, gameVersion: '0.8.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 6 });
+    const migrated = (result as { state: GameState }).state;
+    expect(migrated).toEqual(state);
+    expect(findAction({ ...migrated, player: { ...migrated.player, locationId: 'camp' } }, 'build:hut')?.label).toBe(
+      'Continue building (step 4 of 10)',
+    );
+  });
+});
+
+describe('migration from save format 7', () => {
+  it('gives the player every skill at level 0', () => {
+    // Arrange
+    const state = createNewGame(9) as unknown as { player: Record<string, unknown> };
+    delete state.player.skills;
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 7, gameVersion: '0.10.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 7 });
+    const skills = (result as { state: GameState }).state.player.skills;
+    expect(Object.values(skills)).toEqual(Array.from({ length: 5 }, () => ({ level: 0, points: 0 })));
+    expect(Object.keys(skills).sort()).toEqual(['building', 'crafting', 'farming', 'fighting', 'foraging']);
   });
 });

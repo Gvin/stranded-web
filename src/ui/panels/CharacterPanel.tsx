@@ -1,8 +1,19 @@
 import type { CharacterSheet } from '../../engine/character';
 import { BODY_CONDITIONS, BODY_PARTS, bodyConditionHealsIn, bodyConditionSeverity } from '../../engine/conditions';
-import { ATTRIBUTE_HINTS, NUTRIENT_NAMES, NUTRITION_RULES } from '../../engine/rules';
+import { getBodyTemperature, temperatureId, type TemperatureFactor } from '../../engine/environment';
+import {
+  ATTRIBUTE_HINTS,
+  ENVIRONMENT_RULES,
+  NUTRIENT_NAMES,
+  NUTRITION_RULES,
+  SKILL_NAMES,
+  SKILL_RULES,
+  TEMPERATURE_NAMES,
+  type TemperatureId,
+} from '../../engine/rules';
 import { formatDuration } from '../../engine/time';
-import { ATTRIBUTE_IDS, BODY_PART_IDS, type GameState, NUTRIENT_IDS } from '../../engine/types';
+import { describeSkill } from '../../engine/skills';
+import { ATTRIBUTE_IDS, BODY_PART_IDS, type GameState, NUTRIENT_IDS, SKILL_IDS } from '../../engine/types';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
 
@@ -15,6 +26,68 @@ interface CharacterPanelProps {
 
 /** Food groups at or below this are shown as a warning: a few more meals of other kinds will empty them. */
 const LOW_NUTRITION = 5;
+
+function formatChange(change: number): string {
+  return `${change > 0 ? '+' : '−'}${Math.abs(change)}`;
+}
+
+/** What a body temperature does to thirst and hunger, e.g. "Thirst grows 25% faster." */
+function temperatureEffect(id: TemperatureId): string {
+  const rates = ENVIRONMENT_RULES.rates[id];
+  const parts = (['thirst', 'hunger'] as const)
+    .filter((stat) => rates[stat] !== 1)
+    .map((stat) => `${stat} grows ${Math.round(Math.abs(rates[stat] - 1) * 100)}% ${rates[stat] > 1 ? 'faster' : 'slower'}`);
+  const text = parts.length === 0 ? 'No effect on thirst or hunger' : parts.join(', ');
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+}
+
+function FactorList({ factors }: { factors: readonly TemperatureFactor[] }) {
+  return (
+    <>
+      {factors.map((factor) => (
+        <li key={factor.label} className="small">
+          <span>{factor.label}</span>
+          <span>{formatChange(factor.change)}</span>
+        </li>
+      ))}
+    </>
+  );
+}
+
+function TemperatureSection({ state }: { state: GameState }) {
+  const temperature = getBodyTemperature(state);
+  const environment = temperatureId(temperature.environment);
+  const body = temperatureId(temperature.value);
+  const { veryHot, veryCold } = state.player.exposure;
+  const exposed = body === 'veryHot' ? veryHot : body === 'veryCold' ? veryCold : 0;
+  const limit = formatDuration(ENVIRONMENT_RULES.exposureMinutes);
+  return (
+    <section>
+      <h2 className="section-title">Temperature</h2>
+      <div className="card temperature-card">
+        <div className="temperature-card__row">
+          <span className="temperature-card__label">Body temperature</span>
+          <span className={`temperature temperature--${body}`}>{TEMPERATURE_NAMES[body]}</span>
+        </div>
+        <p className="small">{temperatureEffect(body)}</p>
+        <ul className="modifiers">
+          <FactorList factors={temperature.environmentFactors} />
+          <li className="small temperature-card__total">
+            <span>Island</span>
+            <span className={`temperature temperature--${environment}`}>{TEMPERATURE_NAMES[environment]}</span>
+          </li>
+          <FactorList factors={temperature.bodyFactors} />
+        </ul>
+        {exposed > 0 && exposed <= ENVIRONMENT_RULES.exposureMinutes && (
+          <p className="small text-bad">
+            {TEMPERATURE_NAMES[body]} for {formatDuration(exposed)}. After {limit} without a break you{' '}
+            {body === 'veryHot' ? 'overheat' : 'start freezing'}.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
 
 function formatPercent(percent: number): string {
   return `${percent > 0 ? '+' : ''}${percent}%`;
@@ -43,6 +116,8 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
           </ul>
         )}
       </section>
+
+      <TemperatureSection state={state} />
 
       <section>
         <h2 className="section-title">Body</h2>
@@ -114,6 +189,31 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
           Every meal adds {NUTRITION_RULES.gain} to its food group and takes {NUTRITION_RULES.loss} from the others. If a group runs out,
           malnutrition weakens all your attributes by {NUTRITION_RULES.malnutritionPenalty}%.
         </p>
+      </section>
+
+      <section>
+        <h2 className="section-title">Skills</h2>
+        <ul className="card skills">
+          {SKILL_IDS.map((id) => {
+            const skill = state.player.skills[id];
+            const maxed = skill.level >= SKILL_RULES.maxLevel;
+            return (
+              <li key={id} className="skill">
+                <div className="skill__heading">
+                  <span className="skill__name">{SKILL_NAMES[id]}</span>
+                  <span className="skill__level">
+                    Level {skill.level}
+                    <span className="muted"> / {SKILL_RULES.maxLevel}</span>
+                  </span>
+                </div>
+                <div className="xp" title={maxed ? 'Highest level' : `${skill.points} / ${SKILL_RULES.pointsPerLevel} to the next level`}>
+                  <div className="xp__fill" style={{ width: `${maxed ? 100 : (skill.points / SKILL_RULES.pointsPerLevel) * 100}%` }} />
+                </div>
+                <p className="muted small">{describeSkill(id, skill.level)}</p>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       <section>

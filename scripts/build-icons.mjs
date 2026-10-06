@@ -43,8 +43,18 @@ const GAME_ICONS = [
   'cookie',
   'algae',
   'water-bottle',
+  'animal-hide',
+  'dripping-honey',
   // Equipment
   'shirt',
+  't-shirt',
+  'billed-cap',
+  'hood',
+  'belt-armor',
+  'leather-vest',
+  'leather-armor',
+  'outback-hat',
+  'poncho',
   'bone-knife',
   'flat-hammer',
   'bow-string',
@@ -55,6 +65,7 @@ const GAME_ICONS = [
   'hut',
   'wooden-crate',
   'axe-in-stump',
+  'water-tank',
   // Interface
   'compass',
   'knapsack',
@@ -62,6 +73,16 @@ const GAME_ICONS = [
   'hammer-nails',
   'tied-scroll',
   'fire',
+  'hazard-sign',
+  'thermometer-hot',
+  'thermometer-cold',
+  'thermometer-scale',
+  // Weather
+  'sun',
+  'fluffy-cloud',
+  'wind-slap',
+  'raining',
+  'lightning-storm',
 ];
 
 /** Icons drawn for this game in the same 512×512 style. */

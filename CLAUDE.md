@@ -3,6 +3,8 @@
 Browser text RPG (Vite + React + TypeScript). See README.md for rules and layout.
 
 - Checks before finishing: `npm run typecheck`, `npm test`, `npm run format:check`.
+- **No invented content:** never add game content the user has not asked for (items, actions, buildings, objects, recipes), in code or as
+  decided parts of a plan. Suggest it and label it as a suggestion; the user decides. Planned features are in `docs/feature-plan.md`.
 - **Save format rule:** changing the persisted shapes in `src/engine/types.ts`, renaming/removing an item or location id, or renaming an object whose stock/finds must carry over
   requires bumping `SAVE_VERSION` and adding a self-contained step in `src/save/steps/` registered in `src/save/migrations.ts`, plus a
   test loading the old format (see README "Saves and versioning"). Never edit a released migration.

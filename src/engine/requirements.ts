@@ -22,6 +22,7 @@ const TYPE_LABELS: Record<ResourceType, string> = {
   feather: 'Feather',
   coconut_shell: 'Coconut shell',
   bottle: 'Bottle',
+  glue: 'Glue',
 };
 
 export function typeLabel(type: ResourceType): string {

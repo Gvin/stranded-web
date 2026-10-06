@@ -147,7 +147,7 @@ describe('addBodyCondition', () => {
   it('puts away the item held by an arm that gets fractured', () => {
     // Arrange
     const state = createTestGame();
-    state.player.equipment.rightHand = 'knife';
+    state.player.equipment.rightHand = { itemId: 'knife' };
     const ctx = createActionContext(state);
 
     // Act

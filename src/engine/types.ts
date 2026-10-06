@@ -18,15 +18,29 @@ export const BODY_PART_IDS: readonly BodyPartId[] = ['head', 'torso', 'leftArm',
 export type BodyConditionId = 'injured' | 'bleeding' | 'fractured' | 'burnt' | 'missing' | 'bandaged' | 'splinted';
 
 /** Player-wide conditions that are stored and wear off over time (the rest are derived from stats). */
-export type TimedConditionId = 'poisoned' | 'dizzy';
+export type TimedConditionId = 'poisoned' | 'dizzy' | 'wet' | 'overheated' | 'freezing';
+
+export type SkillId = 'fighting' | 'farming' | 'building' | 'foraging' | 'crafting';
+export const SKILL_IDS: readonly SkillId[] = ['fighting', 'farming', 'building', 'foraging', 'crafting'];
+
+export interface SkillState {
+  /** 0 to SKILL_RULES.maxLevel. */
+  level: number;
+  /** Practice towards the next level. */
+  points: number;
+}
+
+/** Island-wide weather. */
+export type WeatherId = 'clear' | 'cloudy' | 'windy' | 'rainy' | 'stormy';
+export const WEATHER_IDS: readonly WeatherId[] = ['clear', 'cloudy', 'windy', 'rainy', 'stormy'];
 
 export type EquipSlot = 'head' | 'body' | 'leftHand' | 'rightHand';
 export const EQUIP_SLOTS: readonly EquipSlot[] = ['head', 'body', 'leftHand', 'rightHand'];
 export type HandSlot = 'leftHand' | 'rightHand';
 export const HAND_SLOTS: readonly HandSlot[] = ['leftHand', 'rightHand'];
 
-export type BuildingId = 'campfire' | 'hut' | 'storage' | 'workbench';
-export const BUILDING_IDS: readonly BuildingId[] = ['campfire', 'hut', 'storage', 'workbench'];
+export type BuildingId = 'campfire' | 'hut' | 'storage' | 'workbench' | 'rainCollector';
+export const BUILDING_IDS: readonly BuildingId[] = ['campfire', 'hut', 'storage', 'workbench', 'rainCollector'];
 
 export type LogTone = 'neutral' | 'good' | 'bad' | 'info';
 
@@ -54,6 +68,15 @@ export interface AttributeState {
 export interface InventoryStack {
   itemId: string;
   quantity: number;
+  /** Health left, for items that wear out. Such items never stack: their quantity is always 1. */
+  health?: number;
+}
+
+/** An item held in a hand or worn. */
+export interface EquippedItem {
+  itemId: string;
+  /** Health left, for items that wear out. */
+  health?: number;
 }
 
 export interface GroundItem {
@@ -61,6 +84,8 @@ export interface GroundItem {
   itemId: string;
   quantity: number;
   droppedAt: number;
+  /** Health left, for items that wear out (always a single item). */
+  health?: number;
 }
 
 export interface ObjectStock {
@@ -84,6 +109,8 @@ export interface LocationState {
 export interface Construction {
   /** Building steps done so far; the materials were used up by the first one. */
   stepsDone: number;
+  /** The items used up for each of the building's ingredients, in their order; absent for buildings started before game 0.11.0. */
+  used?: InventoryStack[][];
 }
 
 export interface BuildingState {
@@ -95,6 +122,8 @@ export interface LocationBuildings {
   hut?: BuildingState;
   storage?: BuildingState & { items: InventoryStack[] };
   workbench?: BuildingState;
+  /** Holds the water it has collected, in bottles. */
+  rainCollector?: BuildingState & { water: number };
 }
 
 export interface PlayerState {
@@ -103,10 +132,16 @@ export interface PlayerState {
   /** How well fed the player is on each food group; together they never exceed NUTRITION_RULES.total. */
   nutrition: Record<NutrientId, number>;
   attributes: Record<AttributeId, AttributeState>;
+  skills: Record<SkillId, SkillState>;
   body: Record<BodyPartId, BodyCondition[]>;
   conditions: TimedCondition[];
   inventory: InventoryStack[];
-  equipment: Partial<Record<EquipSlot, string>>;
+  equipment: Partial<Record<EquipSlot, EquippedItem>>;
+  /**
+   * Game minutes without a break that the body temperature has been Very Hot or Very Cold, and that the player has
+   * been out in the rain with neither a roof nor waterproof clothes.
+   */
+  exposure: { veryHot: number; veryCold: number; rain: number };
   /** Ids of every recipe the player has made at least once. */
   craftedRecipes: string[];
 }
@@ -116,6 +151,14 @@ export interface LogEntry {
   time: number;
   text: string;
   tone: LogTone;
+  /** Important enough to also show in a popup, e.g. a worn item falling apart. */
+  alert?: boolean;
+}
+
+export interface EnvironmentState {
+  weather: WeatherId;
+  /** Game minute when the current weather ends and the next one is picked. */
+  until: number;
 }
 
 export interface GameState {
@@ -127,6 +170,7 @@ export interface GameState {
   status: 'alive' | 'dead';
   deathCause?: string;
   player: PlayerState;
+  environment: EnvironmentState;
   locations: Record<string, LocationState>;
   flags: Record<string, boolean>;
   log: LogEntry[];

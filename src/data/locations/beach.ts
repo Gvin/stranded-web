@@ -1,6 +1,7 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
+import { isStormy } from '../../engine/environment';
 import { checkGainChance } from '../../engine/gains';
-import { fall, type FindDef, findGains, hasLimitedFindsLeft, injure, LIMBS, rollFinds } from '../../engine/outcomes';
+import { type FindDef, findGains, hasLimitedFindsLeft, rollFinds } from '../../engine/outcomes';
 import { unbrokenLimbs } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
 import { hasBrokenLimb, plentyText } from './shared';
@@ -12,6 +13,7 @@ const WRECKAGE_FINDS: FindDef[] = [
   { itemId: 'ship-biscuit', chance: 0.3, quantity: [1, 2], limit: 6 },
   { itemId: 'water-bottle', chance: 0.2, limit: 2 },
   { itemId: 'knife', chance: 0.12, limit: 1 },
+  { itemId: 'baseball-hat', chance: 0.15, limit: 1, health: 30 },
 ];
 
 const TIDELINE_FINDS: FindDef[] = [
@@ -47,6 +49,7 @@ const wreckage: ObjectDef = {
       minutes: 30,
       energy: 5,
       trains: { perception: 2 },
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You dig through splintered crates and sodden sailcloth.');
         if (!rollFinds(ctx, 'wreckage', WRECKAGE_FINDS)) {
@@ -71,29 +74,23 @@ const palms: ObjectDef = {
     {
       id: 'climb',
       label: 'Climb for coconuts',
-      description: 'Shimmy up a trunk. Agility helps; falling hurts.',
-      details:
-        'Agility decides whether you make it to the top. If you slip, you may fall: that means damage, ' +
-        'an injured limb, sometimes bleeding or a fracture.',
+      description: 'Shimmy up a trunk. Agility helps.',
+      details: 'Agility decides whether you make it to the top.',
       gains: (state) => [{ itemId: 'coconut', quantity: [1, 3], chance: checkGainChance(state, 'agility', 15) }],
       minutes: 30,
       energy: 10,
       usesStock: true,
       requires: [unbrokenLimbs()],
       trains: { agility: 2, strength: 1 },
+      skill: 'foraging',
       run: (ctx) => {
         if (ctx.check('agility', 15)) {
-          const taken = ctx.takeStock(ctx.randomInt(1, 3));
+          const taken = ctx.takeStock(ctx.gathered(ctx.randomInt(1, 3)));
           ctx.log('You shimmy up the trunk and twist the coconuts free.');
           ctx.addItem('coconut', taken);
           return;
         }
-        if (ctx.chance(0.4)) {
-          ctx.log('Halfway up, your grip slips and you crash down onto the sand!', 'bad');
-          fall(ctx, [5, 12], 'You fell from a palm tree and never got up.', 0.25);
-        } else {
-          ctx.log('The trunk is too smooth. You slide back down, empty-handed.');
-        }
+        ctx.log('The trunk is too smooth. You slide back down, empty-handed.');
       },
     },
     {
@@ -101,15 +98,16 @@ const palms: ObjectDef = {
       label: 'Look for fallen coconuts',
       description: 'Search the sand under the palms. Safe, but only a few fall each day.',
       details: 'Perception helps you spot intact coconuts among the empty husks.',
-      gains: [{ itemId: 'coconut', chance: 0.6, perception: true }],
+      gains: [{ itemId: 'coconut', chance: 0.6, perception: true, find: true }],
       minutes: 20,
       energy: 2,
       usesStock: 'fallen',
       trains: { perception: 1 },
+      skill: 'foraging',
       run: (ctx) => {
         if (ctx.chance(ctx.findChance(0.6))) {
           ctx.log('Half buried in the sand under the palms, you find an intact coconut.');
-          ctx.addItem('coconut', ctx.takeStock(1, 'fallen'));
+          ctx.addItem('coconut', ctx.takeStock(ctx.gathered(1), 'fallen'));
         } else {
           ctx.log('You find only cracked, empty husks.');
         }
@@ -135,6 +133,7 @@ const sea: ObjectDef = {
       energy: 3,
       usesStock: 'tideline',
       trains: { perception: 1 },
+      skill: 'foraging',
       run: (ctx) => {
         ctx.takeStock(1, 'tideline');
         ctx.log('You walk the waterline, turning over seaweed and driftwood.');
@@ -158,25 +157,23 @@ const sea: ObjectDef = {
     {
       id: 'dive',
       label: 'Dive at the reef',
-      description: 'Swim out to the reef for fish and shellfish. The water is deep and you are not alone in it.',
-      details:
-        'Agility decides whether the current lets you reach the reef. Rarely, a shark attacks: heavy damage, ' +
-        'heavy bleeding, and it may take a limb. You cannot swim with a broken bone.',
+      description: 'Swim out to the reef for fish and shellfish.',
+      details: 'Agility decides whether the current lets you reach the reef. You cannot swim with a broken bone.',
       gains: (state) =>
         findGains(state, 'beach', 'reef', REEF_FINDS).map((g) =>
           'itemId' in g ? { ...g, chance: (g.chance ?? 1) * checkGainChance(state, 'agility', 20) } : g,
         ),
       minutes: 45,
       energy: 12,
-      block: (state) => (hasBrokenLimb(state) ? 'You cannot swim with a broken limb' : undefined),
+      block: (state) =>
+        isStormy(state)
+          ? 'The sea is too rough to dive in a storm'
+          : hasBrokenLimb(state)
+            ? 'You cannot swim with a broken limb'
+            : undefined,
       trains: { endurance: 2, agility: 1 },
+      skill: 'foraging',
       run: (ctx) => {
-        if (ctx.chance(0.04)) {
-          ctx.log('A grey shape rises from the deep. A shark! It strikes before you can react.', 'bad');
-          ctx.damage(ctx.randomInt(25, 40), 'You were killed by a shark.');
-          injure(ctx, { parts: LIMBS, bleedingChance: 1, bleedingSeverity: 'heavy', lossChance: 0.35 });
-          return;
-        }
         if (!ctx.check('agility', 20)) {
           ctx.log('The current fights you all the way. You come back exhausted and empty-handed.');
           return;

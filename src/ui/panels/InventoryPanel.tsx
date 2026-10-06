@@ -2,13 +2,14 @@ import { STORAGE_CAPACITY } from '../../data/buildings';
 import { getItemDef } from '../../data/items';
 import type { CharacterSheet } from '../../engine/character';
 import type { ItemCategory, ItemDef } from '../../engine/definitions';
-import { stackWeight } from '../../engine/inventory';
+import { describeClothing, entryKey, stackWeight } from '../../engine/inventory';
 import { NUTRIENT_NAMES } from '../../engine/rules';
 import { EQUIP_SLOTS, type EquipSlot, type GameState } from '../../engine/types';
 import { getLocationState } from '../../engine/world';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
 import { ItemIcon } from '../components/Icon';
+import { ItemHealth } from '../components/ItemHealth';
 
 interface InventoryPanelProps {
   state: GameState;
@@ -37,8 +38,11 @@ function itemStats(def: ItemDef): string {
       parts.push(NUTRIENT_NAMES[def.foodGroup].toLowerCase());
     }
   }
-  if (def.category === 'equipment' && def.combat) {
-    parts.push(`+${def.combat} fighting`);
+  if (def.category === 'equipment') {
+    if (def.combat) {
+      parts.push(`+${def.combat} fighting`);
+    }
+    parts.push(...describeClothing(def.clothing).map((effect) => effect.name));
   }
   parts.push(`${def.weight} kg`);
   return parts.join(' · ');
@@ -86,14 +90,15 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
         <h2 className="section-title">Equipment</h2>
         <ul className="card slots">
           {EQUIP_SLOTS.map((slot) => {
-            const itemId = player.equipment[slot];
+            const item = player.equipment[slot];
             const unequip = unequipFor(slot);
             return (
               <li key={slot} className="slot">
                 <span className="slot__name">{SLOT_NAMES[slot]}</span>
-                <span className={itemId ? 'slot__item' : 'slot__item muted'}>
-                  {itemId && <ItemIcon itemId={itemId} size={22} />}
-                  {itemId ? getItemDef(itemId).name : 'empty'}
+                <span className={item ? 'slot__item' : 'slot__item muted'}>
+                  {item && <ItemIcon itemId={item.itemId} size={22} />}
+                  {item ? getItemDef(item.itemId).name : 'empty'}
+                  {item && <ItemHealth itemId={item.itemId} health={item.health} />}
                 </span>
                 {unequip && <ActionButton view={unequip} onPerform={onPerform} compact />}
               </li>
@@ -105,25 +110,28 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
       {player.inventory.length === 0 && <p className="muted empty">Your bag is empty.</p>}
 
       {GROUPS.map((group) => {
-        const stacks = player.inventory.filter((s) => getItemDef(s.itemId).category === group.category);
-        if (stacks.length === 0) {
+        const entries = player.inventory
+          .map((stack, index) => ({ stack, key: entryKey(player.inventory, index) }))
+          .filter(({ stack }) => getItemDef(stack.itemId).category === group.category);
+        if (entries.length === 0) {
           return null;
         }
         return (
           <section key={group.category}>
             <h2 className="section-title">{group.title}</h2>
             <ul className="items">
-              {stacks.map((stack) => {
+              {entries.map(({ stack, key }) => {
                 const def = getItemDef(stack.itemId);
-                const views = [...byTarget('item', def.id), ...byTarget('storage', def.id, 'store:')];
+                const views = [...byTarget('item', key), ...byTarget('storage', key, 'store:')];
                 const reasons = [...new Set(views.map((a) => a.blocked).filter((r): r is string => r !== undefined))];
                 return (
-                  <li key={stack.itemId} className="card item">
+                  <li key={key} className="card item">
                     <div className="item__heading">
                       <span className="item__name">
                         <ItemIcon itemId={def.id} size={28} />
                         {def.name}
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
+                        <ItemHealth itemId={def.id} health={stack.health} />
                       </span>
                       <span className="item__stats">{itemStats(def)}</span>
                     </div>
@@ -156,20 +164,22 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
             <p className="card muted">The storage is empty. Use "Store" on items in your bag.</p>
           ) : (
             <ul className="items">
-              {storage.items.map((stack) => {
+              {storage.items.map((stack, index) => {
                 const def = getItemDef(stack.itemId);
+                const key = entryKey(storage.items, index);
                 return (
-                  <li key={stack.itemId} className="card item">
+                  <li key={key} className="card item">
                     <div className="item__heading">
                       <span className="item__name">
                         <ItemIcon itemId={def.id} size={28} />
                         {def.name}
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
+                        <ItemHealth itemId={def.id} health={stack.health} />
                       </span>
                       <span className="item__stats">{def.weight} kg</span>
                     </div>
                     <div className="item__actions">
-                      {byTarget('storage', def.id, 'take:').map((a) => (
+                      {byTarget('storage', key, 'take:').map((a) => (
                         <ActionButton key={a.action.id} view={a} onPerform={onPerform} compact />
                       ))}
                     </div>

@@ -1,6 +1,8 @@
+import { TRAVEL_LOCATION_ID } from '../data/locations';
 import { createStartingState } from '../data/start';
 import { type GameAction, getActions, getBlockedReason } from './actions';
-import { appendLog, createActionContext, trainAttributes } from './context';
+import { appendLog, createActionContext, trainAttributes, trainSkill } from './context';
+import { applyRain } from './environment';
 import { createSeed } from './random';
 import { advanceTime, clampStats, killPlayer, logWorsenedConditions, snapshotConditions } from './simulation';
 import { changeStat } from './stats';
@@ -40,6 +42,10 @@ export function performAction(state: GameState, actionId: string): GameState {
       return next;
     }
   }
+  if (action.travel) {
+    // why: on the way the player is out in the open, away from the roof and fire they left behind.
+    next.player.locationId = TRAVEL_LOCATION_ID;
+  }
   advanceTime(next, action.minutes, action.timeMode);
   if (next.status !== 'alive') {
     return next;
@@ -49,6 +55,11 @@ export function performAction(state: GameState, actionId: string): GameState {
   if (action.trains) {
     trainAttributes(next, action.trains);
   }
+  if (action.skill) {
+    trainSkill(next, action.skill);
+  }
+  // why: the action may have lit a fire under the open sky in the rain.
+  applyRain(next);
   clampStats(next);
   if (next.player.stats.health <= 0) {
     killPlayer(next, ctx.lastDamageCause ?? 'You succumbed to your injuries.');

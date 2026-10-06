@@ -1,7 +1,7 @@
 import type { Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { IconName } from '../icons/gameIcons';
-import type { AttributeId, BuildingId, GameState, NutrientId, TimedConditionId } from './types';
+import type { AttributeId, BuildingId, GameState, NutrientId, SkillId, TimedConditionId, WeatherId } from './types';
 
 // Static content definitions (items, locations, recipes, buildings). They are code, not save data, but renaming or
 // removing an item, location or object id breaks saves that refer to it and needs a save migration.
@@ -22,7 +22,8 @@ export type ResourceType =
   | 'pebble'
   | 'feather'
   | 'coconut_shell'
-  | 'bottle';
+  | 'bottle'
+  | 'glue';
 
 export type AttributeXp = Partial<Record<AttributeId, number>>;
 
@@ -48,6 +49,8 @@ interface ItemDefBase {
   icon: IconName;
   /** Small badge drawn over the icon, e.g. to tell cooked food from raw food with a similar icon. */
   iconBadge?: 'cooked';
+  /** Full health of an item that wears out while worn; such items never stack. */
+  maxHealth?: number;
 }
 
 export interface ResourceDef extends ItemDefBase {
@@ -79,10 +82,23 @@ export interface FoodDef extends ItemDefBase {
   requires?: Requirement[];
 }
 
+/** What a worn item does against the environment and in fights. */
+export interface ClothingEffects {
+  /** Cold and Very Cold body temperature one step warmer, on top of heating. */
+  warmth?: boolean;
+  /** Hot and Very Hot body temperature one step cooler, like a roof (it does not add to a roof). */
+  shade?: boolean;
+  /** Rainy and Stormy weather do not make the player wet. */
+  waterproof?: boolean;
+  /** Armor points; each stops one point of damage from every hit. */
+  armor?: number;
+}
+
 /** Items that are held in a hand or worn on the head or body. */
 export interface EquipmentDef extends ItemDefBase {
   category: 'equipment';
   slot: 'hand' | 'head' | 'body';
+  clothing?: ClothingEffects;
   /** Bonus added to fighting and hunting power while held. */
   combat?: number;
   /** Only works as a weapon with arrows in the bag (the best arrow adds its accuracy). */
@@ -100,6 +116,8 @@ export type GainDef =
       chance?: number;
       /** The chance improves with perception, like searching. */
       perception?: boolean;
+      /** A find: its chance improves with the Foraging skill. */
+      find?: boolean;
     }
   | { text: string; chance?: number };
 
@@ -128,6 +146,8 @@ export interface ActionDef {
   /** Extra availability rule; returns the reason when the action is blocked. */
   block?: (state: GameState) => string | undefined;
   trains?: AttributeXp;
+  /** The skill the action trains; Foraging actions also get better finds and more gathered items with it. */
+  skill?: SkillId;
   run(ctx: ActionContext): void;
 }
 
@@ -153,7 +173,7 @@ export interface ObjectDef {
   actions: ActionDef[];
 }
 
-export type LocationType = 'beach' | 'forest' | 'spring' | 'rocks' | 'clearing' | 'camp';
+export type LocationType = 'beach' | 'forest' | 'spring' | 'rocks' | 'clearing' | 'camp' | 'path';
 
 export interface LocationInfo {
   name: string;
@@ -190,10 +210,8 @@ export interface BuildingDef {
   name: string;
   description: string;
   icon: IconName;
-  /** Building is done in steps; each step takes this time and energy. */
+  /** Building is done in steps; every step takes BUILDING_STEP_MINUTES and BUILDING_STEP_ENERGY. */
   steps: number;
-  minutesPerStep: number;
-  energyPerStep: number;
   /** Materials, all used up by the first step. */
   ingredients: readonly Ingredient[];
   /** Tools that are needed for every step but not consumed. */
@@ -201,6 +219,30 @@ export interface BuildingDef {
   /** Logged when the building is finished. */
   message: string;
   trains?: AttributeXp;
+  /** Gives its location a roof: shelter from heat and rain. */
+  roof?: boolean;
+  /** Warms its location while it is lit (a campfire). */
+  heating?: boolean;
+  /** Collects rainwater, whatever roof the location has: holds `capacity` bottles, filling at `bottlesPerHour` times the rainfall. */
+  collector?: { capacity: number; bottlesPerHour: number };
+}
+
+export interface WeatherDef {
+  id: WeatherId;
+  name: string;
+  icon: IconName;
+  /** Steps added to the temperature of the time of day. */
+  temperature: number;
+  /** Chance to be picked when the previous weather ends. */
+  chance: number;
+  /** Shortest and longest duration in hours. */
+  hours: readonly [number, number];
+  /** How hard it rains (1 = steady rain): it makes the player wet, puts out campfires where there is no roof, and fills rain collectors. */
+  rainfall?: number;
+  /** The sea is too rough to dive. */
+  storm?: boolean;
+  /** Logged when this weather begins. */
+  message: string;
 }
 
 export interface RecipeDef {

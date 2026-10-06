@@ -6,6 +6,7 @@ import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
 import { CostChips } from '../components/CostChips';
 import { Icon, ItemIcon } from '../components/Icon';
+import { ItemHealth } from '../components/ItemHealth';
 import { LogList } from '../components/LogList';
 
 interface ExplorePanelProps {
@@ -67,8 +68,8 @@ function BuildSection({ state, views, onPerform }: { state: GameState; views: re
               </div>
               <p className="small">{building.description}</p>
               <p className="muted small">
-                {building.steps} {building.steps === 1 ? 'step' : 'steps'} · {formatDuration(building.minutesPerStep)} and ⚡
-                {building.energyPerStep} each · materials are used up by the first step
+                {building.steps} {building.steps === 1 ? 'step' : 'steps'} · {formatDuration(view.action.minutes)} and ⚡
+                {view.action.energy} each · materials are used up by the first step
               </p>
               <CostChips state={state} ingredients={building.ingredients} needs={building.tools ?? []} />
               <ActionButton view={{ ...view, action: { ...view.action, description: undefined } }} onPerform={onPerform} />
@@ -163,6 +164,7 @@ export function ExplorePanel({ state, actions, freshAfterLogId, onPerform }: Exp
                     <span className="ground__name">
                       {item.def.name}
                       {item.quantity > 1 && <span className="muted"> ×{item.quantity}</span>}
+                      <ItemHealth itemId={item.def.id} health={item.health} />
                     </span>
                     <span className="ground__expiry">gone in {formatDuration(item.expiresIn)}</span>
                   </div>

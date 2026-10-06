@@ -24,6 +24,7 @@ export const rocks: LocationDef = {
       minutes: 15,
       energy: 4,
       trains: { strength: 2, perception: 1 },
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You pick through the scree for good stones.');
         rollFinds(ctx, 'scree', STONE_FINDS);
@@ -36,9 +37,10 @@ export const rocks: LocationDef = {
       gains: [{ itemId: 'pebble', quantity: [2, 4] }],
       minutes: 10,
       energy: 2,
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You fill your hands with smooth pebbles from the gravel.');
-        ctx.addItem('pebble', ctx.randomInt(2, 4));
+        ctx.addItem('pebble', ctx.gathered(ctx.randomInt(2, 4)));
       },
     },
   ],

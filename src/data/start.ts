@@ -1,5 +1,7 @@
 import { BODY_CONDITIONS } from '../engine/conditions';
+import { startWeather } from '../engine/environment';
 import { startingNutrition } from '../engine/nutrition';
+import { startingSkills } from '../engine/skills';
 import { BASE_ATTRIBUTE } from '../engine/rules';
 import type { GameState } from '../engine/types';
 import { START_LOCATION_ID } from './locations';
@@ -12,8 +14,11 @@ const INTRO: readonly string[] = [
   'Your throat is dry and the sun is climbing. You need water, food and a place to sleep.',
 ];
 
+/** Health of the clothes the player washes ashore in. */
+const STARTING_CLOTHES_HEALTH = 60;
+
 export function createStartingState(seed: number): GameState {
-  return {
+  const state: GameState = {
     time: 0,
     rng: seed,
     nextId: INTRO.length + 1,
@@ -28,6 +33,7 @@ export function createStartingState(seed: number): GameState {
         perception: attribute(),
         agility: attribute(),
       },
+      skills: startingSkills(),
       body: {
         head: [],
         torso: [],
@@ -38,13 +44,18 @@ export function createStartingState(seed: number): GameState {
       },
       conditions: [],
       inventory: [],
-      equipment: { body: 'clothes' },
+      equipment: { body: { itemId: 'clothes', health: STARTING_CLOTHES_HEALTH } },
+      exposure: { veryHot: 0, veryCold: 0, rain: 0 },
       craftedRecipes: [],
     },
     locations: {
       [START_LOCATION_ID]: { visited: true, groundItems: [], stock: {}, finds: {}, buildings: {}, constructions: {} },
     },
+    environment: { weather: 'clear', until: 0 },
     flags: {},
     log: INTRO.map((text, index) => ({ id: index + 1, time: 0, text, tone: index === 0 ? 'info' : 'neutral' })),
   };
+  // why: the storm of the shipwreck is over; the first day starts clear, for a random time like any other weather.
+  startWeather(state, 'clear', 0);
+  return state;
 }

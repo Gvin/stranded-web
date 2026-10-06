@@ -68,11 +68,19 @@ export function takeStock(state: GameState, locationId: string, object: ObjectDe
   return taken;
 }
 
-export function dropOnGround(state: GameState, locationId: string, itemId: string, quantity: number): void {
+/** Leaves items on the ground; items that wear out lie there one by one, keeping their health (full when not given). */
+export function dropOnGround(state: GameState, locationId: string, itemId: string, quantity: number, health?: number): void {
   if (quantity <= 0) {
     return;
   }
   const location = ensureLocationState(state, locationId);
+  const { maxHealth } = getItemDef(itemId);
+  if (maxHealth !== undefined) {
+    for (let i = 0; i < quantity; i++) {
+      location.groundItems.push({ id: state.nextId++, itemId, quantity: 1, droppedAt: state.time, health: health ?? maxHealth });
+    }
+    return;
+  }
   const sameDrop = location.groundItems.find((g) => g.itemId === itemId && g.droppedAt === state.time);
   if (sameDrop) {
     sameDrop.quantity += quantity;

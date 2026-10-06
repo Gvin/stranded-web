@@ -14,6 +14,6 @@ export const camp: LocationDef = {
     description:
       'Your camp in the forest clearing. Flat, dry ground sheltered from the sea wind — the closest thing to home on this island.',
   },
-  buildings: ['campfire', 'workbench', 'storage', 'hut'],
+  buildings: ['campfire', 'workbench', 'storage', 'hut', 'rainCollector'],
   objects: [],
 };

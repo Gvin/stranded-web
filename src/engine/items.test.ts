@@ -121,7 +121,7 @@ describe('arrows', () => {
   it('make the bow a weapon, the better the arrow the stronger', () => {
     // Arrange
     const state = createTestGame('forest');
-    state.player.equipment.leftHand = 'bow';
+    state.player.equipment.leftHand = { itemId: 'bow' };
     const withoutArrows = bestWeapon(state.player);
     giveItem(state, 'bad-arrow');
     const withBadArrow = bestWeapon(state.player)?.bonus;

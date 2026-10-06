@@ -1,7 +1,7 @@
 import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, canHaveCondition, hasBodyCondition, type Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { GainDef } from './definitions';
-import { bestArrow, bestWeapon } from './inventory';
+import { armorPoints, bestArrow, bestWeapon } from './inventory';
 import { fightPower, fightWinChance } from './rules';
 import type { BodyPartId, GameState } from './types';
 import { getLocationState } from './world';
@@ -10,7 +10,6 @@ import { getLocationState } from './world';
 
 const SEVERITY_ADVERBS: Record<Severity, string> = { light: 'lightly', medium: 'badly', heavy: 'heavily' };
 
-export const LIMBS: readonly BodyPartId[] = ['leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 export const ARMS: readonly BodyPartId[] = ['leftArm', 'rightArm'];
 export const LEGS: readonly BodyPartId[] = ['leftLeg', 'rightLeg'];
 
@@ -22,6 +21,8 @@ export interface FindDef {
   limit?: number;
   /** The chance is not improved by perception. */
   fixedChance?: boolean;
+  /** Health of a found item that wears out; full when not given. */
+  health?: number;
 }
 
 function findKey(objectId: string, itemId: string): string {
@@ -39,10 +40,13 @@ export function findGains(state: GameState, locationId: string, objectId: string
   const taken = getLocationState(state, locationId).finds;
   return finds
     .filter((f) => f.limit === undefined || (taken[findKey(objectId, f.itemId)] ?? 0) < f.limit)
-    .map((f) => ({ itemId: f.itemId, quantity: f.quantity, chance: f.chance, perception: !f.fixedChance }));
+    .map((f) => ({ itemId: f.itemId, quantity: f.quantity, chance: f.chance, perception: !f.fixedChance, find: true }));
 }
 
-/** Rolls every find independently and adds what was found to the bag; returns whether anything was found. */
+/**
+ * Rolls every find independently and adds what was found to the bag; returns whether anything was found.
+ * The Foraging skill raises the chances and the quantities, limited finds never beyond what is left.
+ */
 export function rollFinds(ctx: ActionContext, objectId: string, finds: readonly FindDef[]): boolean {
   const taken = ctx.location().finds;
   let foundAny = false;
@@ -51,17 +55,16 @@ export function rollFinds(ctx: ActionContext, objectId: string, finds: readonly 
     if (find.limit !== undefined && (taken[key] ?? 0) >= find.limit) {
       continue;
     }
-    const chance = find.fixedChance ? find.chance : ctx.findChance(find.chance);
-    if (!ctx.chance(chance)) {
+    if (!ctx.chance(ctx.findChance(find.chance, { perception: !find.fixedChance }))) {
       continue;
     }
     const [min, max] = typeof find.quantity === 'number' ? [find.quantity, find.quantity] : (find.quantity ?? [1, 1]);
-    let quantity = ctx.randomInt(min, max);
+    let quantity = ctx.gathered(ctx.randomInt(min, max));
     if (find.limit !== undefined) {
       quantity = Math.min(quantity, find.limit - (taken[key] ?? 0));
       taken[key] = (taken[key] ?? 0) + quantity;
     }
-    ctx.addItem(find.itemId, quantity);
+    ctx.addItem(find.itemId, quantity, { health: find.health });
     foundAny = true;
   }
   return foundAny;
@@ -119,6 +122,11 @@ export interface EnemyDef {
   deathCause: string;
 }
 
+/** Damage from a hit; every armor point worn stops one point of it. */
+export function hit(ctx: ActionContext, damage: number, deathCause: string): void {
+  ctx.damage(Math.max(0, damage - armorPoints(ctx.state.player)), deathCause);
+}
+
 /** Resolves a fight using strength, agility and the best held weapon; returns whether the player won. */
 export function fight(ctx: ActionContext, enemy: EnemyDef): boolean {
   const weapon = bestWeapon(ctx.state.player);
@@ -129,12 +137,12 @@ export function fight(ctx: ActionContext, enemy: EnemyDef): boolean {
   const won = ctx.chance(fightWinChance(power, enemy.difficulty));
   if (won) {
     if (ctx.chance(0.25)) {
-      ctx.damage(ctx.randomInt(1, Math.ceil(enemy.damage[0] / 2)), enemy.deathCause);
+      hit(ctx, ctx.randomInt(1, Math.ceil(enemy.damage[0] / 2)), enemy.deathCause);
       ctx.log(`The ${enemy.name} catches you with a glancing blow before it goes down.`, 'bad');
     }
     return true;
   }
-  ctx.damage(ctx.randomInt(enemy.damage[0], enemy.damage[1]), enemy.deathCause);
+  hit(ctx, ctx.randomInt(enemy.damage[0], enemy.damage[1]), enemy.deathCause);
   ctx.log(`The ${enemy.name} overpowers you.`, 'bad');
   injure(ctx, { parts: [...LEGS, 'torso', ...ARMS], bleedingChance: 0.5, fractureChance: 0.1 });
   return false;
@@ -154,12 +162,6 @@ export function fireArrow(ctx: ActionContext): number {
     ctx.log(`Your ${arrow.name.toLowerCase()} is lost.`, 'info');
   }
   return arrow.arrow.accuracy;
-}
-
-/** A fall from a height: damage plus an injured limb that may break. */
-export function fall(ctx: ActionContext, damage: readonly [number, number], deathCause: string, fractureChance: number): void {
-  ctx.damage(ctx.randomInt(damage[0], damage[1]), deathCause);
-  injure(ctx, { parts: [...LEGS, ...ARMS], bleedingChance: 0.3, fractureChance });
 }
 
 function randomBleeding(ctx: ActionContext): Severity {

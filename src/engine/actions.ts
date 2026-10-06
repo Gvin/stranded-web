@@ -1,4 +1,4 @@
-import { BUILDINGS, CAMPFIRE_INITIAL_BURN, CAMPFIRE_MAX_BURN, STORAGE_CAPACITY } from '../data/buildings';
+import { BUILDINGS, CAMPFIRE_INITIAL_BURN, CAMPFIRE_MAX_BURN, COLLECTOR_WASH_WATER, STORAGE_CAPACITY } from '../data/buildings';
 import { getItemDef } from '../data/items';
 import { getLocationDef, getRoutesFrom } from '../data/locations';
 import { RECIPES } from '../data/recipes';
@@ -17,22 +17,49 @@ import type {
   TimeMode,
 } from './definitions';
 import { type Gain, resolveGains } from './gains';
+import { canCoolDown, canWarmUp, coolDown, isRaining, roofAt, warmUp } from './environment';
 import {
   addToInventory,
+  addToStacks,
+  allocateByIngredient,
   allocateIngredients,
   countItem,
+  describeClothing,
+  entryKey,
+  findEntry,
   getEquipped,
   HAND_ARM,
   isHandSlot,
   itemsOfType,
   stackWeight,
+  takeFromEntry,
   unequip,
 } from './inventory';
 import { emptyFoodGroups, feedFoodGroup, foodGroupList } from './nutrition';
 import { ingredient, station, workingArm } from './requirements';
-import { CRAFT_ENERGY, speedFactor, SURVIVAL_RULES } from './rules';
+import {
+  BUILDING_STEP_ENERGY,
+  BUILDING_STEP_MINUTES,
+  CRAFT_ENERGY,
+  ENVIRONMENT_RULES,
+  ITEM_WEAR_PER_DAY,
+  SKILL_NAMES,
+  speedFactor,
+  SURVIVAL_RULES,
+} from './rules';
+import { refundableUnits, refundChances, skilledMinutes, skillLevel } from './skills';
 import { formatDuration, hours, minutesUntilHour } from './time';
-import { BODY_PART_IDS, type BuildingId, EQUIP_SLOTS, type EquipSlot, type GameState, HAND_SLOTS, type LocationBuildings } from './types';
+import {
+  BODY_PART_IDS,
+  type BuildingId,
+  EQUIP_SLOTS,
+  type EquipSlot,
+  type GameState,
+  HAND_SLOTS,
+  type InventoryStack,
+  type LocationBuildings,
+  type SkillId,
+} from './types';
 import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, isCampfireLit } from './world';
 
 export type ActionCategory = 'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'build' | 'body';
@@ -55,6 +82,8 @@ export interface GameAction {
   /** Extra availability rule; returns the reason when the action is blocked. */
   block?: (state: GameState) => string | undefined;
   trains?: AttributeXp;
+  /** Skill the action trains (see SKILL_RULES.points). */
+  skill?: SkillId;
   /** Object the action belongs to; gives the action access to the object's stock. */
   object?: ObjectDef;
   /** What the action targets: object, building, item, ground item, equip slot, body part, recipe or location id. */
@@ -63,6 +92,8 @@ export interface GameAction {
   group?: 'fuel';
   /** The item the action uses or works on, so the UI can show its icon. */
   itemId?: string;
+  /** Its time passes on the way (at the travel location, out in the open) rather than where the player started. */
+  travel?: boolean;
   run(ctx: ActionContext): void;
 }
 
@@ -97,6 +128,7 @@ export function getActions(state: GameState): GameAction[] {
     ...locationActions(state),
     ...objectActions(state),
     ...campfireActions(state),
+    ...rainCollectorActions(state),
     ...travelActions(state),
     ...pickupActions(state),
     ...inventoryActions(state),
@@ -126,13 +158,60 @@ function unitsThatFit(itemId: string, freeWeight: number, wanted: number): numbe
   return weight > 0 ? Math.min(wanted, Math.floor(freeWeight / weight + 1e-9)) : wanted;
 }
 
-/** Uses up recipe ingredients from the bag and returns what was used. */
-function consumeIngredients(ctx: ActionContext, ingredients: readonly Ingredient[]): string {
-  const used = allocateIngredients(ctx.state.player, ingredients) ?? [];
-  for (const stack of used) {
+/** Uses up recipe ingredients from the bag and returns the items used for each ingredient. */
+function useUpIngredients(ctx: ActionContext, ingredients: readonly Ingredient[]): InventoryStack[][] {
+  const used = allocateByIngredient(ctx.state.player, ingredients) ?? [];
+  for (const stack of used.flat()) {
     ctx.removeItem(stack.itemId, stack.quantity);
   }
-  return used.map((s) => formatAmount(s.itemId, s.quantity)).join(', ');
+  return used;
+}
+
+/** "2× Stick, Threads", adding up the same item across ingredients. */
+function describeStacks(stacks: readonly InventoryStack[]): string {
+  const total = new Map<string, number>();
+  for (const stack of stacks) {
+    total.set(stack.itemId, (total.get(stack.itemId) ?? 0) + stack.quantity);
+  }
+  return [...total].map(([itemId, quantity]) => formatAmount(itemId, quantity)).join(', ');
+}
+
+/** Uses up recipe ingredients from the bag and returns what was used, for the log. */
+function consumeIngredients(ctx: ActionContext, ingredients: readonly Ingredient[]): string {
+  return describeStacks(useUpIngredients(ctx, ingredients).flat());
+}
+
+/**
+ * Gives back some of the used resources for a Building or Crafting level and logs it. Only an ingredient used 2 or
+ * more times can give one back, and never its last unit (see `refundableUnits`).
+ */
+function giveBackResources(ctx: ActionContext, skill: SkillId, used: readonly (readonly InventoryStack[])[]): void {
+  const { first, second } = refundChances(skillLevel(ctx.state.player, skill));
+  const units = refundableUnits(used);
+  const saved: InventoryStack[] = [];
+  for (const chance of [first, second]) {
+    const candidates = units.flatMap((pool, index) => (pool.length >= 2 ? [index] : []));
+    if (chance <= 0 || candidates.length === 0 || !ctx.chance(chance)) {
+      continue;
+    }
+    const pool = units[ctx.pick(candidates)] ?? [];
+    const [itemId] = pool.splice(Math.floor(ctx.random() * pool.length), 1);
+    if (itemId) {
+      saved.push({ itemId, quantity: 1 });
+    }
+  }
+  if (saved.length === 0) {
+    return;
+  }
+  for (const stack of saved) {
+    ctx.addItem(stack.itemId, stack.quantity, { silent: true });
+  }
+  ctx.log(`Your ${SKILL_NAMES[skill]} skill saved some materials: ${describeStacks(saved)}.`, 'good');
+}
+
+/** What a building used up when it was started before the materials were recorded: the cheapest item of each ingredient. */
+function assumedUse(ingredients: readonly Ingredient[]): InventoryStack[][] {
+  return ingredients.map((i) => [{ itemId: 'itemId' in i ? i.itemId : (itemsOfType(i.type)[0]?.id ?? ''), quantity: i.quantity }]);
 }
 
 function signed(value: number): string {
@@ -218,6 +297,7 @@ function fromActionDef(state: GameState, def: ActionDef, object: ObjectDef): Gam
       return def.block?.(s);
     },
     trains: def.trains,
+    skill: def.skill,
     object,
     targetId: object.id,
     run: def.run,
@@ -271,6 +351,8 @@ function campfireActions(state: GameState): GameAction[] {
         minutes: 15,
         energy: 2,
         requirements: relight.map(ingredient),
+        block: (s) =>
+          isRaining(s) && !roofAt(s, s.player.locationId) ? 'It is raining: the fire will not catch until the rain stops' : undefined,
         run: (ctx) => {
           consumeIngredients(ctx, relight);
           const campfire = ctx.location().buildings.campfire;
@@ -286,7 +368,31 @@ function campfireActions(state: GameState): GameAction[] {
   const cookables = state.player.inventory
     .map((stack) => getItemDef(stack.itemId))
     .filter((def): def is FoodDef => def.category === 'food' && def.cooksInto !== undefined);
+  // why: sitting by the fire only helps against the cold, so it is not offered otherwise.
+  const sit: GameAction[] = canWarmUp(state)
+    ? [
+        {
+          ...base,
+          id: 'campfire:sit',
+          label: 'Sit next to the fire',
+          description: 'Warm yourself and dry off by the flames.',
+          details: 'Offered while the island is Very Cold or you are freezing or wet.',
+          gains: [
+            { label: 'The hour until you freeze starts over' },
+            { label: `Freezing −${ENVIRONMENT_RULES.recoveryMinutes} min` },
+            { label: `Wet −${ENVIRONMENT_RULES.recoveryMinutes} min` },
+          ],
+          minutes: 5,
+          requirements: [],
+          run: (ctx) => {
+            warmUp(ctx);
+            ctx.log('You sit close to the fire and let its warmth soak into you.', 'good');
+          },
+        },
+      ]
+    : [];
   return [
+    ...sit,
     ...fuels.map((def): GameAction => ({
       ...base,
       id: `campfire:fuel:${def.id}`,
@@ -320,24 +426,92 @@ function campfireActions(state: GameState): GameAction[] {
       label: `Cook ${def.name.toLowerCase()}`,
       itemId: def.id,
       description: `Turns it into ${getItemDef(def.cooksInto as string).name.toLowerCase()}.`,
-      details: 'Cooked food is more filling and safe to eat. Careless hands can get burnt; agility helps.',
+      details: 'Cooked food is more filling and safe to eat.',
       gains: resolveGains(state, [{ itemId: def.cooksInto as string }]),
       minutes: 15,
       requirements: [],
       trains: { perception: 1 },
       run: (ctx) => {
         ctx.removeItem(def.id);
-        const burnChance = Math.min(0.25, 0.08 * (20 / ctx.attribute('agility')));
-        const arms = (['leftArm', 'rightArm'] as const).filter((arm) => !hasBodyCondition(ctx.state.player, arm, 'missing'));
-        if (arms.length > 0 && ctx.chance(burnChance)) {
-          const arm = ctx.pick(arms);
-          ctx.addBodyCondition(arm, 'burnt');
-          ctx.log(`The fire flares up and scorches your ${bodyPartName(arm)}!`, 'bad');
-        }
         ctx.log(`You cook the ${def.name.toLowerCase()} over the fire.`);
         ctx.addItem(def.cooksInto as string);
       },
     })),
+  ];
+}
+
+/** Water in a rain collector for display: rounded down to tenths of a bottle, e.g. "1.5". */
+export function formatWater(water: number): string {
+  return String(Math.floor(water * 10 + 1e-9) / 10);
+}
+
+/** Drinking, filling a bottle and washing your face with the water of a rain collector where the player is. */
+function rainCollectorActions(state: GameState): GameAction[] {
+  if (!getLocationState(state, state.player.locationId).buildings.rainCollector) {
+    return [];
+  }
+  const bottle = getItemDef('water-bottle');
+  const hydration = bottle.category === 'food' ? bottle.hydration : 0;
+  const base = { category: 'building' as const, energy: 0, timeMode: 'awake' as const, targetId: 'rainCollector', requirements: [] };
+  const water = (s: GameState) => getLocationState(s, s.player.locationId).buildings.rainCollector?.water ?? 0;
+  const lacks = (s: GameState, amount: number) => (water(s) + 1e-9 < amount ? 'Not enough water in the collector' : undefined);
+  const use = (ctx: ActionContext, amount: number) => {
+    const collector = ctx.location().buildings.rainCollector;
+    if (collector) {
+      collector.water = Math.max(0, collector.water - amount);
+    }
+  };
+  const wash: GameAction = {
+    ...base,
+    id: 'rainCollector:wash',
+    label: 'Wash your face',
+    description: 'Splash cool rainwater on your face and neck.',
+    details: `Offered while the island is Very Hot or you are overheated. Uses ${COLLECTOR_WASH_WATER} bottles of water from the collector.`,
+    gains: [{ label: 'The hour until you overheat starts over' }, { label: `Overheated −${ENVIRONMENT_RULES.recoveryMinutes} min` }],
+    minutes: 5,
+    energy: 1,
+    block: (s) => lacks(s, COLLECTOR_WASH_WATER),
+    run: (ctx) => {
+      use(ctx, COLLECTOR_WASH_WATER);
+      coolDown(ctx);
+      ctx.log('You splash rainwater on your face and neck. It feels wonderful.', 'good');
+    },
+  };
+  return [
+    {
+      ...base,
+      id: 'rainCollector:drink',
+      label: 'Drink',
+      description: 'Drink a bottle of rainwater from the collector.',
+      details: 'Uses 1 bottle of water from the collector.',
+      gains: [{ label: `−${hydration} thirst` }],
+      minutes: 2,
+      block: (s) => lacks(s, 1) ?? (s.player.stats.thirst <= 0 ? 'You are not thirsty' : undefined),
+      run: (ctx) => {
+        use(ctx, 1);
+        const change = ctx.changeStat('thirst', -hydration);
+        ctx.log(`You drink rainwater from the collector.${change < 0 ? ` (−${Math.round(-change)} thirst)` : ''}`, 'good');
+      },
+    },
+    {
+      ...base,
+      id: 'rainCollector:fill',
+      label: 'Fill a bottle',
+      itemId: 'water-bottle',
+      description: 'Fill an empty bottle with rainwater.',
+      details: 'Uses 1 bottle of water from the collector.',
+      gains: resolveGains(state, [{ itemId: 'water-bottle' }]),
+      minutes: 2,
+      requirements: [ingredient({ itemId: 'empty-bottle', quantity: 1 })],
+      block: (s) => lacks(s, 1),
+      run: (ctx) => {
+        use(ctx, 1);
+        ctx.removeItem('empty-bottle');
+        ctx.log('You fill a bottle with rainwater.');
+        ctx.addItem('water-bottle');
+      },
+    },
+    ...(canCoolDown(state) ? [wash] : []),
   ];
 }
 
@@ -364,6 +538,7 @@ function travelActions(state: GameState): GameAction[] {
       },
       trains: { endurance: 1, agility: 1 },
       targetId: route.to,
+      travel: true,
       run: (ctx) => {
         ctx.state.player.locationId = route.to;
         const location = ctx.location();
@@ -381,7 +556,7 @@ function pickupActions(state: GameState): GameAction[] {
   const location = getLocationState(state, state.player.locationId);
   return location.groundItems.map((ground) => ({
     id: `pickup:${ground.id}`,
-    label: `Pick up ${formatAmount(ground.itemId, ground.quantity)}`,
+    label: `Pick up ${formatAmount(ground.itemId, ground.quantity, ground.health)}`,
     category: 'pickup',
     details: 'Picks up as much as you can carry.',
     minutes: 1,
@@ -402,8 +577,8 @@ function pickupActions(state: GameState): GameAction[] {
       if (current.quantity <= 0) {
         groundItems.splice(groundItems.indexOf(current), 1);
       }
-      ctx.addItem(current.itemId, fits, { silent: true });
-      ctx.log(`You pick up ${formatAmount(current.itemId, fits).toLowerCase()}.`);
+      ctx.addItem(current.itemId, fits, { silent: true, health: current.health });
+      ctx.log(`You pick up ${formatAmount(current.itemId, fits, current.health).toLowerCase()}.`);
     },
   }));
 }
@@ -481,28 +656,34 @@ function slotsFor(def: EquipmentDef): EquipSlot[] {
   return def.slot === 'hand' ? [...HAND_SLOTS] : [def.slot];
 }
 
-function equipAction(def: EquipmentDef, slot: EquipSlot): GameAction {
+/** Equips the bag entry with the given key (see `entryKey`) into a slot. */
+function equipAction(def: EquipmentDef, slot: EquipSlot, key: string): GameAction {
   const name = def.name.toLowerCase();
   const hand = isHandSlot(slot);
+  const wearing = def.maxHealth === undefined ? '' : ` Worn, it loses ${ITEM_WEAR_PER_DAY} health a day and falls apart at 0.`;
   return {
-    id: `equip:${def.id}:${slot}`,
+    id: `equip:${key}:${slot}`,
     label: hand ? `Hold in ${SLOT_LABELS[slot]}` : 'Wear',
     category: 'item',
     details: hand
       ? 'Held items work as tools and weapons. A fractured, splinted or missing arm cannot hold anything.'
-      : `Wear it on your ${SLOT_LABELS[slot]}.`,
+      : `Wear it on your ${SLOT_LABELS[slot]}.${wearing}`,
+    gains: describeClothing(def.clothing).map((effect) => ({ label: `${effect.name}: ${effect.hint}` })),
     minutes: 1,
     energy: 0,
     timeMode: 'awake',
     requirements: [],
-    targetId: def.id,
+    targetId: key,
     block: (s) =>
       isHandSlot(slot) && !canHoldWith(s.player, HAND_ARM[slot]) ? `Your ${bodyPartName(HAND_ARM[slot])} cannot hold anything` : undefined,
     run: (ctx) => {
       const player = ctx.state.player;
+      const item = takeFromEntry(player.inventory, key, 1);
+      if (!item) {
+        return;
+      }
       const previous = unequip(player, slot);
-      ctx.removeItem(def.id);
-      player.equipment[slot] = def.id;
+      player.equipment[slot] = item.health === undefined ? { itemId: item.itemId } : { itemId: item.itemId, health: item.health };
       const swap = previous ? ` and put away the ${getItemDef(previous).name.toLowerCase()}` : '';
       ctx.log(hand ? `You take the ${name} in your ${SLOT_LABELS[slot]}${swap}.` : `You put on the ${name}${swap}.`);
     },
@@ -532,16 +713,17 @@ function inventoryActions(state: GameState): GameAction[] {
       });
     }
   }
-  for (const stack of player.inventory) {
+  player.inventory.forEach((stack, index) => {
     const def = getItemDef(stack.itemId);
+    const key = entryKey(player.inventory, index);
     if (def.category === 'food') {
       actions.push(eatAction(def));
     }
     if (def.category === 'equipment') {
-      actions.push(...slotsFor(def).map((slot) => equipAction(def, slot)));
+      actions.push(...slotsFor(def).map((slot) => equipAction(def, slot, key)));
     }
     const drop = (all: boolean): GameAction => ({
-      id: `drop:${def.id}:${all ? 'all' : 'one'}`,
+      id: `drop:${key}:${all ? 'all' : 'one'}`,
       label: all ? 'Drop all' : 'Drop',
       category: 'item',
       details: `Dropped items stay on the ground for ${formatDuration(def.groundLifetime)}, then they are gone.`,
@@ -549,12 +731,13 @@ function inventoryActions(state: GameState): GameAction[] {
       energy: 0,
       timeMode: 'awake',
       requirements: [],
-      targetId: def.id,
+      targetId: key,
       run: (ctx) => {
-        const amount = all ? ctx.countItem(def.id) : 1;
-        if (amount > 0 && ctx.removeItem(def.id, amount)) {
-          dropOnGround(ctx.state, ctx.state.player.locationId, def.id, amount);
-          ctx.log(`You drop ${formatAmount(def.id, amount).toLowerCase()} on the ground.`);
+        const inventory = ctx.state.player.inventory;
+        const item = takeFromEntry(inventory, key, all ? (findEntry(inventory, key)?.quantity ?? 0) : 1);
+        if (item) {
+          dropOnGround(ctx.state, ctx.state.player.locationId, item.itemId, item.quantity, item.health);
+          ctx.log(`You drop ${formatAmount(item.itemId, item.quantity, item.health).toLowerCase()} on the ground.`);
         }
       },
     });
@@ -562,11 +745,11 @@ function inventoryActions(state: GameState): GameAction[] {
     if (stack.quantity > 1) {
       actions.push(drop(true));
     }
-  }
+  });
   return actions;
 }
 
-/** Store and take actions for a small storage at the player's location. */
+/** Store and take actions for a small storage at the player's location, one set per bag or storage entry. */
 function storageActions(state: GameState): GameAction[] {
   const storage = getLocationState(state, state.player.locationId).buildings.storage;
   if (!storage) {
@@ -575,52 +758,52 @@ function storageActions(state: GameState): GameAction[] {
   const storageFree = (s: GameState): number =>
     STORAGE_CAPACITY - stackWeight(getLocationState(s, s.player.locationId).buildings.storage?.items ?? []);
   const base = { category: 'storage' as const, minutes: 1, energy: 0, timeMode: 'awake' as const, requirements: [] };
-  const store = (itemId: string, all: boolean): GameAction => ({
+  const store = (itemId: string, key: string, all: boolean): GameAction => ({
     ...base,
-    id: `store:${itemId}:${all ? 'all' : 'one'}`,
+    id: `store:${key}:${all ? 'all' : 'one'}`,
     label: all ? 'Store all' : 'Store',
     details: `Stored items never rot. The storage holds ${STORAGE_CAPACITY} kg.`,
-    targetId: itemId,
+    targetId: key,
     block: (s) => (unitsThatFit(itemId, storageFree(s), 1) < 1 ? 'The storage is full' : undefined),
     run: (ctx) => {
       const items = ctx.location().buildings.storage?.items;
-      const amount = unitsThatFit(itemId, storageFree(ctx.state), all ? ctx.countItem(itemId) : 1);
-      if (!items || amount <= 0 || !ctx.removeItem(itemId, amount)) {
+      const inventory = ctx.state.player.inventory;
+      const amount = unitsThatFit(itemId, storageFree(ctx.state), all ? (findEntry(inventory, key)?.quantity ?? 0) : 1);
+      const item = items && takeFromEntry(inventory, key, amount);
+      if (!items || !item) {
         return;
       }
-      const stack = items.find((s) => s.itemId === itemId);
-      if (stack) {
-        stack.quantity += amount;
-      } else {
-        items.push({ itemId, quantity: amount });
-      }
-      ctx.log(`You put ${formatAmount(itemId, amount).toLowerCase()} into storage.`);
+      addToStacks(items, item.itemId, item.quantity, item.health);
+      ctx.log(`You put ${formatAmount(item.itemId, item.quantity, item.health).toLowerCase()} into storage.`);
     },
   });
-  const take = (itemId: string, all: boolean): GameAction => ({
+  const take = (itemId: string, key: string, all: boolean): GameAction => ({
     ...base,
-    id: `take:${itemId}:${all ? 'all' : 'one'}`,
+    id: `take:${key}:${all ? 'all' : 'one'}`,
     label: all ? 'Take all' : 'Take',
     details: 'Takes as much as you can carry.',
-    targetId: itemId,
+    targetId: key,
     block: (s) => (unitsThatFit(itemId, freeCapacity(s), 1) < 1 ? 'Too heavy to carry' : undefined),
     run: (ctx) => {
-      const storageState = ctx.location().buildings.storage;
-      const stack = storageState?.items.find((s) => s.itemId === itemId);
-      if (!storageState || !stack) {
+      const items = ctx.location().buildings.storage?.items;
+      const wanted = all ? items && findEntry(items, key)?.quantity : 1;
+      const item = items && takeFromEntry(items, key, unitsThatFit(itemId, freeCapacity(ctx.state), wanted ?? 0));
+      if (!item) {
         return;
       }
-      const amount = unitsThatFit(itemId, freeCapacity(ctx.state), all ? stack.quantity : 1);
-      stack.quantity -= amount;
-      storageState.items = storageState.items.filter((s) => s.quantity > 0);
-      addToInventory(ctx.state.player, itemId, amount);
-      ctx.log(`You take ${formatAmount(itemId, amount).toLowerCase()} from storage.`);
+      addToInventory(ctx.state.player, item.itemId, item.quantity, item.health);
+      ctx.log(`You take ${formatAmount(item.itemId, item.quantity, item.health).toLowerCase()} from storage.`);
     },
   });
-  return [
-    ...state.player.inventory.flatMap((s) => (s.quantity > 1 ? [store(s.itemId, false), store(s.itemId, true)] : [store(s.itemId, false)])),
-    ...storage.items.flatMap((s) => (s.quantity > 1 ? [take(s.itemId, false), take(s.itemId, true)] : [take(s.itemId, false)])),
-  ];
+  const forEntries = (
+    stacks: readonly { itemId: string; quantity: number }[],
+    action: (itemId: string, key: string, all: boolean) => GameAction,
+  ): GameAction[] =>
+    stacks.flatMap((s, index) => {
+      const key = entryKey(stacks, index);
+      return s.quantity > 1 ? [action(s.itemId, key, false), action(s.itemId, key, true)] : [action(s.itemId, key, false)];
+    });
+  return [...forEntries(state.player.inventory, store), ...forEntries(storage.items, take)];
 }
 
 function newBuilding(id: BuildingId, time: number): LocationBuildings {
@@ -629,6 +812,8 @@ function newBuilding(id: BuildingId, time: number): LocationBuildings {
       return { campfire: { builtAt: time, litUntil: time + CAMPFIRE_INITIAL_BURN } };
     case 'storage':
       return { storage: { builtAt: time, items: [] } };
+    case 'rainCollector':
+      return { rainCollector: { builtAt: time, water: 0 } };
     default:
       return { [id]: { builtAt: time } };
   }
@@ -645,31 +830,34 @@ function buildActions(state: GameState): GameAction[] {
       const started = location.constructions[building.id] !== undefined;
       const step = (location.constructions[building.id]?.stepsDone ?? 0) + 1;
       const name = building.name.toLowerCase();
+      const minutes = skilledMinutes(BUILDING_STEP_MINUTES, skillLevel(state.player, 'building'));
       return {
         id: `build:${building.id}`,
         label: started ? `Continue building (step ${step} of ${building.steps})` : 'Start building',
         category: 'build',
         description: building.description,
         details:
-          `Building takes ${building.steps} ${building.steps === 1 ? 'step' : 'steps'} of ${formatDuration(building.minutesPerStep)}. ` +
+          `Building takes ${building.steps} ${building.steps === 1 ? 'step' : 'steps'} of ${formatDuration(minutes)}. ` +
           'The materials are used up by the first step; tools are needed for every step.',
         gains: [{ label: step >= building.steps ? `The ${name} is finished` : `Step ${step} of ${building.steps} done` }],
-        minutes: building.minutesPerStep,
-        energy: building.energyPerStep,
+        minutes,
+        energy: BUILDING_STEP_ENERGY,
         timeMode: 'awake',
         requirements: [workingArm(), ...(started ? [] : building.ingredients.map(ingredient)), ...(building.tools ?? [])],
         block: started
           ? undefined
           : (s) => (allocateIngredients(s.player, building.ingredients) ? undefined : 'Not enough materials for all ingredients'),
         trains: building.trains,
+        skill: 'building',
         targetId: building.id,
         run: (ctx) => {
           const target = ensureLocationState(ctx.state, locationId);
           const nameBefore = getLocationInfo(ctx.state, locationId).name;
           const current = target.constructions[building.id];
+          let used = current?.used;
           if (!current) {
-            const used = consumeIngredients(ctx, building.ingredients);
-            ctx.log(`You start building the ${name}. (Used: ${used})`, 'info');
+            used = useUpIngredients(ctx, building.ingredients);
+            ctx.log(`You start building the ${name}. (Used: ${describeStacks(used.flat())})`, 'info');
           }
           const done = (current?.stepsDone ?? 0) + 1;
           const constructions = { ...target.constructions };
@@ -677,8 +865,9 @@ function buildActions(state: GameState): GameAction[] {
             delete constructions[building.id];
             target.buildings = { ...target.buildings, ...newBuilding(building.id, ctx.state.time) };
             ctx.log(building.message, 'good');
+            giveBackResources(ctx, 'building', used ?? assumedUse(building.ingredients));
           } else {
-            constructions[building.id] = { stepsDone: done };
+            constructions[building.id] = used ? { stepsDone: done, used } : { stepsDone: done };
             ctx.log(`You work on the ${name}. ${done} of ${building.steps} steps done.`);
           }
           target.constructions = constructions;
@@ -692,6 +881,7 @@ function buildActions(state: GameState): GameAction[] {
 }
 
 function craftActions(state: GameState): GameAction[] {
+  const level = skillLevel(state.player, 'crafting');
   return RECIPES.filter((recipe) => recipe.visibleIf?.(state) ?? true).map((recipe) => ({
     id: `craft:${recipe.id}`,
     label: recipe.name,
@@ -699,24 +889,26 @@ function craftActions(state: GameState): GameAction[] {
     description: recipe.description,
     details: 'Ingredients that ask for a type accept any item of that type; the cheapest ones are used first.',
     gains: resolveGains(state, [{ itemId: recipe.result.itemId, quantity: recipe.result.quantity }]),
-    minutes: recipe.minutes,
+    minutes: skilledMinutes(recipe.minutes, level),
     energy: CRAFT_ENERGY,
     timeMode: 'awake',
     requirements: [workingArm(), ...recipe.ingredients.map(ingredient), ...(recipe.tools ?? []), ...(recipe.stations ?? []).map(station)],
     block: (s) => (allocateIngredients(s.player, recipe.ingredients) ? undefined : 'Not enough materials for all ingredients'),
     trains: recipe.trains,
+    skill: 'crafting' as const,
     targetId: recipe.id,
-    run: (ctx) => {
-      const used = consumeIngredients(ctx, recipe.ingredients);
+    run: (ctx: ActionContext) => {
+      const used = useUpIngredients(ctx, recipe.ingredients);
       const { craftedRecipes } = ctx.state.player;
       if (!craftedRecipes.includes(recipe.id)) {
         craftedRecipes.push(recipe.id);
       }
       ctx.log(recipe.message);
-      if (used) {
-        ctx.log(`Used: ${used}`, 'info');
+      if (used.length > 0) {
+        ctx.log(`Used: ${describeStacks(used.flat())}`, 'info');
       }
       ctx.addItem(recipe.result.itemId, recipe.result.quantity);
+      giveBackResources(ctx, 'crafting', used);
     },
   }));
 }

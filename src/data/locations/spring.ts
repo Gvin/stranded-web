@@ -1,4 +1,6 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
+import { canCoolDown, coolDown } from '../../engine/environment';
+import { ENVIRONMENT_RULES } from '../../engine/rules';
 
 const pool: ObjectDef = {
   id: 'pool',
@@ -15,6 +17,20 @@ const pool: ObjectDef = {
       run: (ctx) => {
         const change = ctx.changeStat('thirst', -ctx.stat('thirst'));
         ctx.log(`You drink deeply from the cold spring.${change < 0 ? ` (−${Math.round(-change)} thirst)` : ''}`, 'good');
+      },
+    },
+    {
+      id: 'wash',
+      label: 'Wash your face',
+      description: 'Splash cold spring water on your face and neck to cool down.',
+      details: 'Offered while the island is Very Hot or you are overheated.',
+      gains: [{ text: 'The hour until you overheat starts over' }, { text: `Overheated −${ENVIRONMENT_RULES.recoveryMinutes} min` }],
+      minutes: 5,
+      energy: 1,
+      visibleIf: canCoolDown,
+      run: (ctx) => {
+        coolDown(ctx);
+        ctx.log('You splash cold water on your face and neck. It feels wonderful.', 'good');
       },
     },
   ],

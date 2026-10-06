@@ -4,6 +4,7 @@ import { beach } from './beach';
 import { camp } from './camp';
 import { ROUTES } from './connections';
 import { forest } from './forest';
+import { path } from './path';
 import { rocks } from './rocks';
 import { spring } from './spring';
 
@@ -13,9 +14,17 @@ export { ROUTES } from './connections';
 
 export const START_LOCATION_ID = 'beach';
 
+/** The places of the island, all reachable by paths. */
 export const LOCATIONS: readonly LocationDef[] = [beach, forest, spring, rocks, camp];
 
-const LOCATION_MAP: Readonly<Record<string, LocationDef>> = Object.fromEntries(LOCATIONS.map((l) => [l.id, l]));
+/** Where the player is while time passes on a journey (see `path.ts`). */
+export const TRAVEL_LOCATION_ID = path.id;
+
+const LOCATION_MAP: Readonly<Record<string, LocationDef>> = Object.fromEntries([...LOCATIONS, path].map((l) => [l.id, l]));
+
+export function isKnownLocation(locationId: string): boolean {
+  return locationId in LOCATION_MAP;
+}
 
 export function getLocationDef(locationId: string): LocationDef {
   const def = LOCATION_MAP[locationId];

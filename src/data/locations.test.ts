@@ -33,6 +33,7 @@ describe('beach', () => {
         'wreckage:ship-biscuit': 6,
         'wreckage:water-bottle': 2,
         'wreckage:knife': 1,
+        'wreckage:baseball-hat': 1,
       },
       buildings: {},
     };

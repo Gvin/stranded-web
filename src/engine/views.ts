@@ -1,7 +1,7 @@
 import { BUILDINGS, STORAGE_CAPACITY } from '../data/buildings';
 import { getItemDef } from '../data/items';
 import { getLocationDef } from '../data/locations';
-import { isObjectPresent } from './actions';
+import { formatWater, isObjectPresent } from './actions';
 import type { ItemDef, LocationInfo } from './definitions';
 import { stackWeight } from './inventory';
 import { formatDuration } from './time';
@@ -29,6 +29,8 @@ export interface GroundItemView {
   quantity: number;
   /** Game minutes until the item disappears. */
   expiresIn: number;
+  /** Health left, for an item that wears out. */
+  health?: number;
 }
 
 export interface LocationView extends LocationInfo {
@@ -61,7 +63,7 @@ function buildingViews(state: GameState): ObjectView[] {
       building: true,
       icon: BUILDINGS[id].icon,
     };
-    const { campfire, storage } = location.buildings;
+    const { campfire, storage, rainCollector } = location.buildings;
     if (id === 'campfire' && campfire) {
       const lit = isCampfireLit(location, state.time);
       view.name = lit ? 'Campfire' : 'Cold campfire';
@@ -70,6 +72,9 @@ function buildingViews(state: GameState): ObjectView[] {
     }
     if (id === 'storage' && storage) {
       view.status = `${stackWeight(storage.items).toFixed(1)} / ${STORAGE_CAPACITY} kg`;
+    }
+    if (id === 'rainCollector' && rainCollector) {
+      view.status = `${formatWater(rainCollector.water)} / ${BUILDINGS.rainCollector.collector?.capacity ?? 0} bottles of water`;
     }
     return view;
   });
@@ -96,6 +101,7 @@ export function getLocationView(state: GameState): LocationView {
       def: getItemDef(g.itemId),
       quantity: g.quantity,
       expiresIn: groundItemExpiresAt(g) - state.time,
+      health: g.health,
     })),
   };
 }

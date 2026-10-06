@@ -2,6 +2,9 @@ import { migrateV1ToV2 } from './steps/v1ToV2';
 import { migrateV2ToV3 } from './steps/v2ToV3';
 import { migrateV3ToV4 } from './steps/v3ToV4';
 import { migrateV4ToV5 } from './steps/v4ToV5';
+import { migrateV5ToV6 } from './steps/v5ToV6';
+import { migrateV6ToV7 } from './steps/v6ToV7';
+import { migrateV7ToV8 } from './steps/v7ToV8';
 import { SAVE_VERSION } from './version';
 
 /** Upgrades raw save data from one format version to the next. */
@@ -16,6 +19,9 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   2: migrateV2ToV3,
   3: migrateV3ToV4,
   4: migrateV4ToV5,
+  5: migrateV5ToV6,
+  6: migrateV6ToV7,
+  7: migrateV7ToV8,
 };
 
 /** Runs the chain of migrations that brings data from `fromVersion` up to `toVersion`. */

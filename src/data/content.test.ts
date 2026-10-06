@@ -75,6 +75,7 @@ describe('island content', () => {
       Threads: ['threads', 'fuel'],
       Bow: ['fuel'],
       Cloth: ['fuel', 'cloth'],
+      Resin: ['glue'],
       Bandage: ['fuel'],
     });
   });
@@ -115,7 +116,7 @@ describe('island content', () => {
     for (const id of Object.keys(ITEMS)) {
       giveItem(state, id, 3);
     }
-    state.player.equipment = { leftHand: 'knife', rightHand: 'bow' };
+    state.player.equipment = { leftHand: { itemId: 'knife' }, rightHand: { itemId: 'bow' } };
     state.player.body.leftLeg = [{ id: 'fractured' }];
     state.player.body.torso = [{ id: 'injured', remaining: 100 }];
     state.locations[locationId] = {
@@ -128,6 +129,7 @@ describe('island content', () => {
         campfire: { builtAt: 0, litUntil: 600 },
         storage: { builtAt: 0, items: [{ itemId: 'rope', quantity: 2 }] },
         workbench: { builtAt: 0 },
+        rainCollector: { builtAt: 0, water: 2 },
       },
     };
     state.player.stats.energy = 50;

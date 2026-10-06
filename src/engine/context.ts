@@ -4,7 +4,17 @@ import { applyBodyCondition, BODY_CONDITIONS, bodyPartName, type Severity, stage
 import type { AttributeXp, ObjectDef } from './definitions';
 import { addToInventory, countItem, releaseBlockedHands, removeFromInventory } from './inventory';
 import { nextRandom, pickRandom, randomInt, rollChance } from './random';
-import { ATTRIBUTE_NAMES, checkChance, MAX_ATTRIBUTE, perceptionFactor, SURVIVAL_RULES, xpToNextPoint } from './rules';
+import {
+  ATTRIBUTE_NAMES,
+  checkChance,
+  MAX_ATTRIBUTE,
+  perceptionFactor,
+  SKILL_NAMES,
+  SKILL_RULES,
+  SURVIVAL_RULES,
+  xpToNextPoint,
+} from './rules';
+import { findChanceFactor, gatheredFactor, skillLevel } from './skills';
 import { changeStat } from './stats';
 import { dropOnGround, ensureLocationState, getStock, takeStock } from './world';
 import {
@@ -15,6 +25,7 @@ import {
   type GameState,
   type LocationState,
   type LogTone,
+  type SkillId,
   type StatId,
   type TimedConditionId,
 } from './types';
@@ -31,8 +42,13 @@ export interface ActionContext {
   attribute(id: AttributeId): number;
   /** Rolls an attribute check against a difficulty. */
   check(attribute: AttributeId, difficulty: number): boolean;
-  /** Scales a base find chance by perception (capped at 95%). */
-  findChance(baseChance: number): number;
+  /**
+   * Chance of a find: the base chance scaled by perception (capped at 95%) and by the Foraging skill.
+   * Without perception, only the Foraging skill counts (capped at 100%).
+   */
+  findChance(baseChance: number, options?: { perception?: boolean }): number;
+  /** Gathered items with the Foraging bonus; a fraction of an item becomes one more item with that chance. */
+  gathered(quantity: number): number;
   stat(id: StatId): number;
   maxStat(id: StatId): number;
   /**
@@ -43,12 +59,12 @@ export interface ActionContext {
   /** Removes health; the cause is shown if this kills the player. */
   damage(amount: number, deathCause: string): void;
   countItem(itemId: string): number;
-  /** Adds items to the bag; whatever does not fit is left on the ground. */
-  addItem(itemId: string, quantity?: number, options?: { silent?: boolean }): void;
+  /** Adds items to the bag; whatever does not fit is left on the ground. Items that wear out come at full health unless given. */
+  addItem(itemId: string, quantity?: number, options?: { silent?: boolean; health?: number }): void;
   removeItem(itemId: string, quantity?: number): boolean;
   /** Applies a body condition; the severity only matters for conditions that have severities. */
   addBodyCondition(part: BodyPartId, id: BodyConditionId, severity?: Severity): boolean;
-  /** Adds a timed condition, or makes an existing one worse. */
+  /** Adds a timed condition with severities, or makes an existing one worse. */
   addTimedCondition(id: TimedConditionId, severity: Severity): void;
   hasFlag(flag: string): boolean;
   setFlag(flag: string): void;
@@ -63,16 +79,40 @@ export interface ActionContext {
   readonly lastDamageCause: string | undefined;
 }
 
-export function appendLog(state: GameState, text: string, tone: LogTone = 'neutral'): void {
-  state.log.push({ id: state.nextId++, time: state.time, text, tone });
+export function appendLog(state: GameState, text: string, tone: LogTone = 'neutral', options?: { alert?: boolean }): void {
+  state.log.push({ id: state.nextId++, time: state.time, text, tone, ...(options?.alert ? { alert: true } : {}) });
   if (state.log.length > SURVIVAL_RULES.maxLogEntries) {
     state.log.splice(0, state.log.length - SURVIVAL_RULES.maxLogEntries);
   }
 }
 
-export function formatAmount(itemId: string, quantity: number): string {
-  const name = getItemDef(itemId).name;
-  return quantity === 1 ? name : `${quantity}× ${name}`;
+/** "Rope", "3× Rope", or with the health left of an item that wears out, "Clothes (59/100)". */
+export function formatAmount(itemId: string, quantity: number, health?: number): string {
+  const { name, maxHealth } = getItemDef(itemId);
+  const withHealth = health !== undefined && maxHealth !== undefined ? `${name} (${formatHealth(health)}/${maxHealth})` : name;
+  return quantity === 1 ? withHealth : `${quantity}× ${withHealth}`;
+}
+
+/** Health for display; rounds up, so an item that is still there never reads 0. */
+export function formatHealth(health: number): number {
+  return Math.ceil(health - 1e-9);
+}
+
+/** Adds the practice of one action to a skill and raises its level when enough is collected; logs every new level. */
+export function trainSkill(state: GameState, id: SkillId): void {
+  const skill = state.player.skills[id];
+  if (skill.level >= SKILL_RULES.maxLevel) {
+    return;
+  }
+  skill.points += SKILL_RULES.points[id];
+  while (skill.level < SKILL_RULES.maxLevel && skill.points >= SKILL_RULES.pointsPerLevel) {
+    skill.points -= SKILL_RULES.pointsPerLevel;
+    skill.level += 1;
+    appendLog(state, `Your ${SKILL_NAMES[id]} skill has improved to ${skill.level}.`, 'good');
+  }
+  if (skill.level >= SKILL_RULES.maxLevel) {
+    skill.points = 0;
+  }
 }
 
 /** Adds training points and raises base attributes when enough are collected; logs every improvement. */
@@ -118,7 +158,19 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
     pick: (items) => pickRandom(state, items),
     attribute: (id) => getCharacterSheet(state).attributes[id].effective,
     check: (attribute, difficulty) => rollChance(state, checkChance(ctx.attribute(attribute), difficulty)),
-    findChance: (baseChance) => Math.min(0.95, baseChance * perceptionFactor(ctx.attribute('perception'))),
+    findChance: (baseChance, options) => {
+      const foraging = findChanceFactor(skillLevel(state.player, 'foraging'));
+      if (options?.perception === false) {
+        return Math.min(1, baseChance * foraging);
+      }
+      return Math.min(0.95, baseChance * perceptionFactor(ctx.attribute('perception')) * foraging);
+    },
+    gathered: (quantity) => {
+      const exact = quantity * gatheredFactor(skillLevel(state.player, 'foraging'));
+      const whole = Math.floor(exact + 1e-9);
+      // why: no roll without a fraction, so the random sequence only changes once the skill does something.
+      return exact - whole > 1e-9 && rollChance(state, exact - whole) ? whole + 1 : whole;
+    },
     stat: (id) => state.player.stats[id],
     maxStat: (id) => getCharacterSheet(state).max[id],
     changeStat: (id, delta) => {
@@ -138,12 +190,12 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
       const sheet = getCharacterSheet(state);
       const free = Math.max(0, sheet.carryCapacity - sheet.carriedWeight);
       const fits = def.weight > 0 ? Math.min(quantity, Math.floor(free / def.weight + 1e-9)) : quantity;
-      addToInventory(state.player, itemId, fits);
+      addToInventory(state.player, itemId, fits, options?.health);
       if (fits > 0 && !options?.silent) {
         appendLog(state, `+ ${formatAmount(itemId, fits)}`, 'good');
       }
       if (fits < quantity) {
-        dropOnGround(state, state.player.locationId, itemId, quantity - fits);
+        dropOnGround(state, state.player.locationId, itemId, quantity - fits, options?.health);
         appendLog(state, `You can't carry any more. You leave ${formatAmount(itemId, quantity - fits)} on the ground.`, 'bad');
       }
     },
@@ -159,6 +211,9 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
     },
     addTimedCondition: (id, severity) => {
       const { stages } = TIMED_CONDITIONS[id];
+      if (!stages) {
+        throw new Error(`${id} has no severities`);
+      }
       const added = stagedDuration(stages, severity);
       const existing = state.player.conditions.find((c) => c.id === id);
       if (existing) {

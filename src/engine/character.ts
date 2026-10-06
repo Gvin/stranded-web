@@ -6,8 +6,8 @@ import {
   getDeprivationSeverity,
   SEVERITIES,
   type Severity,
-  severityFor,
   TIMED_CONDITIONS,
+  timedConditionSeverity,
 } from './conditions';
 import { carriedWeight } from './inventory';
 import { emptyFoodGroups, foodGroupList } from './nutrition';
@@ -22,9 +22,18 @@ import {
   SURVIVAL_RULES,
   xpToNextPoint,
 } from './rules';
-import { ATTRIBUTE_IDS, BODY_PART_IDS, type AttributeId, type GameState, type PlayerState, type StatId } from './types';
+import {
+  ATTRIBUTE_IDS,
+  BODY_PART_IDS,
+  type AttributeId,
+  type GameState,
+  type PlayerState,
+  type StatId,
+  type TimedCondition,
+  type TimedConditionId,
+} from './types';
 
-export type PlayerConditionId = 'poisoned' | 'dizzy' | 'starving' | 'thirsty' | 'malnutrition';
+export type PlayerConditionId = TimedConditionId | 'starving' | 'thirsty' | 'malnutrition';
 
 export interface ActiveCondition {
   id: PlayerConditionId;
@@ -137,6 +146,26 @@ function deprivationCondition(id: 'starving' | 'thirsty', value: number, max: nu
   };
 }
 
+function timedCondition(condition: TimedCondition): ActiveCondition {
+  const def = TIMED_CONDITIONS[condition.id];
+  const severity = timedConditionSeverity(condition);
+  return {
+    id: condition.id,
+    name: severity ? `${def.name} (${severity})` : def.name,
+    description: def.description,
+    severity,
+    endsIn: condition.remaining,
+    modifiers: (severity ? def.modifiers?.[severity] : def.fixedModifiers) ?? {},
+    healthPerHour: severity ? (def.healthPerHour?.[severity] ?? 0) : 0,
+    deathCause: condition.id === 'poisoned' ? 'The poison overwhelmed you.' : undefined,
+  };
+}
+
+/** Stored conditions without severities (Wet, Overheated, Freezing); their penalties never depend on stats. */
+function isFixedCondition(condition: TimedCondition): boolean {
+  return TIMED_CONDITIONS[condition.id].stages === undefined;
+}
+
 /** Malnutrition while any food group is empty; one penalty no matter how many are. */
 function malnutritionCondition(player: PlayerState): ActiveCondition | undefined {
   const empty = emptyFoodGroups(player);
@@ -153,23 +182,10 @@ function malnutritionCondition(player: PlayerState): ActiveCondition | undefined
   };
 }
 
-/** Player-wide conditions: stored timed ones plus the ones derived from hunger, thirst and energy. */
+/** Player-wide conditions: stored timed ones with severities plus the ones derived from hunger, thirst and energy. */
 function playerConditions(state: GameState, max: Record<StatId, number>): ActiveCondition[] {
   const { player } = state;
-  const result: ActiveCondition[] = player.conditions.map((c) => {
-    const def = TIMED_CONDITIONS[c.id];
-    const severity = severityFor(def.stages, c.remaining);
-    return {
-      id: c.id,
-      name: `${def.name} (${severity})`,
-      description: def.description,
-      severity,
-      endsIn: c.remaining,
-      modifiers: def.modifiers?.[severity] ?? {},
-      healthPerHour: def.healthPerHour?.[severity] ?? 0,
-      deathCause: c.id === 'poisoned' ? 'The poison overwhelmed you.' : undefined,
-    };
-  });
+  const result: ActiveCondition[] = player.conditions.filter((c) => !isFixedCondition(c)).map(timedCondition);
   const starving = deprivationCondition('starving', player.stats.hunger, max.hunger);
   const thirsty = deprivationCondition('thirsty', player.stats.thirst, max.thirst);
   result.push(...[starving, thirsty].filter((c): c is ActiveCondition => c !== undefined));
@@ -194,17 +210,18 @@ function playerConditions(state: GameState, max: Record<StatId, number>): Active
 
 /**
  * Computes attributes, maximum stats and active conditions for the current state.
- * Runs in two passes: hunger, thirst and energy maxima come from body conditions and malnutrition only, so the
- * conditions derived from those stats never feed back into their own thresholds.
+ * Runs in two passes: hunger, thirst and energy maxima come from body conditions and conditions that never depend on
+ * stats (Malnutrition, Overheated, Freezing), so the conditions derived from those stats never feed back into their own thresholds.
  */
 export function getCharacterSheet(state: GameState): CharacterSheet {
   const { player } = state;
   const malnutrition = malnutritionCondition(player);
-  const stored = [...storedModifiers(player), ...(malnutrition ? [{ source: malnutrition.name, modifiers: malnutrition.modifiers }] : [])];
+  const fixed = [...player.conditions.filter(isFixedCondition).map(timedCondition), ...(malnutrition ? [malnutrition] : [])];
+  const stored = [...storedModifiers(player), ...fixed.map((c) => ({ source: c.name, modifiers: c.modifiers }))];
   const preliminary = buildAttributes(player, stored);
   const preliminaryMax = maxStatsFor(effectiveValues(preliminary));
-  const conditions = playerConditions(state, preliminaryMax);
-  const attributes = buildAttributes(player, [...stored, ...conditions.map((c) => ({ source: c.name, modifiers: c.modifiers }))]);
+  const derived = playerConditions(state, preliminaryMax);
+  const attributes = buildAttributes(player, [...stored, ...derived.map((c) => ({ source: c.name, modifiers: c.modifiers }))]);
   const max = {
     ...maxStatsFor(effectiveValues(attributes)),
     thirst: preliminaryMax.thirst,
@@ -214,7 +231,7 @@ export function getCharacterSheet(state: GameState): CharacterSheet {
   return {
     attributes,
     max,
-    conditions: malnutrition ? [...conditions, malnutrition] : conditions,
+    conditions: [...derived, ...fixed],
     carryCapacity: carryCapacityFor(attributes.strength.effective),
     carriedWeight: carriedWeight(player),
   };

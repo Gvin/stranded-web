@@ -1,5 +1,6 @@
+import { ENVIRONMENT_RULES } from './rules';
 import { days, hours } from './time';
-import type { AttributeId, BodyCondition, BodyConditionId, BodyPartId, PlayerState, TimedConditionId } from './types';
+import type { AttributeId, BodyCondition, BodyConditionId, BodyPartId, PlayerState, TimedCondition, TimedConditionId } from './types';
 
 export type BodyPartKind = 'head' | 'torso' | 'arm' | 'leg';
 export type AttributeModifiers = Partial<Record<AttributeId, number>>;
@@ -170,12 +171,23 @@ export interface TimedConditionDef {
   id: TimedConditionId;
   name: string;
   description: string;
-  stages: SeverityStages;
+  /** Severity stages for conditions that ease over time; conditions without stages have no severity. */
+  stages?: SeverityStages;
   modifiers?: Record<Severity, AttributeModifiers>;
+  /** Attribute penalties in percent for conditions without stages. */
+  fixedModifiers?: AttributeModifiers;
   healthPerHour?: Record<Severity, number>;
-  easedMessage: string;
+  easedMessage?: string;
   endMessage: string;
 }
+
+const EXPOSURE_PENALTY = -ENVIRONMENT_RULES.exposurePenalty;
+const EXPOSURE_MODIFIERS: AttributeModifiers = {
+  strength: EXPOSURE_PENALTY,
+  endurance: EXPOSURE_PENALTY,
+  perception: EXPOSURE_PENALTY,
+  agility: EXPOSURE_PENALTY,
+};
 
 export const TIMED_CONDITIONS: Record<TimedConditionId, TimedConditionDef> = {
   poisoned: {
@@ -200,7 +212,47 @@ export const TIMED_CONDITIONS: Record<TimedConditionId, TimedConditionDef> = {
     easedMessage: 'The spinning is getting better.',
     endMessage: 'Your head clears.',
   },
+  wet: {
+    id: 'wet',
+    name: 'Wet',
+    description: 'Soaked to the skin, so your body temperature is one step colder. You dry by yourself, faster in the heat.',
+    endMessage: 'You are dry again.',
+  },
+  overheated: {
+    id: 'overheated',
+    name: 'Overheated',
+    description: 'Too long in the burning heat. It wears off once you cool down.',
+    fixedModifiers: EXPOSURE_MODIFIERS,
+    endMessage: 'You have cooled down.',
+  },
+  freezing: {
+    id: 'freezing',
+    name: 'Freezing',
+    description: 'Too long in the bitter cold. It wears off once you warm up.',
+    fixedModifiers: EXPOSURE_MODIFIERS,
+    endMessage: 'The warmth comes back into your limbs.',
+  },
 };
+
+/** Severity of a stored timed condition, for conditions that have severities. */
+export function timedConditionSeverity(condition: TimedCondition): Severity | undefined {
+  const stages = TIMED_CONDITIONS[condition.id].stages;
+  return stages ? severityFor(stages, condition.remaining) : undefined;
+}
+
+/** Makes a timed condition without severities last at least the given minutes from now. */
+export function renewTimedCondition(player: PlayerState, id: TimedConditionId, minutes: number): void {
+  const existing = player.conditions.find((c) => c.id === id);
+  if (existing) {
+    existing.remaining = Math.max(existing.remaining, minutes);
+  } else {
+    player.conditions.push({ id, remaining: minutes });
+  }
+}
+
+export function hasTimedCondition(player: PlayerState, id: TimedConditionId): boolean {
+  return player.conditions.some((c) => c.id === id);
+}
 
 export function bodyPartName(part: BodyPartId): string {
   return BODY_PARTS[part].name.toLowerCase();

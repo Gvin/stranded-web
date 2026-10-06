@@ -163,7 +163,7 @@ describe('performAction', () => {
 
     // Assert
     expect(right).toBe('Your right arm cannot hold anything');
-    expect(left.player.equipment.leftHand).toBe('knife');
+    expect(left.player.equipment.leftHand).toEqual({ itemId: 'knife' });
   });
 
   it('applies the food risk with its severity', () => {
@@ -195,19 +195,17 @@ describe('performAction', () => {
 
   it('kills the player when an action deals lethal damage', () => {
     // Arrange
-    const attempts = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((seed) => {
-      const state = createTestGame('beach', seed);
-      state.player.stats.health = 1;
-      state.player.attributes.agility.base = 1;
-      return state;
-    });
+    const state = createTestGame('beach');
+    state.player.stats.health = 1;
+    state.player.stats.thirst = 100;
 
     // Act
-    const dead = attempts.map((state) => performAction(state, 'obj:palms:climb')).find((s) => s.status === 'dead');
+    const dead = performAction(state, 'obj:sea:drink');
 
     // Assert
-    expect(dead?.deathCause).toBe('You fell from a palm tree and never got up.');
-    expect(dead && getActions(dead)).toEqual([]);
+    expect(dead.status).toBe('dead');
+    expect(dead.deathCause).toBe('You died of dehydration.');
+    expect(getActions(dead)).toEqual([]);
   });
 });
 
@@ -333,9 +331,9 @@ describe('buildings', () => {
     const finished = performAction(firstStep, 'build:campfire');
 
     // Assert
-    expect(findAction(state, 'build:campfire')).toMatchObject({ label: 'Start building', minutes: 15, energy: 3 });
+    expect(findAction(state, 'build:campfire')).toMatchObject({ label: 'Start building', minutes: 15, energy: 2 });
     expect(firstStep.player.inventory).toEqual([]);
-    expect(firstStep.locations.camp?.constructions).toEqual({ campfire: { stepsDone: 1 } });
+    expect(firstStep.locations.camp?.constructions).toMatchObject({ campfire: { stepsDone: 1 } });
     expect(firstStep.locations.camp?.buildings.campfire).toBeUndefined();
     expect(findAction(firstStep, 'build:campfire')).toMatchObject({
       label: 'Continue building (step 2 of 2)',
@@ -373,7 +371,7 @@ describe('buildings', () => {
       .map((a) => a.id);
 
     // Assert
-    expect(atCamp).toEqual(['build:campfire', 'build:workbench', 'build:storage', 'build:hut']);
+    expect(atCamp).toEqual(['build:campfire', 'build:workbench', 'build:storage', 'build:hut', 'build:rainCollector']);
     expect(atBeach).toEqual([]);
     expect(crafting.some((id) => id.includes('campfire') || id.includes('hut'))).toBe(false);
   });

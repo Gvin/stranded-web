@@ -98,13 +98,13 @@ describe('items', () => {
 
     // Act
     const undressed = performAction(state, 'unequip:body');
-    const dressed = performAction(undressed, 'equip:clothes:body');
+    const dressed = performAction(undressed, 'equip:clothes#0:body');
 
     // Assert
-    expect(state.player.equipment.body).toBe('clothes');
+    expect(state.player.equipment.body).toEqual({ itemId: 'clothes', health: 60 });
     expect(undressed.player.equipment.body).toBeUndefined();
-    expect(undressed.player.inventory).toEqual([{ itemId: 'clothes', quantity: 1 }]);
-    expect(dressed.player.equipment.body).toBe('clothes');
+    expect(undressed.player.inventory).toEqual([{ itemId: 'clothes', quantity: 1, health: expect.closeTo(60, 2) }]);
+    expect(dressed.player.equipment.body).toEqual({ itemId: 'clothes', health: expect.closeTo(60, 2) });
   });
 
   it('keeps clothes on when an arm is fractured', () => {
@@ -116,7 +116,7 @@ describe('items', () => {
     applyBodyCondition(state.player, 'rightArm', 'fractured');
 
     // Assert
-    expect(state.player.equipment.body).toBe('clothes');
+    expect(state.player.equipment.body).toEqual({ itemId: 'clothes', health: 60 });
   });
 });
 
@@ -146,7 +146,7 @@ describe('action details', () => {
     const gains = findAction(state, 'obj:wreckage:search')?.gains ?? [];
 
     // Assert
-    expect(gains.map((g) => g.label)).toEqual(['Cloth ×1–2', 'Log', 'Rope', 'Ship biscuit ×1–2', 'Bottle of water']);
+    expect(gains.map((g) => g.label)).toEqual(['Cloth ×1–2', 'Log', 'Rope', 'Ship biscuit ×1–2', 'Bottle of water', 'Baseball hat']);
     expect(gains[0]?.chance).toBeCloseTo(0.45);
   });
 

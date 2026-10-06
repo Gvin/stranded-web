@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getActions } from '../engine/actions';
 import { type CharacterSheet, getCharacterSheet } from '../engine/character';
 import { BODY_CONDITIONS } from '../engine/conditions';
@@ -6,8 +6,10 @@ import type { GameState } from '../engine/types';
 import { BODY_PART_IDS } from '../engine/types';
 import { type ActionView, toActionView } from './actionView';
 import type { IconName } from '../icons/gameIcons';
+import { EnvironmentBar } from './components/EnvironmentBar';
 import { Icon } from './components/Icon';
 import { MenuDialog } from './components/MenuDialog';
+import { Modal } from './components/Modal';
 import { StatBars } from './components/StatBars';
 import { TopBar } from './components/TopBar';
 import { CharacterPanel } from './panels/CharacterPanel';
@@ -39,13 +41,27 @@ function needsTreatment(state: GameState): boolean {
   return BODY_PART_IDS.some((part) => state.player.body[part].some((c) => !BODY_CONDITIONS[c.id].treated && c.id !== 'missing'));
 }
 
-/** Recipes the player can make right now but has never made. */
 /** One key per condition on the body or its parts, to notice conditions the player has not looked at yet. */
 function conditionKeys(state: GameState, sheet: CharacterSheet): string[] {
   const parts = BODY_PART_IDS.flatMap((part) => state.player.body[part].map((c) => `${part}:${c.id}`));
   return [...parts, ...sheet.conditions.map((c) => `player:${c.id}`)];
 }
 
+/** Texts of log entries marked as alerts that arrived since the game screen opened, until the player closes the popup. */
+function useLogAlerts(state: GameState): { texts: string[]; dismiss(): void } {
+  const [texts, setTexts] = useState<string[]>([]);
+  const seenLogId = useRef(state.log.at(-1)?.id ?? 0);
+  useEffect(() => {
+    const fresh = state.log.filter((entry) => entry.alert && entry.id > seenLogId.current).map((entry) => entry.text);
+    seenLogId.current = state.log.at(-1)?.id ?? seenLogId.current;
+    if (fresh.length > 0) {
+      setTexts((current) => [...current, ...fresh]);
+    }
+  }, [state.log]);
+  return { texts, dismiss: () => setTexts([]) };
+}
+
+/** Recipes the player can make right now but has never made. */
 export function newCraftableRecipes(state: GameState, actions: readonly ActionView[]): string[] {
   return actions
     .filter((a) => a.action.category === 'craft' && !a.blocked && !state.player.craftedRecipes.includes(a.action.targetId ?? ''))
@@ -60,7 +76,8 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
 
   const sheet = useMemo(() => getCharacterSheet(state), [state]);
   const actions = useMemo<ActionView[]>(() => getActions(state).map((action) => toActionView(state, action)), [state]);
-  useDayPeriodTheme(state.time);
+  useDayPeriodTheme(state.time, state.environment.weather);
+  const alerts = useLogAlerts(state);
 
   const tabs = wide ? TABS.filter((t) => t.id !== 'explore') : TABS;
   const activeTab = wide && tab === 'explore' ? 'bag' : tab;
@@ -72,7 +89,7 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
     setSeenConditions((seen) => new Set(bodyOpen ? currentConditions : currentConditions.filter((key) => seen.has(key))));
   }, [bodyOpen, currentConditions]);
   const newCondition = currentConditions.some((key) => !seenConditions.has(key));
-  const alerts: Partial<Record<TabId, string>> = {
+  const tabAlerts: Partial<Record<TabId, string>> = {
     body: needsTreatment(state) ? 'Wounds need treatment' : undefined,
     craft: newCraftableRecipes(state, actions).length > 0 ? 'You can craft something new' : undefined,
   };
@@ -111,8 +128,8 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
               !
             </span>
           )}
-          {alerts[t.id] && (
-            <span className={`tab__alert tab__alert--${t.id}`} role="status" aria-label={alerts[t.id]} title={alerts[t.id]} />
+          {tabAlerts[t.id] && (
+            <span className={`tab__alert tab__alert--${t.id}`} role="status" aria-label={tabAlerts[t.id]} title={tabAlerts[t.id]} />
           )}
         </button>
       ))}
@@ -123,6 +140,7 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
     <div className={`game${wide ? ' game--wide' : ''}`}>
       <header className="game__header">
         <TopBar state={state} onMenu={() => setMenuOpen(true)} />
+        <EnvironmentBar state={state} />
         <StatBars stats={state.player.stats} max={sheet.max} />
         {saveFailed && <p className="save-warning">Could not save the game. Progress may be lost if you close the page.</p>}
       </header>
@@ -142,6 +160,18 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
       )}
       {state.status === 'dead' && <DeathScreen state={state} onNewGame={onNewGame} />}
       {menuOpen && <MenuDialog onClose={() => setMenuOpen(false)} onNewGame={onNewGame} />}
+      {alerts.texts.length > 0 && state.status === 'alive' && (
+        <Modal title="Worn out" onClose={alerts.dismiss}>
+          {alerts.texts.map((text, index) => (
+            <p key={index}>{text}</p>
+          ))}
+          <div className="button-row">
+            <button type="button" className="button button--primary" onClick={alerts.dismiss}>
+              OK
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

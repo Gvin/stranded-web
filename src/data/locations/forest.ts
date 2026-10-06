@@ -1,9 +1,12 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
 import { checkGainChance } from '../../engine/gains';
-import { ARMS, injure, LEGS } from '../../engine/outcomes';
 import { carried, holding } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
 import { plentyText } from './shared';
+
+/** Chance of a piece of resin while gathering sticks, and while chopping wood. */
+const RESIN_WITH_STICKS = 0.05;
+const RESIN_WHEN_CHOPPING = 0.3;
 
 const berryBushes: ObjectDef = {
   id: 'berry-bushes',
@@ -16,9 +19,7 @@ const berryBushes: ObjectDef = {
       id: 'pick',
       label: 'Pick berries',
       description: 'A sharp eye helps to tell the good berries from the bad.',
-      details:
-        'About a third of what you pick may be bitter, poisonous berries; with good perception you leave those on the bush. ' +
-        'Snakes sometimes hide in the leaves.',
+      details: 'About a third of what you pick may be bitter, poisonous berries; with good perception you leave those on the bush.',
       gains: (state) => [
         { itemId: 'wild-berries', quantity: [1, 4] },
         { itemId: 'bitter-berries', quantity: [1, 4], chance: 1 - checkGainChance(state, 'perception', 25) },
@@ -27,14 +28,9 @@ const berryBushes: ObjectDef = {
       energy: 2,
       usesStock: true,
       trains: { perception: 1 },
+      skill: 'foraging',
       run: (ctx) => {
-        if (ctx.chance(0.03)) {
-          ctx.log('A snake strikes from the leaves and sinks its fangs into your arm!', 'bad');
-          ctx.addTimedCondition('poisoned', 'heavy');
-          injure(ctx, { parts: ARMS });
-          return;
-        }
-        const picked = ctx.takeStock(ctx.randomInt(2, 4));
+        const picked = ctx.takeStock(ctx.gathered(ctx.randomInt(2, 4)));
         const bitter = Array.from({ length: picked }).filter(() => ctx.chance(0.3)).length;
         ctx.log('You pick berries from the bushes.');
         if (bitter > 0 && ctx.check('perception', 25)) {
@@ -63,9 +59,10 @@ const vines: ObjectDef = {
       energy: 3,
       requires: [holding('knife')],
       trains: { strength: 1 },
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You saw through a few lengths of vine.');
-        ctx.addItem('vine', ctx.randomInt(2, 3));
+        ctx.addItem('vine', ctx.gathered(ctx.randomInt(2, 3)));
       },
     },
     {
@@ -77,10 +74,11 @@ const vines: ObjectDef = {
       minutes: 30,
       energy: 6,
       trains: { strength: 2 },
+      skill: 'foraging',
       run: (ctx) => {
         if (ctx.check('strength', 15)) {
           ctx.log('You twist and pull until a length of vine snaps free.');
-          ctx.addItem('vine');
+          ctx.addItem('vine', ctx.gathered(1));
         } else {
           ctx.log('You strain until your hands are raw, but the vines hold.');
         }
@@ -104,9 +102,10 @@ const mushrooms: ObjectDef = {
       minutes: 15,
       energy: 2,
       usesStock: true,
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You gather a few of the mushrooms.');
-        ctx.addItem('mushroom', ctx.takeStock(ctx.randomInt(1, 3)));
+        ctx.addItem('mushroom', ctx.takeStock(ctx.gathered(ctx.randomInt(1, 3))));
       },
     },
   ],
@@ -129,9 +128,10 @@ export const forest: LocationDef = {
       gains: [{ itemId: 'grass', quantity: [2, 3] }],
       minutes: 10,
       energy: 1,
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You pull up a few bundles of dry grass.');
-        ctx.addItem('grass', ctx.randomInt(2, 3));
+        ctx.addItem('grass', ctx.gathered(ctx.randomInt(2, 3)));
       },
     },
     {
@@ -139,13 +139,20 @@ export const forest: LocationDef = {
       label: 'Gather sticks',
       description: 'Pick straight sticks off the forest floor.',
       details: 'Only so many sticks lie around; a new one drops from the trees every few hours.',
-      gains: [{ itemId: 'stick', quantity: [2, 3] }],
+      gains: [
+        { itemId: 'stick', quantity: [2, 3] },
+        { itemId: 'resin', chance: RESIN_WITH_STICKS, find: true },
+      ],
       minutes: 15,
       energy: 2,
       usesStock: 'sticks',
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You pick straight sticks off the forest floor.');
-        ctx.addItem('stick', ctx.takeStock(ctx.randomInt(2, 3), 'sticks'));
+        ctx.addItem('stick', ctx.takeStock(ctx.gathered(ctx.randomInt(2, 3)), 'sticks'));
+        if (ctx.chance(ctx.findChance(RESIN_WITH_STICKS, { perception: false }))) {
+          ctx.addItem('resin');
+        }
       },
     },
     {
@@ -153,22 +160,22 @@ export const forest: LocationDef = {
       label: 'Chop wood',
       description: 'Fell a small tree and cut it into logs. Slow, exhausting work.',
       details: 'Needs an axe in your bag or in hand. Logs weigh 3 kg each — mind your carrying capacity.',
-      gains: [{ itemId: 'log', quantity: 2 }],
+      gains: [
+        { itemId: 'log', quantity: 2 },
+        { itemId: 'resin', chance: RESIN_WHEN_CHOPPING, find: true },
+      ],
       minutes: 120,
       energy: 25,
       requires: [carried('axe')],
       trains: { strength: 3, endurance: 2 },
+      skill: 'foraging',
       run: (ctx) => {
         ctx.log('You hack at a young tree until it falls, then chop the trunk into logs.');
-        ctx.addItem('log', 2);
+        ctx.addItem('log', ctx.gathered(2));
+        if (ctx.chance(ctx.findChance(RESIN_WHEN_CHOPPING, { perception: false }))) {
+          ctx.addItem('resin');
+        }
       },
     },
   ],
-  onArrive: (ctx) => {
-    if (ctx.chance(0.1) && !ctx.check('agility', 10)) {
-      ctx.log('You catch your foot on a root and go down hard.', 'bad');
-      ctx.damage(3, 'You fell in the forest and never got up.');
-      injure(ctx, { parts: LEGS, bleedingChance: 0.3, bleedingSeverity: 'light' });
-    }
-  },
 };

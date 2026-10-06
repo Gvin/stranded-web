@@ -1,5 +1,5 @@
 import { ITEMS } from '../data/items';
-import { LOCATIONS } from '../data/locations';
+import { isKnownLocation } from '../data/locations';
 import type { GameState } from '../engine/types';
 import { runMigrations } from './migrations';
 import { GAME_VERSION, MIN_SUPPORTED_SAVE_VERSION, SAVE_VERSION } from './version';
@@ -33,11 +33,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Item ids the state refers to, so saves pointing at removed content are rejected instead of crashing later. */
 function referencedItemIds(value: Record<string, unknown>): unknown[] {
-  const player = value.player as { inventory: { itemId?: unknown }[]; equipment: Record<string, unknown> };
+  const player = value.player as { inventory: { itemId?: unknown }[]; equipment: Record<string, { itemId?: unknown } | undefined> };
   const locations = Object.values(value.locations as Record<string, { groundItems?: { itemId?: unknown }[]; buildings?: unknown }>);
   return [
     ...player.inventory.map((s) => s.itemId),
-    ...Object.values(player.equipment),
+    ...Object.values(player.equipment).map((item) => item?.itemId),
     ...locations.flatMap((l) => (l.groundItems ?? []).map((g) => g.itemId)),
     ...locations.flatMap((l) =>
       ((l.buildings as { storage?: { items?: { itemId?: unknown }[] } })?.storage?.items ?? []).map((s) => s.itemId),
@@ -57,16 +57,22 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     isRecord(player.stats) &&
     isRecord(player.nutrition) &&
     isRecord(player.attributes) &&
+    isRecord(player.skills) &&
     isRecord(player.body) &&
     Array.isArray(player.inventory) &&
     isRecord(player.equipment) &&
+    Object.values(player.equipment).every(isRecord) &&
+    isRecord(player.exposure) &&
+    isRecord(value.environment) &&
+    typeof value.environment.weather === 'string' &&
+    typeof value.environment.until === 'number' &&
     Array.isArray(player.craftedRecipes) &&
     isRecord(value.locations) &&
     Array.isArray(value.log);
   if (!shapeOk) {
     return false;
   }
-  const knownLocation = LOCATIONS.some((l) => l.id === (player as Record<string, unknown>).locationId);
+  const knownLocation = isKnownLocation((player as { locationId: string }).locationId);
   return knownLocation && referencedItemIds(value).every((id) => typeof id === 'string' && id in ITEMS);
 }
 

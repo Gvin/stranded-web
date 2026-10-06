@@ -14,13 +14,17 @@ export function MenuDialog({ onClose, onNewGame }: MenuDialogProps) {
       <p className="muted">The game is saved automatically after every action.</p>
       <h3 className="section-title">How to survive</h3>
       <ul className="help-list">
-        <li>Every action takes time. Thirst and hunger drop as time passes.</li>
+        <li>Every action takes time.</li>
         <li>
           Thirst and hunger grow over time; lower is better. Keep them below half to heal naturally. When a bar is full you start dying.
         </li>
         <li>Bandage wounds with rags to stop bleeding. Splint broken bones with sticks and a binding.</li>
         <li>
           Sleep when your energy is below 50. A hut at your camp makes sleep much more restful. Working on with no energy left costs health.
+        </li>
+        <li>
+          Heat makes you thirsty and cold makes you hungry; hours of either weaken you. A roof, a burning campfire and clothes help, and the
+          rain gets you wet. Worn clothes wear out.
         </li>
         <li>Attributes grow slowly as you use them.</li>
         <li>Hover over an action (or long-press it on a touch screen) to see what it needs and what it may give.</li>

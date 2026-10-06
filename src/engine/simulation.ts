@@ -1,11 +1,13 @@
 import { getItemDef } from '../data/items';
 import { type ActiveCondition, getCharacterSheet } from './character';
-import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, severityFor, TIMED_CONDITIONS } from './conditions';
+import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, TIMED_CONDITIONS, timedConditionSeverity } from './conditions';
 import { appendLog, formatAmount } from './context';
 import type { TimeMode } from './definitions';
-import { SURVIVAL_RULES } from './rules';
+import { getBodyTemperature, temperatureId, updateEnvironment } from './environment';
+import { ENVIRONMENT_RULES, ITEM_WEAR_PER_DAY, SURVIVAL_RULES } from './rules';
 import { changeStat } from './stats';
-import { BODY_PART_IDS, type GameState, STAT_IDS } from './types';
+import { MINUTES_PER_DAY } from './time';
+import { BODY_PART_IDS, EQUIP_SLOTS, type GameState, STAT_IDS } from './types';
 import { getLocationState, removeExpiredGroundItems } from './world';
 
 interface HealthDrain {
@@ -25,6 +27,9 @@ const CONDITION_ONSET: Record<string, string> = {
   'starving:heavy': 'You are weak with hunger. Eat something, now!',
   dizzy: 'Your head is spinning. You feel dizzy.',
   poisoned: 'A wave of nausea hits you. You have been poisoned.',
+  wet: 'The rain soaks you to the skin. You are wet.',
+  overheated: 'The heat is too much for you. You are overheated.',
+  freezing: 'You cannot stop shivering. You are freezing.',
 };
 
 const SEVERITY_RANK = { light: 1, medium: 2, heavy: 3 } as const;
@@ -86,8 +91,11 @@ function collectHealthDrains(state: GameState, conditions: ActiveCondition[]): H
   return drains;
 }
 
-/** Lets body and timed conditions heal for the given minutes; logs eased severities and healed conditions. */
-function healConditions(state: GameState, minutes: number): void {
+/**
+ * Lets body and timed conditions heal for the given minutes; logs eased severities and healed conditions.
+ * Being wet dries faster while the environment is hot.
+ */
+function healConditions(state: GameState, minutes: number, environmentTemperature: number): void {
   const { player } = state;
   for (const part of BODY_PART_IDS) {
     player.body[part] = player.body[part].filter((condition) => {
@@ -111,28 +119,47 @@ function healConditions(state: GameState, minutes: number): void {
   }
   player.conditions = player.conditions.filter((condition) => {
     const def = TIMED_CONDITIONS[condition.id];
-    const severityBefore = severityFor(def.stages, condition.remaining);
-    condition.remaining -= minutes;
+    const severityBefore = timedConditionSeverity(condition);
+    const rate = condition.id === 'wet' && environmentTemperature > 0 ? ENVIRONMENT_RULES.wetHotDryingRate : 1;
+    condition.remaining -= minutes * rate;
     if (condition.remaining <= 0) {
       appendLog(state, def.endMessage, 'good');
       return false;
     }
-    if (severityFor(def.stages, condition.remaining) !== severityBefore) {
+    if (def.easedMessage && timedConditionSeverity(condition) !== severityBefore) {
       appendLog(state, def.easedMessage, 'good');
     }
     return true;
   });
 }
 
+/** Worn items lose health; one that reaches 0 falls apart and is gone. */
+function wearOutEquipment(state: GameState, minutes: number): void {
+  const { equipment } = state.player;
+  for (const slot of EQUIP_SLOTS) {
+    const item = equipment[slot];
+    if (item?.health === undefined) {
+      continue;
+    }
+    item.health -= (minutes / MINUTES_PER_DAY) * ITEM_WEAR_PER_DAY;
+    if (item.health <= 0) {
+      delete equipment[slot];
+      appendLog(state, `Your ${getItemDef(item.itemId).name.toLowerCase()} fell apart. It is gone.`, 'bad', { alert: true });
+    }
+  }
+}
+
 function tick(state: GameState, minutes: number, mode: TimeMode): void {
   const sheet = getCharacterSheet(state);
+  const temperature = getBodyTemperature(state);
+  const rates = ENVIRONMENT_RULES.rates[temperatureId(temperature.value)];
   const { stats } = state.player;
   const elapsedHours = minutes / 60;
   const drainFactor = mode === 'sleeping' ? SURVIVAL_RULES.sleepingDrainFactor : 1;
 
   const drains = collectHealthDrains(state, sheet.conditions);
   for (const id of ['thirst', 'hunger'] as const) {
-    const perHour = id === 'thirst' ? SURVIVAL_RULES.thirstPerHour : SURVIVAL_RULES.hungerPerHour;
+    const perHour = id === 'thirst' ? SURVIVAL_RULES.thirstPerHour * rates.thirst : SURVIVAL_RULES.hungerPerHour * rates.hunger;
     const change = changeStat(state, id, perHour * drainFactor * elapsedHours, sheet.max[id]);
     if (change.damage > 0) {
       drains.push({ perHour: -change.damage / elapsedHours, deathCause: change.deathCause ?? 'Your body gave out.', alreadyApplied: true });
@@ -159,7 +186,9 @@ function tick(state: GameState, minutes: number, mode: TimeMode): void {
     killPlayer(state, worst?.deathCause ?? 'Your body gave out.');
     return;
   }
-  healConditions(state, minutes);
+  healConditions(state, minutes, temperature.environment);
+  wearOutEquipment(state, minutes);
+  updateEnvironment(state, minutes, temperature.value);
 }
 
 /** Simulates the passing of time in small steps: survival drains, regeneration, healing, decay and death. */

@@ -1,5 +1,5 @@
 import type { Severity } from './conditions';
-import type { AttributeId, NutrientId, StatId } from './types';
+import type { AttributeId, NutrientId, SkillId, StatId } from './types';
 
 // Balance constants and formulas in one place, so the game can be tuned without hunting through the engine.
 
@@ -48,6 +48,82 @@ export const NUTRITION_RULES = {
 
 /** Energy every crafting recipe costs. */
 export const CRAFT_ENERGY = 1;
+
+/** Time and energy of every building step. */
+export const BUILDING_STEP_MINUTES = 15;
+export const BUILDING_STEP_ENERGY = 2;
+
+export const SKILL_NAMES: Record<SkillId, string> = {
+  fighting: 'Fighting',
+  farming: 'Farming',
+  building: 'Building',
+  foraging: 'Foraging',
+  crafting: 'Crafting',
+};
+
+export const SKILL_RULES = {
+  maxLevel: 10,
+  /** Practice points from one level to the next. */
+  pointsPerLevel: 100,
+  /** Points one action gives the skill it trains (a building step, a craft, a foraging action). */
+  points: { fighting: 0, farming: 0, building: 10, foraging: 2, crafting: 10 } satisfies Record<SkillId, number>,
+  /** Building steps and recipes take this much less of their time per Building or Crafting level (level 10: half). */
+  timeReductionPerLevel: 0.05,
+  /** Foraging: find chances grow by this fraction per level, gathered items by this fraction per level. */
+  findChancePerLevel: 0.1,
+  gatheredPerLevel: 0.05,
+  /** Chance by Building or Crafting level (index) to get one used resource back, and a second one on top. */
+  refundChance: [0, 0, 0, 0, 0, 0.1, 0.3, 0.5, 0.7, 1, 1],
+  secondRefundChance: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5],
+} as const;
+
+/** Health a worn item loses per day of wearing. */
+export const ITEM_WEAR_PER_DAY = 1;
+/** Items at or below this fraction of their full health show a warning. */
+export const ITEM_WORN_OUT_WARNING = 0.1;
+
+/** Temperature steps from coldest to hottest; the value of a step is its index minus 2 (Normal = 0). */
+export type TemperatureId = 'veryCold' | 'cold' | 'normal' | 'hot' | 'veryHot';
+export const TEMPERATURE_IDS: readonly TemperatureId[] = ['veryCold', 'cold', 'normal', 'hot', 'veryHot'];
+
+export const TEMPERATURE_NAMES: Record<TemperatureId, string> = {
+  veryCold: 'Very Cold',
+  cold: 'Cold',
+  normal: 'Normal',
+  hot: 'Hot',
+  veryHot: 'Very Hot',
+};
+
+export const ENVIRONMENT_RULES = {
+  /** Temperature of the time of day; hours are inclusive and the night wraps past midnight. */
+  dayTemperatures: [
+    { name: 'Morning', from: 7, to: 10, temperature: 0 },
+    { name: 'Midday', from: 11, to: 16, temperature: 1 },
+    { name: 'Evening', from: 17, to: 21, temperature: 0 },
+    { name: 'Night', from: 22, to: 6, temperature: -1 },
+  ],
+  /** How fast thirst and hunger grow at each body temperature (1 = the normal speed). */
+  rates: {
+    veryCold: { thirst: 0.9, hunger: 1.5 },
+    cold: { thirst: 0.9, hunger: 1.25 },
+    normal: { thirst: 1, hunger: 1 },
+    hot: { thirst: 1.25, hunger: 1 },
+    veryHot: { thirst: 1.5, hunger: 1 },
+  } satisfies Record<TemperatureId, { thirst: number; hunger: number }>,
+  /** Very Hot or Very Cold body temperature for longer than this causes Overheated or Freezing. */
+  exposureMinutes: 60,
+  /** Overheated and Freezing last this long once the exposure ends. */
+  exposureConditionMinutes: 30,
+  /** Penalty in percent to every attribute while Overheated or Freezing. */
+  exposurePenalty: 20,
+  /** Minutes out in the rain, with neither a roof nor waterproof clothes, before the player gets wet. */
+  wetAfterMinutes: 10,
+  /** Being wet lasts this long after the rain, drying this many times faster while the environment is Hot or Very Hot. */
+  wetMinutes: 120,
+  wetHotDryingRate: 2,
+  /** Washing your face at the spring or sitting by the fire takes this much off Overheated, Freezing and Wet. */
+  recoveryMinutes: 15,
+} as const;
 
 export function maxStatsFor(attributes: Record<AttributeId, number>): Record<StatId, number> {
   return {
