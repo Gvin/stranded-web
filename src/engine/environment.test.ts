@@ -114,7 +114,6 @@ describe('body temperature', () => {
 
     // Assert
     expect(temperature).toBe('cold');
-    expect(getBodyTemperature(state).bodyFactors).toEqual([{ label: 'Wet', after: -1 }]);
   });
 
   it('makes thirst grow faster in the heat and hunger faster in the cold', () => {

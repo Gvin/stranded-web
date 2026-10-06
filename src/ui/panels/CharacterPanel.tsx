@@ -1,6 +1,6 @@
 import type { CharacterSheet } from '../../engine/character';
 import { BODY_CONDITIONS, BODY_PARTS, bodyConditionHealsIn, bodyConditionSeverity } from '../../engine/conditions';
-import { getBodyTemperature, temperatureId, type TemperatureFactor } from '../../engine/environment';
+import { getBodyTemperature, getWeather, temperatureId } from '../../engine/environment';
 import {
   ATTRIBUTE_HINTS,
   ENVIRONMENT_RULES,
@@ -16,6 +16,7 @@ import { describeSkill } from '../../engine/skills';
 import { ATTRIBUTE_IDS, BODY_PART_IDS, type GameState, NUTRIENT_IDS, SKILL_IDS } from '../../engine/types';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
+import { InfoTip } from '../components/InfoTip';
 
 interface CharacterPanelProps {
   state: GameState;
@@ -37,33 +38,8 @@ function temperatureEffect(id: TemperatureId): string {
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
-/**
- * The steps from the time of day to the body temperature, each with the temperature it leads to: "Evening Normal",
- * "Clear → Hot", "Hut roof → Normal". `startsChain` marks the list that begins with the time of day, which has no arrow.
- */
-function FactorList({ factors, startsChain = false }: { factors: readonly TemperatureFactor[]; startsChain?: boolean }) {
-  return (
-    <>
-      {factors.map((factor, index) => {
-        const id = temperatureId(factor.after);
-        return (
-          <li key={factor.label} className="small">
-            <span>{factor.label}</span>
-            <span className={`temperature temperature--${id}`}>
-              {startsChain && index === 0 ? '' : '→ '}
-              {TEMPERATURE_NAMES[id]}
-            </span>
-          </li>
-        );
-      })}
-    </>
-  );
-}
-
 function TemperatureSection({ state }: { state: GameState }) {
-  const temperature = getBodyTemperature(state);
-  const environment = temperatureId(temperature.environment);
-  const body = temperatureId(temperature.value);
+  const body = temperatureId(getBodyTemperature(state).value);
   const { veryHot, veryCold } = state.player.exposure;
   const exposed = body === 'veryHot' ? veryHot : body === 'veryCold' ? veryCold : 0;
   const limit = formatDuration(ENVIRONMENT_RULES.exposureMinutes);
@@ -71,19 +47,10 @@ function TemperatureSection({ state }: { state: GameState }) {
     <section>
       <h2 className="section-title">Temperature</h2>
       <div className="card temperature-card">
-        <div className="temperature-card__row">
-          <span className="temperature-card__label">Body temperature</span>
-          <span className={`temperature temperature--${body}`}>{TEMPERATURE_NAMES[body]}</span>
-        </div>
+        <p className="temperature-card__summary">
+          {getWeather(state).name}, <span className={`temperature temperature--${body}`}>{TEMPERATURE_NAMES[body]}</span>
+        </p>
         <p className="small">{temperatureEffect(body)}</p>
-        <ul className="modifiers">
-          <FactorList factors={temperature.environmentFactors} startsChain />
-          <li className="small temperature-card__total">
-            <span>Island</span>
-            <span className={`temperature temperature--${environment}`}>{TEMPERATURE_NAMES[environment]}</span>
-          </li>
-          <FactorList factors={temperature.bodyFactors} />
-        </ul>
         {exposed > 0 && exposed <= ENVIRONMENT_RULES.exposureMinutes && (
           <p className="small text-bad">
             {TEMPERATURE_NAMES[body]} for {formatDuration(exposed)}. After {limit} without a break you{' '}
@@ -191,10 +158,6 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
             );
           })}
         </div>
-        <p className="muted small">
-          Every meal adds {NUTRITION_RULES.gain} to its food group and takes {NUTRITION_RULES.loss} from the others. If a group runs out,
-          malnutrition weakens all your attributes by {NUTRITION_RULES.malnutritionPenalty}%.
-        </p>
       </section>
 
       <section>
@@ -206,7 +169,10 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
             return (
               <li key={id} className="skill">
                 <div className="skill__heading">
-                  <span className="skill__name">{SKILL_NAMES[id]}</span>
+                  <span className="skill__name">
+                    {SKILL_NAMES[id]}
+                    <InfoTip label={SKILL_NAMES[id]} text={describeSkill(id, skill.level)} />
+                  </span>
                   <span className="skill__level">
                     Level {skill.level}
                     <span className="muted"> / {SKILL_RULES.maxLevel}</span>
@@ -215,7 +181,6 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
                 <div className="xp" title={maxed ? 'Highest level' : `${skill.points} / ${SKILL_RULES.pointsPerLevel} to the next level`}>
                   <div className="xp__fill" style={{ width: `${maxed ? 100 : (skill.points / SKILL_RULES.pointsPerLevel) * 100}%` }} />
                 </div>
-                <p className="muted small">{describeSkill(id, skill.level)}</p>
               </li>
             );
           })}

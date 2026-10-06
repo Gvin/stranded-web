@@ -20,7 +20,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 
 - **Stats** — Health, Thirst, Hunger, Energy. Health and energy: higher is better. Thirst and hunger: lower is better — they grow
   as time passes and drop when you drink or eat (the spring quenches thirst completely). Energy is spent by actions and restored by
-  resting and sleeping. Sleep is only possible below 50 energy: either for 8 hours, or — in the evening and at night — until 06:00.
+  resting and sleeping. Sleep is only offered below 50 energy (hidden otherwise): either for 8 hours, or — in the evening and at night — until 06:00.
   Health reaching 0 kills the player.
 - **Overflow damage** — an action never needs enough energy: whatever energy you lack, and any thirst or hunger pushed past the
   maximum (also while time passes), is taken from health instead (rates in `overflowDamage` in `src/engine/rules.ts`).
@@ -30,7 +30,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   - Perception: chance of finding things.
   - Agility: travel time, climbing, fighting.
 - **Skills** — Fighting, Farming, Building, Foraging and Crafting, each from level 0 to 10 (`SKILL_RULES` in
-  `src/engine/rules.ts`, shown in the Body tab). 100 points of practice take a skill to its next level; a new level is logged.
+  `src/engine/rules.ts`, shown in the Body tab, where a "?" next to each skill tells what its level gives). 100 points of practice take a skill to its next level; a new level is logged.
   - Building: 10 points per building step. Crafting: 10 points per craft, however many items it makes. Both take 5% off the
     time per level (level 10 takes half the time). From level 5, finishing a building or a craft may give back
     one used resource: 10% at level 5, 30% at 6, 50% at 7, 70% at 8, 100% at 9, and at level 10 also a 50% chance of a second.
@@ -52,7 +52,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   the environment.
 - **Environment** — island-wide weather plus a temperature from the time of day (numbers in `ENVIRONMENT_RULES` in
   `src/engine/rules.ts`, weather in `src/data/weather.ts`). The header shows the weather and the island temperature; the Body tab
-  shows your body temperature and each step that led to it, by name: "Evening Normal", "Clear → Hot", "Hut roof → Normal".
+  shows the weather with your body temperature ("Rainy, Very Cold") and what that temperature does to thirst and hunger.
   - Temperature steps: Very Cold, Cold, Normal, Hot, Very Hot. Morning (07–10) and evening (17–21) are Normal, midday (11–16) is
     Hot, night (22–06) is Cold. The weather shifts that, never past Very Cold or Very Hot.
   - Weather: when one ends, the next is picked by chance and lasts a random time: Clear 30% (1–16 h, +1), Cloudy 20% (1–16 h),

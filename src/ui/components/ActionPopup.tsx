@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { formatDuration } from '../../engine/time';
 import type { ActionView } from '../actionView';
 import { ItemIcon } from './Icon';
+import { useAnchoredPosition } from './useAnchoredPosition';
 
 interface ActionPopupProps {
   id: string;
@@ -10,29 +11,11 @@ interface ActionPopupProps {
   anchor: HTMLElement;
 }
 
-const MARGIN = 8;
-
 /** Rich details of an action — explanation, requirements and possible gains — floating next to its button. */
 export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number }>();
+  const position = useAnchoredPosition(anchor, ref);
   const { action, blocked, requirements, energyShortfall } = view;
-
-  useLayoutEffect(() => {
-    const popup = ref.current;
-    if (!popup) {
-      return;
-    }
-    const target = anchor.getBoundingClientRect();
-    const { width, height } = popup.getBoundingClientRect();
-    // why: the sticky header and the phone's fixed bottom tab bar stay on top of the page, so the popup must fit between them.
-    const minTop = (document.querySelector('.game__header')?.getBoundingClientRect().bottom ?? 0) + MARGIN;
-    const maxBottom = (document.querySelector('.tabs--bottom')?.getBoundingClientRect().top ?? window.innerHeight) - MARGIN;
-    const below = target.bottom + MARGIN;
-    const top = below + height <= maxBottom ? below : Math.max(minTop, target.top - height - MARGIN);
-    const left = Math.min(Math.max(MARGIN, target.left), window.innerWidth - width - MARGIN);
-    setPosition({ top, left });
-  }, [anchor]);
 
   return createPortal(
     <div

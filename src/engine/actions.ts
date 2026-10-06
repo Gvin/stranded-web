@@ -221,6 +221,8 @@ function signed(value: number): string {
 function locationActions(state: GameState): GameAction[] {
   const hut = getLocationState(state, state.player.locationId).buildings.hut !== undefined;
   const untilMorning = minutesUntilHour(state.time, SURVIVAL_RULES.wakeUpHour);
+  // why: sleeping is only possible when tired, and the actions are hidden rather than shown as blocked until then.
+  const tired = state.player.stats.energy < SURVIVAL_RULES.sleepBelowEnergy;
   return [
     {
       id: 'rest',
@@ -235,8 +237,8 @@ function locationActions(state: GameState): GameAction[] {
       requirements: [],
       run: (ctx) => ctx.log('You sit down and rest for a while.'),
     },
-    sleepAction('sleep', 'Sleep', hours(8), hut),
-    ...(untilMorning > 0 && untilMorning <= hours(SURVIVAL_RULES.sleepTillMorningMaxHours)
+    ...(tired ? [sleepAction('sleep', 'Sleep', hours(8), hut)] : []),
+    ...(tired && untilMorning > 0 && untilMorning <= hours(SURVIVAL_RULES.sleepTillMorningMaxHours)
       ? [sleepAction('sleep-till-morning', 'Sleep till morning', untilMorning, hut)]
       : []),
   ];
@@ -254,16 +256,12 @@ function sleepAction(id: string, label: string, minutes: number, hut: boolean): 
       id === 'sleep'
         ? 'Sleep through the next hours. A hut makes it far more restful.'
         : `Sleep until ${String(SURVIVAL_RULES.wakeUpHour).padStart(2, '0')}:00. A hut makes it far more restful.`,
-    details: `Only possible when your energy is below ${SURVIVAL_RULES.sleepBelowEnergy}. Thirst and hunger grow more slowly while you sleep, and health recovers faster.`,
+    details: 'Thirst and hunger grow more slowly while you sleep, and health recovers faster.',
     gains: [{ label: `+${energy} energy${hut ? ' (hut)' : ''}` }, { label: 'Faster healing' }],
     minutes,
     energy: 0,
     timeMode: 'sleeping',
     requirements: [],
-    block: (s) =>
-      s.player.stats.energy >= SURVIVAL_RULES.sleepBelowEnergy
-        ? `You are not tired enough to sleep (energy must be below ${SURVIVAL_RULES.sleepBelowEnergy})`
-        : undefined,
     run: (ctx) => {
       ctx.log(
         ctx.location().buildings.hut

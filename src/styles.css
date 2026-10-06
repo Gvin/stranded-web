@@ -397,25 +397,8 @@ p {
   color: var(--bad);
 }
 
-.temperature-card__row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.temperature-card__label {
+.temperature-card__summary {
   font-weight: 600;
-}
-
-.temperature-card__total {
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  padding: 2px 0;
-}
-
-.temperature-card__total:last-child {
-  border-bottom: none;
 }
 
 .health {
@@ -1022,7 +1005,42 @@ p {
 }
 
 .skill__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-weight: 600;
+}
+
+/* A 28 px touch area around a small round "?" mark. */
+.info-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: -6px 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: help;
+}
+
+.info-tip__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.info-tip[aria-expanded='true'] {
+  color: var(--sand);
 }
 
 .skill__level {
@@ -1290,6 +1308,13 @@ html[data-theme-ready],
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.popup--tip {
+  width: auto;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 8px 10px;
+  font-size: 0.8rem;
 }
 
 .popup__heading {

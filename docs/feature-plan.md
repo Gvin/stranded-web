@@ -103,6 +103,10 @@ The Workbench (level 2) will be needed for more advanced recipes, to come later.
 | Pair of flints | crafted from flint ×2; 20 health, loses 1 each time it lights a fire          | 0.6 kg  | 60 days             |
 | Torch          | crafted from stick, cloth, glue; 100 health, loses 2 per hour while it is lit | 0.5 kg  | 15 days             |
 
+**Item names**
+
+Every item, old and new, gets two names: one for a single item, with its article, and one for several. For example, Stick: "a stick" and "sticks"; Axe: "an axe" and "axes". Messages use them, so they read "You drop a stick on the ground." and "You leave 3 sticks on the ground." instead of "You drop stick on the ground." I write the names for all items, and you look over the list.
+
 **Engine and UI**
 
 - A chain is one building slot per location with a level; building the next level replaces the one before, and a bigger storage keeps what is stored in it.
@@ -110,6 +114,7 @@ The Workbench (level 2) will be needed for more advanced recipes, to come later.
 - The pair of flints and the torch wear out like clothing: they have health and never stack. A torch also stores whether it is lit.
 - The sleep conditions work like Overheated and Freezing (timed, with fixed penalties or bonuses); a new sleep replaces the old one.
 - Sleepy needs the time the player last woke up in the state; existing games start counting from the moment they are loaded.
+- Item names are two new fields on every item definition; they are not saved, so they need no save change.
 - Save change: existing games keep what they built: a Hut stays a Hut (level 3, with the mat and shelter counted as built), the Small storage and the Workbench become level 1.
 
 ## Weapon stats
@@ -256,12 +261,12 @@ Decided: one central system for game events, the things that happen to the playe
 
 Four releases take the game from 0.11.0 (save format 8) to 0.15.0 (save format 12). The first is decided; the others are made of the suggestions above.
 
-| Release            | Game version | Save format | Contents                                                                                                                            |
-| ------------------ | ------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Building upgrades  | 0.12.0       | 9           | House, Fireplace, Workbench and Storage chains, sleep quality, Sleepy, fuel and lighting, torch, leaves, moss, clay, pair of flints |
-| Weapon stats       | 0.13.0       | 10          | Weapon profiles, two-handed weapons                                                                                                 |
-| Fighting + hunting | 0.14.0       | 11          | Fight encounters, tracking and stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests                          |
-| Farming            | 0.15.0       | 12          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                                           |
+| Release            | Game version | Save format | Contents                                                                                                                                        |
+| ------------------ | ------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Building upgrades  | 0.12.0       | 9           | House, Fireplace, Workbench and Storage chains, sleep quality, Sleepy, fuel and lighting, torch, leaves, moss, clay, pair of flints, item names |
+| Weapon stats       | 0.13.0       | 10          | Weapon profiles, two-handed weapons                                                                                                             |
+| Fighting + hunting | 0.14.0       | 11          | Fight encounters, tracking and stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests                                      |
+| Farming            | 0.15.0       | 12          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                                                       |
 
 Fighting gives the existing Armor and the Fighting skill their use, and farming relies on the existing rain to water the garden.
 

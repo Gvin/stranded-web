@@ -5,6 +5,8 @@ import { applyBodyCondition } from './conditions';
 import { findAction, performAction } from './game';
 import { checkChance } from './rules';
 import { createTestGame, giveItem } from './testUtils';
+import { hours } from './time';
+import type { GameState } from './types';
 import { getLocationView } from './views';
 
 const blockedReason = (state: ReturnType<typeof createTestGame>, actionId: string) => {
@@ -60,20 +62,21 @@ describe('overflow damage', () => {
 });
 
 describe('sleep', () => {
-  it('is only possible with less than 50 energy', () => {
+  it('is only offered with less than 50 energy', () => {
     // Arrange
     const rested = createTestGame('beach');
     rested.player.stats.energy = 50;
-    const tired = createTestGame('beach');
+    rested.time = hours(14);
+    const tired = structuredClone(rested);
     tired.player.stats.energy = 49;
 
     // Act
-    const restedReason = blockedReason(rested, 'sleep');
-    const tiredReason = blockedReason(tired, 'sleep');
+    const sleepActions = (state: GameState) => getActions(state).filter((a) => a.id.startsWith('sleep'));
 
     // Assert
-    expect(restedReason).toBe('You are not tired enough to sleep (energy must be below 50)');
-    expect(tiredReason).toBeUndefined();
+    expect(sleepActions(rested)).toEqual([]);
+    expect(sleepActions(tired).map((a) => a.id)).toEqual(['sleep', 'sleep-till-morning']);
+    expect(blockedReason(tired, 'sleep')).toBeUndefined();
   });
 });
 
