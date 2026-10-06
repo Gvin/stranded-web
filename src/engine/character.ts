@@ -10,6 +10,7 @@ import {
   TIMED_CONDITIONS,
 } from './conditions';
 import { carriedWeight } from './inventory';
+import { emptyFoodGroups, foodGroupList } from './nutrition';
 import {
   ATTRIBUTE_NAMES,
   carryCapacityFor,
@@ -17,12 +18,13 @@ import {
   MAX_TOTAL_PENALTY,
   maxStatsFor,
   MIN_EFFECTIVE_ATTRIBUTE,
+  NUTRITION_RULES,
   SURVIVAL_RULES,
   xpToNextPoint,
 } from './rules';
 import { ATTRIBUTE_IDS, BODY_PART_IDS, type AttributeId, type GameState, type PlayerState, type StatId } from './types';
 
-export type PlayerConditionId = 'poisoned' | 'dizzy' | 'starving' | 'thirsty';
+export type PlayerConditionId = 'poisoned' | 'dizzy' | 'starving' | 'thirsty' | 'malnutrition';
 
 export interface ActiveCondition {
   id: PlayerConditionId;
@@ -135,6 +137,22 @@ function deprivationCondition(id: 'starving' | 'thirsty', value: number, max: nu
   };
 }
 
+/** Malnutrition while any food group is empty; one penalty no matter how many are. */
+function malnutritionCondition(player: PlayerState): ActiveCondition | undefined {
+  const empty = emptyFoodGroups(player);
+  if (empty.length === 0) {
+    return undefined;
+  }
+  const penalty = -NUTRITION_RULES.malnutritionPenalty;
+  return {
+    id: 'malnutrition',
+    name: 'Malnutrition',
+    description: `Your body is missing ${foodGroupList(empty)}, and every part of you is weaker for it. Eat some to recover.`,
+    modifiers: { strength: penalty, endurance: penalty, perception: penalty, agility: penalty },
+    healthPerHour: 0,
+  };
+}
+
 /** Player-wide conditions: stored timed ones plus the ones derived from hunger, thirst and energy. */
 function playerConditions(state: GameState, max: Record<StatId, number>): ActiveCondition[] {
   const { player } = state;
@@ -176,12 +194,13 @@ function playerConditions(state: GameState, max: Record<StatId, number>): Active
 
 /**
  * Computes attributes, maximum stats and active conditions for the current state.
- * Runs in two passes: hunger, thirst and energy maxima come from stored conditions only, so the
- * conditions derived from them never feed back into their own thresholds.
+ * Runs in two passes: hunger, thirst and energy maxima come from body conditions and malnutrition only, so the
+ * conditions derived from those stats never feed back into their own thresholds.
  */
 export function getCharacterSheet(state: GameState): CharacterSheet {
   const { player } = state;
-  const stored = storedModifiers(player);
+  const malnutrition = malnutritionCondition(player);
+  const stored = [...storedModifiers(player), ...(malnutrition ? [{ source: malnutrition.name, modifiers: malnutrition.modifiers }] : [])];
   const preliminary = buildAttributes(player, stored);
   const preliminaryMax = maxStatsFor(effectiveValues(preliminary));
   const conditions = playerConditions(state, preliminaryMax);
@@ -195,7 +214,7 @@ export function getCharacterSheet(state: GameState): CharacterSheet {
   return {
     attributes,
     max,
-    conditions,
+    conditions: malnutrition ? [...conditions, malnutrition] : conditions,
     carryCapacity: carryCapacityFor(attributes.strength.effective),
     carriedWeight: carriedWeight(player),
   };

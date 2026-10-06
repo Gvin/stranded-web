@@ -419,6 +419,23 @@ p {
   background: var(--energy);
 }
 
+.nutrition {
+  display: grid;
+  gap: 8px;
+}
+
+.stat--vegetables .stat__fill {
+  background: var(--good);
+}
+
+.stat--meat .stat__fill {
+  background: var(--health);
+}
+
+.stat--fruits .stat__fill {
+  background: var(--hunger);
+}
+
 .stat--danger .stat__value {
   color: var(--bad);
   font-weight: 700;

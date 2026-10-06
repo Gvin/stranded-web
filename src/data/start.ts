@@ -1,4 +1,5 @@
 import { BODY_CONDITIONS } from '../engine/conditions';
+import { startingNutrition } from '../engine/nutrition';
 import { BASE_ATTRIBUTE } from '../engine/rules';
 import type { GameState } from '../engine/types';
 import { START_LOCATION_ID } from './locations';
@@ -20,6 +21,7 @@ export function createStartingState(seed: number): GameState {
     player: {
       locationId: START_LOCATION_ID,
       stats: { health: 90, thirst: 45, hunger: 30, energy: 70 },
+      nutrition: startingNutrition(),
       attributes: {
         strength: attribute(),
         endurance: attribute(),

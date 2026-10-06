@@ -1,5 +1,5 @@
 import type { Severity } from './conditions';
-import type { AttributeId, StatId } from './types';
+import type { AttributeId, NutrientId, StatId } from './types';
 
 // Balance constants and formulas in one place, so the game can be tuned without hunting through the engine.
 
@@ -29,6 +29,25 @@ export const STAT_NAMES: Record<StatId, string> = {
   hunger: 'Hunger',
   energy: 'Energy',
 };
+
+export const NUTRIENT_NAMES: Record<NutrientId, string> = {
+  vegetables: 'Vegetables',
+  meat: 'Meat',
+  fruits: 'Fruits',
+};
+
+export const NUTRITION_RULES = {
+  /** The food groups together hold at most this much; a new game splits it evenly. */
+  total: 99,
+  /** Eating adds `gain` to the food's group and takes `loss` from every other group. */
+  gain: 2,
+  loss: 1,
+  /** Penalty in percent to every attribute while any food group is empty. */
+  malnutritionPenalty: 15,
+} as const;
+
+/** Energy every crafting recipe costs. */
+export const CRAFT_ENERGY = 1;
 
 export function maxStatsFor(attributes: Record<AttributeId, number>): Record<StatId, number> {
   return {

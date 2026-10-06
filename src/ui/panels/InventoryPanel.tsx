@@ -3,6 +3,7 @@ import { getItemDef } from '../../data/items';
 import type { CharacterSheet } from '../../engine/character';
 import type { ItemCategory, ItemDef } from '../../engine/definitions';
 import { stackWeight } from '../../engine/inventory';
+import { NUTRIENT_NAMES } from '../../engine/rules';
 import { EQUIP_SLOTS, type EquipSlot, type GameState } from '../../engine/types';
 import { getLocationState } from '../../engine/world';
 import type { ActionView, PerformAction } from '../actionView';
@@ -31,6 +32,9 @@ function itemStats(def: ItemDef): string {
     }
     if (def.hydration) {
       parts.push(`${def.hydration > 0 ? '−' : '+'}${Math.abs(def.hydration)} thirst`);
+    }
+    if (def.foodGroup) {
+      parts.push(NUTRIENT_NAMES[def.foodGroup].toLowerCase());
     }
   }
   if (def.category === 'equipment' && def.combat) {

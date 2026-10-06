@@ -1,14 +1,13 @@
 import type { RecipeDef } from '../engine/definitions';
 import { ofType } from '../engine/requirements';
 
-/** Crafting recipes. Set `stations` to require a building or location object nearby (e.g. 'workbench', 'pool'). */
+/** Crafting recipes; each costs CRAFT_ENERGY. Set `stations` to require a building or location object nearby (e.g. 'workbench', 'pool'). */
 export const RECIPES: readonly RecipeDef[] = [
   {
     id: 'opened-coconut',
     name: 'Opened coconut',
     description: 'Crack a coconut open on something heavy.',
     minutes: 5,
-    energy: 1,
     ingredients: [{ itemId: 'coconut', quantity: 1 }],
     tools: [ofType('heavy')],
     result: { itemId: 'opened-coconut', quantity: 1 },
@@ -19,7 +18,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Threads',
     description: 'Cut a rope or vine into thin fibres.',
     minutes: 10,
-    energy: 1,
     ingredients: [{ type: 'rope', quantity: 1 }],
     tools: [ofType('sharp')],
     result: { itemId: 'threads', quantity: 1 },
@@ -31,7 +29,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Rope',
     description: 'Twist threads together into a rope.',
     minutes: 15,
-    energy: 1,
     ingredients: [{ type: 'threads', quantity: 2 }],
     result: { itemId: 'rope', quantity: 1 },
     trains: { agility: 1 },
@@ -42,7 +39,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Knife',
     description: 'Fix a sharp flake to a stick handle.',
     minutes: 20,
-    energy: 2,
     ingredients: [
       { type: 'stick', quantity: 1 },
       { type: 'sharp', quantity: 1 },
@@ -56,7 +52,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Bandage',
     description: 'Fold cloth into a dressing with ties.',
     minutes: 10,
-    energy: 0,
     ingredients: [
       { type: 'cloth', quantity: 1 },
       { type: 'rope', quantity: 1 },
@@ -70,7 +65,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Spear',
     description: 'Bind a sharp point to a long stick. A weapon, and good for fishing.',
     minutes: 30,
-    energy: 3,
     ingredients: [
       { type: 'stick', quantity: 1 },
       { type: 'sharp', quantity: 1 },
@@ -85,7 +79,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Bad wooden arrows',
     description: 'Whittle sticks into crude arrows. They fly badly and are often lost.',
     minutes: 30,
-    energy: 2,
     ingredients: [{ type: 'stick', quantity: 1 }],
     tools: [ofType('knife')],
     result: { itemId: 'bad-arrow', quantity: 5 },
@@ -97,7 +90,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Wooden arrow',
     description: 'Fletch a crude arrow with a feather so it flies true.',
     minutes: 10,
-    energy: 1,
     ingredients: [
       { itemId: 'bad-arrow', quantity: 1 },
       { type: 'feather', quantity: 1 },
@@ -111,7 +103,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Stone tip arrow',
     description: 'Fit a pebble tip to a fletched arrow. Hits harder and breaks less.',
     minutes: 10,
-    energy: 1,
     ingredients: [
       { itemId: 'wooden-arrow', quantity: 1 },
       { type: 'pebble', quantity: 1 },
@@ -125,7 +116,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Axe',
     description: 'Lash a sharp blade to a stick handle. Needed to chop wood.',
     minutes: 40,
-    energy: 4,
     ingredients: [
       { type: 'stick', quantity: 1 },
       { type: 'rope', quantity: 1 },
@@ -140,7 +130,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Hammer',
     description: 'Lash a stone head to a stick handle. Needed for building.',
     minutes: 30,
-    energy: 4,
     ingredients: [
       { type: 'stick', quantity: 1 },
       { type: 'stone', quantity: 1 },
@@ -156,7 +145,6 @@ export const RECIPES: readonly RecipeDef[] = [
     name: 'Bow',
     description: 'String a bent stick. Shoots arrows when held.',
     minutes: 30,
-    energy: 3,
     ingredients: [
       { type: 'stick', quantity: 1 },
       { type: 'rope', quantity: 1 },

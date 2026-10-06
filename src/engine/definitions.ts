@@ -1,7 +1,7 @@
 import type { Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { IconName } from '../icons/gameIcons';
-import type { AttributeId, BuildingId, GameState, TimedConditionId } from './types';
+import type { AttributeId, BuildingId, GameState, NutrientId, TimedConditionId } from './types';
 
 // Static content definitions (items, locations, recipes, buildings). They are code, not save data, but renaming or
 // removing an item, location or object id breaks saves that refer to it and needs a save migration.
@@ -65,7 +65,10 @@ export interface FoodRisk {
 export interface FoodDef extends ItemDefBase {
   category: 'food';
   verb: 'eat' | 'drink';
+  /** How much hunger the food takes away. */
   nutrition: number;
+  /** Food group the food feeds (see NUTRITION_RULES); water belongs to none. */
+  foodGroup?: NutrientId;
   hydration: number;
   energy?: number;
   risks?: readonly FoodRisk[];
@@ -205,7 +208,6 @@ export interface RecipeDef {
   name: string;
   description: string;
   minutes: number;
-  energy: number;
   ingredients: readonly Ingredient[];
   /** Tools that are needed but not consumed. */
   tools?: readonly Requirement[];

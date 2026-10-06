@@ -55,6 +55,7 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     isRecord(player) &&
     typeof player.locationId === 'string' &&
     isRecord(player.stats) &&
+    isRecord(player.nutrition) &&
     isRecord(player.attributes) &&
     isRecord(player.body) &&
     Array.isArray(player.inventory) &&

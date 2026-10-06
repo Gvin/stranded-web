@@ -1,7 +1,7 @@
 {
   "name": "stranded-web",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Text-based browser RPG about surviving stranded on an island.",
   "type": "module",
   "scripts": {

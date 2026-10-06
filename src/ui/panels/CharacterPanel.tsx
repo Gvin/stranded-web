@@ -1,8 +1,8 @@
 import type { CharacterSheet } from '../../engine/character';
 import { BODY_CONDITIONS, BODY_PARTS, bodyConditionHealsIn, bodyConditionSeverity } from '../../engine/conditions';
-import { ATTRIBUTE_HINTS } from '../../engine/rules';
+import { ATTRIBUTE_HINTS, NUTRIENT_NAMES, NUTRITION_RULES } from '../../engine/rules';
 import { formatDuration } from '../../engine/time';
-import { ATTRIBUTE_IDS, BODY_PART_IDS, type GameState } from '../../engine/types';
+import { ATTRIBUTE_IDS, BODY_PART_IDS, type GameState, NUTRIENT_IDS } from '../../engine/types';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
 
@@ -12,6 +12,9 @@ interface CharacterPanelProps {
   actions: readonly ActionView[];
   onPerform: PerformAction;
 }
+
+/** Food groups at or below this are shown as a warning: a few more meals of other kinds will empty them. */
+const LOW_NUTRITION = 5;
 
 function formatPercent(percent: number): string {
   return `${percent > 0 ? '+' : ''}${percent}%`;
@@ -80,6 +83,37 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
           })}
         </ul>
         <p className="muted small">Times show how long until a condition heals. Bandaged wounds heal twice as fast.</p>
+      </section>
+
+      <section>
+        <h2 className="section-title">Nutrition</h2>
+        <div className="card nutrition">
+          {NUTRIENT_IDS.map((id) => {
+            const value = state.player.nutrition[id];
+            return (
+              <div key={id} className={`stat stat--${id}${value <= LOW_NUTRITION ? ' stat--danger' : ''}`}>
+                <div className="stat__label">
+                  <span>{NUTRIENT_NAMES[id]}</span>
+                  <span className="stat__value">{value}</span>
+                </div>
+                <div
+                  className="stat__track"
+                  role="progressbar"
+                  aria-label={NUTRIENT_NAMES[id]}
+                  aria-valuemin={0}
+                  aria-valuemax={NUTRITION_RULES.total}
+                  aria-valuenow={value}
+                >
+                  <div className="stat__fill" style={{ width: `${(value / NUTRITION_RULES.total) * 100}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="muted small">
+          Every meal adds {NUTRITION_RULES.gain} to its food group and takes {NUTRITION_RULES.loss} from the others. If a group runs out,
+          malnutrition weakens all your attributes by {NUTRITION_RULES.malnutritionPenalty}%.
+        </p>
       </section>
 
       <section>

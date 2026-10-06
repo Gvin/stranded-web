@@ -28,8 +28,9 @@ import {
   stackWeight,
   unequip,
 } from './inventory';
+import { emptyFoodGroups, feedFoodGroup, foodGroupList } from './nutrition';
 import { ingredient, station, workingArm } from './requirements';
-import { speedFactor, SURVIVAL_RULES } from './rules';
+import { CRAFT_ENERGY, speedFactor, SURVIVAL_RULES } from './rules';
 import { formatDuration, hours, minutesUntilHour } from './time';
 import { BODY_PART_IDS, type BuildingId, EQUIP_SLOTS, type EquipSlot, type GameState, HAND_SLOTS, type LocationBuildings } from './types';
 import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, isCampfireLit } from './world';
@@ -450,6 +451,18 @@ function eatAction(def: FoodDef): GameAction {
         .join(', ');
       const verb = def.verb === 'drink' ? 'drink' : 'eat';
       ctx.log(`You ${verb} the ${def.name.toLowerCase()}.${summary ? ` (${summary})` : ''}`);
+      if (def.foodGroup) {
+        const player = ctx.state.player;
+        const emptyBefore = emptyFoodGroups(player);
+        feedFoodGroup(player, def.foodGroup);
+        const emptyAfter = emptyFoodGroups(player);
+        const ranOut = emptyAfter.filter((id) => !emptyBefore.includes(id));
+        if (ranOut.length > 0) {
+          ctx.log(`Your body craves ${foodGroupList(ranOut)}. You are suffering from malnutrition.`, 'bad');
+        } else if (emptyBefore.length > 0 && emptyAfter.length === 0) {
+          ctx.log('Your diet is balanced again. The malnutrition is over.', 'good');
+        }
+      }
       for (const risk of def.risks ?? []) {
         if (ctx.chance(risk.chance)) {
           ctx.addTimedCondition(risk.condition, risk.severity);
@@ -687,7 +700,7 @@ function craftActions(state: GameState): GameAction[] {
     details: 'Ingredients that ask for a type accept any item of that type; the cheapest ones are used first.',
     gains: resolveGains(state, [{ itemId: recipe.result.itemId, quantity: recipe.result.quantity }]),
     minutes: recipe.minutes,
-    energy: recipe.energy,
+    energy: CRAFT_ENERGY,
     timeMode: 'awake',
     requirements: [workingArm(), ...recipe.ingredients.map(ingredient), ...(recipe.tools ?? []), ...(recipe.stations ?? []).map(station)],
     block: (s) => (allocateIngredients(s.player, recipe.ingredients) ? undefined : 'Not enough materials for all ingredients'),

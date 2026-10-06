@@ -255,3 +255,18 @@ describe('migration from save format 3', () => {
     expect(Object.values(migrated.locations).every((l) => JSON.stringify(l.constructions) === '{}')).toBe(true);
   });
 });
+
+describe('migration from save format 4', () => {
+  it('gives the player an even split of nutrition', () => {
+    // Arrange
+    const state = createNewGame(6) as unknown as { player: Record<string, unknown> };
+    delete state.player.nutrition;
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 4, gameVersion: '0.6.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 4 });
+    expect((result as { state: GameState }).state.player.nutrition).toEqual({ vegetables: 33, meat: 33, fruits: 33 });
+  });
+});

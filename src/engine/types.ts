@@ -8,6 +8,10 @@ export const ATTRIBUTE_IDS: readonly AttributeId[] = ['strength', 'endurance', '
 export type StatId = 'health' | 'thirst' | 'hunger' | 'energy';
 export const STAT_IDS: readonly StatId[] = ['health', 'thirst', 'hunger', 'energy'];
 
+/** Food groups the player needs a balance of. */
+export type NutrientId = 'vegetables' | 'meat' | 'fruits';
+export const NUTRIENT_IDS: readonly NutrientId[] = ['vegetables', 'meat', 'fruits'];
+
 export type BodyPartId = 'head' | 'torso' | 'leftArm' | 'rightArm' | 'leftLeg' | 'rightLeg';
 export const BODY_PART_IDS: readonly BodyPartId[] = ['head', 'torso', 'leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 
@@ -96,6 +100,8 @@ export interface LocationBuildings {
 export interface PlayerState {
   locationId: string;
   stats: Record<StatId, number>;
+  /** How well fed the player is on each food group; together they never exceed NUTRITION_RULES.total. */
+  nutrition: Record<NutrientId, number>;
   attributes: Record<AttributeId, AttributeState>;
   body: Record<BodyPartId, BodyCondition[]>;
   conditions: TimedCondition[];

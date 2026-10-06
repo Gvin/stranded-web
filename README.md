@@ -37,7 +37,11 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   splinted. Bleeding, Poisoned and Dizzy have a severity (light, medium, heavy) that eases over time until they wear off; getting
   hurt again makes them worse.
 - **Player conditions** — Poisoned and Dizzy as above; Starving and Thirsty (light/medium/heavy) follow the hunger and thirst bars;
-  exhaustion makes you dizzy too.
+  exhaustion makes you dizzy too; Malnutrition while a food group is empty (see Nutrition).
+- **Nutrition** — three food groups shown as bars in the Body tab: Vegetables (mushrooms, seaweed, ship biscuits), Meat (crab, mussels, fish,
+  meat, eggs) and Fruits (berries, coconut). They start at 33 each and never add up to more than 99. Every meal adds 2 to its
+  group and takes 1 from each of the others; water belongs to no group. While any group is at 0, Malnutrition
+  lowers every attribute by 15%. Numbers in `NUTRITION_RULES` in `src/engine/rules.ts`.
 - **Time** — every action shows its duration and energy cost (instant actions show no time). While time passes, stats change, wounds bleed or heal, and dropped items
   decay (food in hours, stone in weeks). Dropping an item takes no time. The interface follows the time of day: light by day, dark
   at night, with dusky colours at dawn and in the evening.
@@ -54,7 +58,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   wooden arrows add no accuracy and are lost half the time, wooden arrows add 5 and are lost 30% of the time, stone tip arrows add
   10 and are lost 20% of the time. With arrows, the bow is also the best weapon. No location offers shooting or hunting yet —
   hunting will come as its own feature; the engine already supports it (`fight` and `fireArrow` in `src/engine/outcomes.ts`).
-- **Crafting** — recipes ask for types, so "any rope" accepts a vine or a rope; the cheapest matching items are used first. Some tools
+- **Crafting** — every recipe costs 1 energy (`CRAFT_ENERGY` in `src/engine/rules.ts`). Recipes ask for types, so "any rope" accepts a vine or a rope; the cheapest matching items are used first. Some tools
   are needed but not used up (the heavy item that opens a coconut, the knife that whittles arrows). A recipe can also require a
   building or a location object nearby (`stations` in `src/data/recipes.ts`); Hammer and Bow need a Workbench. The Craft tab only
   shows what you can make right now; a toggle adds the recipes you have made before. A dot on the tab and a "New" badge mark
@@ -131,6 +135,7 @@ screen instead of being loaded.
 | 2           | 0.2.0        | Typed resources replace old items, conditions store healing time left, buildings, no back slot. |
 | 3           | 0.3.0        | Thirst and hunger count up, head and body slots (clothes), crafted recipes, palm stocks.        |
 | 4           | 0.6.0        | Unfinished buildings are stored per location (buildings are built in steps).                    |
+| 5           | 0.7.0        | Nutrition per food group (vegetables, meat, fruits).                                            |
 
 A migration is needed when you:
 

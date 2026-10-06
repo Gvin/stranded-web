@@ -204,6 +204,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'opened-coconut',
     nutrition: 10,
     hydration: 20,
+    foodGroup: 'fruits',
     byproducts: [{ itemId: 'coconut-shell', chance: 0.3 }],
   },
   {
@@ -217,6 +218,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'raspberry',
     nutrition: 5,
     hydration: 3,
+    foodGroup: 'fruits',
   },
   {
     id: 'bitter-berries',
@@ -229,6 +231,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'elderberry',
     nutrition: 6,
     hydration: 2,
+    foodGroup: 'fruits',
     risks: [{ condition: 'poisoned', chance: 0.5, severity: 'medium' }],
   },
   {
@@ -242,6 +245,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'mushroom',
     nutrition: 6,
     hydration: 1,
+    foodGroup: 'vegetables',
     risks: [
       { condition: 'dizzy', chance: 0.4, severity: 'medium' },
       { condition: 'poisoned', chance: 0.1, severity: 'light' },
@@ -258,6 +262,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'crab',
     nutrition: 8,
     hydration: 2,
+    foodGroup: 'meat',
     risks: [
       { condition: 'poisoned', chance: 0.15, severity: 'light' },
       { condition: 'dizzy', chance: 0.15, severity: 'light' },
@@ -276,6 +281,7 @@ const ITEM_LIST: ItemDef[] = [
     iconBadge: 'cooked',
     nutrition: 20,
     hydration: 2,
+    foodGroup: 'meat',
   },
   {
     id: 'raw-mussels',
@@ -288,6 +294,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'mussel',
     nutrition: 6,
     hydration: 3,
+    foodGroup: 'meat',
     risks: [{ condition: 'poisoned', chance: 0.3, severity: 'medium' }],
     cooksInto: 'cooked-mussels',
   },
@@ -303,6 +310,7 @@ const ITEM_LIST: ItemDef[] = [
     iconBadge: 'cooked',
     nutrition: 14,
     hydration: 3,
+    foodGroup: 'meat',
   },
   {
     id: 'raw-fish',
@@ -315,6 +323,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'flatfish',
     nutrition: 10,
     hydration: 4,
+    foodGroup: 'meat',
     risks: [
       { condition: 'poisoned', chance: 0.1, severity: 'light' },
       { condition: 'dizzy', chance: 0.1, severity: 'light' },
@@ -332,6 +341,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'fish-cooked',
     nutrition: 28,
     hydration: 3,
+    foodGroup: 'meat',
   },
   {
     id: 'raw-meat',
@@ -344,6 +354,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'steak',
     nutrition: 12,
     hydration: 2,
+    foodGroup: 'meat',
     risks: [{ condition: 'poisoned', chance: 0.25, severity: 'medium' }],
     cooksInto: 'roasted-meat',
   },
@@ -358,6 +369,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'meat',
     nutrition: 40,
     hydration: 2,
+    foodGroup: 'meat',
     energy: 5,
   },
   {
@@ -371,6 +383,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'nest-eggs',
     nutrition: 6,
     hydration: 2,
+    foodGroup: 'meat',
     risks: [{ condition: 'poisoned', chance: 0.05, severity: 'light' }],
     cooksInto: 'cooked-egg',
   },
@@ -385,6 +398,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'fried-eggs',
     nutrition: 12,
     hydration: 1,
+    foodGroup: 'meat',
   },
   {
     id: 'ship-biscuit',
@@ -397,6 +411,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'cookie',
     nutrition: 18,
     hydration: -3,
+    foodGroup: 'vegetables',
   },
   {
     id: 'water-bottle',
@@ -422,6 +437,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'algae',
     nutrition: 6,
     hydration: -3,
+    foodGroup: 'vegetables',
   },
 
   // Equipment (held in hand or worn)
