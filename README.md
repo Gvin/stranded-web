@@ -52,7 +52,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   the environment.
 - **Environment** — island-wide weather plus a temperature from the time of day (numbers in `ENVIRONMENT_RULES` in
   `src/engine/rules.ts`, weather in `src/data/weather.ts`). The header shows the weather and the island temperature; the Body tab
-  shows your body temperature and what changed it.
+  shows your body temperature and each step that led to it, by name: "Evening Normal", "Clear → Hot", "Hut roof → Normal".
   - Temperature steps: Very Cold, Cold, Normal, Hot, Very Hot. Morning (07–10) and evening (17–21) are Normal, midday (11–16) is
     Hot, night (22–06) is Cold. The weather shifts that, never past Very Cold or Very Hot.
   - Weather: when one ends, the next is picked by chance and lasts a random time: Clear 30% (1–16 h, +1), Cloudy 20% (1–16 h),
@@ -159,13 +159,13 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 - **Island** — the Forest connects to all the other places. Locations can have objects with actions, and actions of their own
   (listed under "Around you").
 
-  | Location        | What is there                                                                                                                                                                                                                                                                          |
-  | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Beach (start)   | Wreckage (gone for good once everything is found, including a worn baseball hat), coconut palms (a coconut grows every 3 days, one falls every 6 days), the sea (comb the tideline — a few finds at a time, renewed every 8 hours — dive at the reef except in storms, drink seawater) |
-  | Forest          | Berry bushes, vines, mushrooms (one regrows every 3 days); gather grass (unlimited), gather sticks (10 lying around, one more every 6 hours; sometimes resin), chop wood (needs an axe; sometimes resin)                                                                               |
-  | Spring          | The pool: clean water, wash your face                                                                                                                                                                                                                                                  |
-  | Rocks           | The rocky interior: gather stones (sometimes flint) and pebbles, both unlimited                                                                                                                                                                                                        |
-  | Clearing / Camp | Building site: campfire, workbench, small storage, hut, small rain collector                                                                                                                                                                                                           |
+  | Location        | What is there                                                                                                                                                                                                                                                                                 |
+  | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Beach (start)   | Wreckage (gone for good once everything is found, including a worn baseball hat), coconut palms (a coconut grows every 3 days, one falls every 6 days), the sea (comb the tideline — a few finds at a time, renewed every 8 hours — dive at the reef except in storms, drink seawater)        |
+  | Forest          | Berry bushes, vines, mushrooms (one regrows every 3 days); gather grass (unlimited), gather sticks (30 lying around, 10 more every day; sometimes resin), chop wood (needs an axe; 2 h: 8–10 logs, 15–20 sticks, up to 3 vines, sometimes resin; what you cannot carry is left on the ground) |
+  | Spring          | The pool: clean water, wash your face                                                                                                                                                                                                                                                         |
+  | Rocks           | The rocky interior: gather stones (sometimes flint) and pebbles, both unlimited                                                                                                                                                                                                               |
+  | Clearing / Camp | Building site: campfire, workbench, small storage, hut, small rain collector                                                                                                                                                                                                                  |
 
 - **Objects** — each location has objects that provide actions. Hidden objects are not listed but still offer actions
   (shown under "Around you").
@@ -181,6 +181,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 | `src/icons/`          | Generated icon data (`npm run icons`, list in `scripts/build-icons.mjs`).                                                              |
 | `src/save/`           | Versioned saving to `localStorage` and save migrations.                                                                                |
 | `src/ui/`             | React UI. Mobile shows a bottom tab bar; screens 900px and wider show two columns.                                                     |
+| `.claude/`            | Claude Code skills and agents for this repo, and the browser check script they use (`.claude/scripts/verify-ui.mjs`).                  |
 
 `performAction(state, actionId)` in `src/engine/game.ts` is the single entry point that changes the game: it never mutates its input
 and returns the next state. The UI saves after every successful action.

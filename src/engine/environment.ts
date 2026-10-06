@@ -18,7 +18,8 @@ const MAX_TEMPERATURE = 2;
 /** Something that raised or lowered a temperature, for display. */
 export interface TemperatureFactor {
   label: string;
-  change: number;
+  /** The temperature once this factor is counted in, between -2 (Very Cold) and 2 (Very Hot). */
+  after: number;
 }
 
 export interface BodyTemperature {
@@ -91,11 +92,11 @@ export function heatingAt(state: GameState, locationId: string): string | undefi
 export function getBodyTemperature(state: GameState): BodyTemperature {
   const day = dayTemperature(state.time);
   const weather = getWeather(state);
-  const environmentFactors = [
-    { label: day.name, change: day.temperature },
-    { label: weather.name, change: weather.temperature },
-  ];
   const environment = clampTemperature(day.temperature + weather.temperature);
+  const environmentFactors = [
+    { label: day.name, after: clampTemperature(day.temperature) },
+    { label: weather.name, after: environment },
+  ];
   const { player } = state;
   const locationId = player.locationId;
   const bodyFactors: TemperatureFactor[] = [];
@@ -106,22 +107,22 @@ export function getBodyTemperature(state: GameState): BodyTemperature {
     const hat = wornWith(player, 'shade');
     const shade = roof ? `${roof} roof` : hat && `${hat.name} (shade)`;
     if (shade) {
-      bodyFactors.push({ label: shade, change: -1 });
       value = Math.max(0, value - 1);
+      bodyFactors.push({ label: shade, after: value });
     }
   }
   if (environment < 0) {
     const warmClothing = wornWith(player, 'warmth');
     for (const source of [heatingAt(state, locationId), warmClothing && `${warmClothing.name} (warmth)`]) {
       if (source) {
-        bodyFactors.push({ label: source, change: 1 });
         value = Math.min(0, value + 1);
+        bodyFactors.push({ label: source, after: value });
       }
     }
   }
   if (hasTimedCondition(player, 'wet')) {
-    bodyFactors.push({ label: 'Wet', change: -1 });
     value -= 1;
+    bodyFactors.push({ label: 'Wet', after: clampTemperature(value) });
   }
   return { environment, environmentFactors, value: clampTemperature(value), bodyFactors };
 }

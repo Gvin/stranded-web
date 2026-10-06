@@ -120,31 +120,34 @@ export function ExplorePanel({ state, actions, freshAfterLogId, onPerform }: Exp
         <section>
           <h2 className="section-title">You see</h2>
           <div className="objects">
-            {view.objects.map((object) => (
-              <article key={object.id} className="card object">
-                <div className="object__heading">
-                  <h3 className="object__name">
-                    {object.icon && <Icon name={object.icon} size={22} />}
-                    {object.name}
-                  </h3>
-                  {object.status && <span className="object__status">{object.status}</span>}
-                </div>
-                <p className="object__description">{object.description}</p>
-                <div className="actions">
-                  {forObject(object)
-                    .filter((a) => !a.action.group)
-                    .map((a) => (
-                      <ActionButton
-                        key={a.action.id}
-                        view={a}
-                        onPerform={onPerform}
-                        icon={a.action.itemId && <ItemIcon itemId={a.action.itemId} size={20} />}
-                      />
-                    ))}
-                </div>
-                <FuelRow views={forTarget(object.id).filter((a) => a.action.group === 'fuel')} onPerform={onPerform} />
-              </article>
-            ))}
+            {view.objects.map((object) => {
+              const objectActions = forObject(object).filter((a) => !a.action.group);
+              return (
+                <article key={object.id} className="card object">
+                  <div className="object__heading">
+                    <h3 className="object__name">
+                      {object.icon && <Icon name={object.icon} size={22} />}
+                      {object.name}
+                    </h3>
+                    {object.status && <span className="object__status">{object.status}</span>}
+                  </div>
+                  <p className="object__description">{object.description}</p>
+                  {objectActions.length > 0 && (
+                    <div className="actions">
+                      {objectActions.map((a) => (
+                        <ActionButton
+                          key={a.action.id}
+                          view={a}
+                          onPerform={onPerform}
+                          icon={a.action.itemId && <ItemIcon itemId={a.action.itemId} size={20} />}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <FuelRow views={forTarget(object.id).filter((a) => a.action.group === 'fuel')} onPerform={onPerform} />
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

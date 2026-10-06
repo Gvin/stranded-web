@@ -61,9 +61,9 @@ This replaces today's sleep, which gives 11 energy per hour (14 in a hut) and 2.
 | 2     | Fireplace | stone ×10, log ×3, stick ×3, threads ×3          | 15         | 1 per hour   | 6 (1 h 30 min)     |
 | 3     | Furnace   | stone ×20, log ×6, stick ×6, threads ×5, clay ×5 | 20         | 0.7 per hour | 12 (3 h)           |
 
-- Rain and storms put out the Campfire and the Fireplace, even under a roof, and they cannot be lit again until the rain stops. The Furnace is not affected.
+- Rain and storms put out the Campfire and the Fireplace, even under a roof, and they cannot be lit again until the rain stops. The fuel in them stays and burns again once the fire is relit. The Furnace is not affected.
 - A fire burns only with fuel, and can be lit and put out.
-- **Add fuel** is a separate action where you pick any fuel item; it takes no time and no energy. Fuel per item: log 3, stick 1, rope 0.7, vine 0.5, threads 0.3, cloth 0.3, bandage 0.3, grass 0.3, moss 0.2. The bow no longer burns.
+- **Add fuel** is a separate action where you pick any fuel item; it takes no time and no energy. Fuel per item: log 3, stick 1, rope 0.7, vine 0.5, threads 0.3, cloth 0.3, bandage 0.3, moss 0.2, grass 0.1. The bow no longer burns, and leaves do not burn. An item can only be added when its fuel fits into what the fire can still hold (for example, no log while a Campfire has more than 2 fuel left).
 
 Lighting any fire needs one of these:
 
@@ -95,13 +95,13 @@ The Workbench (level 2) will be needed for more advanced recipes, to come later.
 
 **New items**
 
-| Item           | Found or made                                                                 |
-| -------------- | ----------------------------------------------------------------------------- |
-| Leaves         | 2–4 at a 30% chance, when gathering sticks and when chopping wood             |
-| Moss           | 1–2 at a 20% chance, in the forest when gathering sticks or picking berries   |
-| Clay           | 1 at a 5% chance, when gathering stones                                       |
-| Pair of flints | crafted from flint ×2; 20 health, loses 1 each time it lights a fire          |
-| Torch          | crafted from stick, cloth, glue; 100 health, loses 2 per hour while it is lit |
+| Item           | Found or made                                                                 | Weight  | Lasts on the ground |
+| -------------- | ----------------------------------------------------------------------------- | ------- | ------------------- |
+| Leaves         | 2–4 at a 30% chance when gathering sticks; 20–30 every time you chop wood     | 0.05 kg | 1 day               |
+| Moss           | 1–2 at a 20% chance, in the forest when gathering sticks or picking berries   | 0.1 kg  | 2 days              |
+| Clay           | 1 at a 5% chance, when gathering stones                                       | 0.5 kg  | 60 days             |
+| Pair of flints | crafted from flint ×2; 20 health, loses 1 each time it lights a fire          | 0.6 kg  | 60 days             |
+| Torch          | crafted from stick, cloth, glue; 100 health, loses 2 per hour while it is lit | 0.5 kg  | 15 days             |
 
 **Engine and UI**
 

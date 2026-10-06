@@ -25,8 +25,11 @@ export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
     }
     const target = anchor.getBoundingClientRect();
     const { width, height } = popup.getBoundingClientRect();
+    // why: the sticky header and the phone's fixed bottom tab bar stay on top of the page, so the popup must fit between them.
+    const minTop = (document.querySelector('.game__header')?.getBoundingClientRect().bottom ?? 0) + MARGIN;
+    const maxBottom = (document.querySelector('.tabs--bottom')?.getBoundingClientRect().top ?? window.innerHeight) - MARGIN;
     const below = target.bottom + MARGIN;
-    const top = below + height <= window.innerHeight - MARGIN ? below : Math.max(MARGIN, target.top - height - MARGIN);
+    const top = below + height <= maxBottom ? below : Math.max(minTop, target.top - height - MARGIN);
     const left = Math.min(Math.max(MARGIN, target.left), window.innerWidth - width - MARGIN);
     setPosition({ top, left });
   }, [anchor]);

@@ -414,6 +414,10 @@ p {
   padding: 2px 0;
 }
 
+.temperature-card__total:last-child {
+  border-bottom: none;
+}
+
 .health {
   display: inline-flex;
   align-items: center;
@@ -651,8 +655,11 @@ p {
     border-color 0.15s ease;
 }
 
-.action:hover:not(.action--blocked) {
-  border-color: var(--sand);
+/* Only where a mouse can hover: on touch screens the hover state stays on the last tapped button. */
+@media (hover: hover) {
+  .action:hover:not(.action--blocked) {
+    border-color: var(--sand);
+  }
 }
 
 .action:active:not(.action--blocked) {
@@ -694,7 +701,7 @@ p {
 
 .action--compact {
   width: auto;
-  min-height: 38px;
+  min-height: 40px;
   padding: 6px 10px;
 }
 

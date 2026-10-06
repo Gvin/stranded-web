@@ -61,6 +61,8 @@ export interface ActionContext {
   countItem(itemId: string): number;
   /** Adds items to the bag; whatever does not fit is left on the ground. Items that wear out come at full health unless given. */
   addItem(itemId: string, quantity?: number, options?: { silent?: boolean; health?: number }): void;
+  /** Adds several items at once, like `addItem`, with a single line for everything left on the ground. */
+  addItems(items: readonly { itemId: string; quantity: number }[]): void;
   removeItem(itemId: string, quantity?: number): boolean;
   /** Applies a body condition; the severity only matters for conditions that have severities. */
   addBodyCondition(part: BodyPartId, id: BodyConditionId, severity?: Severity): boolean;
@@ -91,6 +93,28 @@ export function formatAmount(itemId: string, quantity: number, health?: number):
   const { name, maxHealth } = getItemDef(itemId);
   const withHealth = health !== undefined && maxHealth !== undefined ? `${name} (${formatHealth(health)}/${maxHealth})` : name;
   return quantity === 1 ? withHealth : `${quantity}× ${withHealth}`;
+}
+
+/** Puts what fits of the items into the bag, saying so unless silent, leaves the rest on the ground and returns how many were left. */
+function putInBag(state: GameState, itemId: string, quantity: number, options?: { silent?: boolean; health?: number }): number {
+  const def = getItemDef(itemId);
+  const sheet = getCharacterSheet(state);
+  const free = Math.max(0, sheet.carryCapacity - sheet.carriedWeight);
+  const fits = def.weight > 0 ? Math.min(quantity, Math.floor(free / def.weight + 1e-9)) : quantity;
+  addToInventory(state.player, itemId, fits, options?.health);
+  if (fits > 0 && !options?.silent) {
+    appendLog(state, `+ ${formatAmount(itemId, fits)}`, 'good');
+  }
+  if (fits < quantity) {
+    dropOnGround(state, state.player.locationId, itemId, quantity - fits, options?.health);
+  }
+  return Math.max(0, quantity - fits);
+}
+
+/** One log line for everything that did not fit into the bag, e.g. "You leave 4× Log, 10× Stick and Resin on the ground." */
+function logLeftOnGround(state: GameState, amounts: readonly string[]): void {
+  const list = amounts.length > 1 ? `${amounts.slice(0, -1).join(', ')} and ${amounts[amounts.length - 1]}` : (amounts[0] ?? '');
+  appendLog(state, `You can't carry any more. You leave ${list} on the ground.`, 'bad');
 }
 
 /** Health for display; rounds up, so an item that is still there never reads 0. */
@@ -186,17 +210,18 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
     },
     countItem: (itemId) => countItem(state.player, itemId),
     addItem: (itemId, quantity = 1, options) => {
-      const def = getItemDef(itemId);
-      const sheet = getCharacterSheet(state);
-      const free = Math.max(0, sheet.carryCapacity - sheet.carriedWeight);
-      const fits = def.weight > 0 ? Math.min(quantity, Math.floor(free / def.weight + 1e-9)) : quantity;
-      addToInventory(state.player, itemId, fits, options?.health);
-      if (fits > 0 && !options?.silent) {
-        appendLog(state, `+ ${formatAmount(itemId, fits)}`, 'good');
+      const left = putInBag(state, itemId, quantity, options);
+      if (left > 0) {
+        logLeftOnGround(state, [formatAmount(itemId, left)]);
       }
-      if (fits < quantity) {
-        dropOnGround(state, state.player.locationId, itemId, quantity - fits, options?.health);
-        appendLog(state, `You can't carry any more. You leave ${formatAmount(itemId, quantity - fits)} on the ground.`, 'bad');
+    },
+    addItems: (items) => {
+      const left = items.map(({ itemId, quantity }) => ({ itemId, left: putInBag(state, itemId, quantity) })).filter((i) => i.left > 0);
+      if (left.length > 0) {
+        logLeftOnGround(
+          state,
+          left.map((i) => formatAmount(i.itemId, i.left)),
+        );
       }
     },
     removeItem: (itemId, quantity = 1) => removeFromInventory(state.player, itemId, quantity),

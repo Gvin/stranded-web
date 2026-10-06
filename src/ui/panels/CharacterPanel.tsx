@@ -27,10 +27,6 @@ interface CharacterPanelProps {
 /** Food groups at or below this are shown as a warning: a few more meals of other kinds will empty them. */
 const LOW_NUTRITION = 5;
 
-function formatChange(change: number): string {
-  return `${change > 0 ? '+' : '−'}${Math.abs(change)}`;
-}
-
 /** What a body temperature does to thirst and hunger, e.g. "Thirst grows 25% faster." */
 function temperatureEffect(id: TemperatureId): string {
   const rates = ENVIRONMENT_RULES.rates[id];
@@ -41,15 +37,25 @@ function temperatureEffect(id: TemperatureId): string {
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
 }
 
-function FactorList({ factors }: { factors: readonly TemperatureFactor[] }) {
+/**
+ * The steps from the time of day to the body temperature, each with the temperature it leads to: "Evening Normal",
+ * "Clear → Hot", "Hut roof → Normal". `startsChain` marks the list that begins with the time of day, which has no arrow.
+ */
+function FactorList({ factors, startsChain = false }: { factors: readonly TemperatureFactor[]; startsChain?: boolean }) {
   return (
     <>
-      {factors.map((factor) => (
-        <li key={factor.label} className="small">
-          <span>{factor.label}</span>
-          <span>{formatChange(factor.change)}</span>
-        </li>
-      ))}
+      {factors.map((factor, index) => {
+        const id = temperatureId(factor.after);
+        return (
+          <li key={factor.label} className="small">
+            <span>{factor.label}</span>
+            <span className={`temperature temperature--${id}`}>
+              {startsChain && index === 0 ? '' : '→ '}
+              {TEMPERATURE_NAMES[id]}
+            </span>
+          </li>
+        );
+      })}
     </>
   );
 }
@@ -71,7 +77,7 @@ function TemperatureSection({ state }: { state: GameState }) {
         </div>
         <p className="small">{temperatureEffect(body)}</p>
         <ul className="modifiers">
-          <FactorList factors={temperature.environmentFactors} />
+          <FactorList factors={temperature.environmentFactors} startsChain />
           <li className="small temperature-card__total">
             <span>Island</span>
             <span className={`temperature temperature--${environment}`}>{TEMPERATURE_NAMES[environment]}</span>
@@ -90,7 +96,7 @@ function TemperatureSection({ state }: { state: GameState }) {
 }
 
 function formatPercent(percent: number): string {
-  return `${percent > 0 ? '+' : ''}${percent}%`;
+  return `${percent > 0 ? '+' : percent < 0 ? '−' : ''}${Math.abs(percent)}%`;
 }
 
 export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPanelProps) {

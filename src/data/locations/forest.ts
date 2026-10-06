@@ -8,6 +8,11 @@ import { plentyText } from './shared';
 const RESIN_WITH_STICKS = 0.05;
 const RESIN_WHEN_CHOPPING = 0.3;
 
+/** What one felled tree gives, from-to. */
+const CHOPPED_LOGS = [8, 10] as const;
+const CHOPPED_STICKS = [15, 20] as const;
+const CHOPPED_VINES = [0, 3] as const;
+
 const berryBushes: ObjectDef = {
   id: 'berry-bushes',
   name: 'Berry bushes',
@@ -119,7 +124,8 @@ export const forest: LocationDef = {
     'Beyond the beach the palms give way to a dense, humid forest. Vines hang from the canopy and narrow animal trails ' +
     'wind between the trunks in every direction. Something large has been rooting in the undergrowth.',
   objects: [berryBushes, vines, mushrooms],
-  stocks: { sticks: { initial: 10, max: 10, regenMinutes: hours(6) } },
+  // why: 30 sticks lie around and 10 more drop every day, enough for building, crafting and keeping a fire going.
+  stocks: { sticks: { initial: 30, max: 30, regenMinutes: days(1) / 10 } },
   actions: [
     {
       id: 'grass',
@@ -158,10 +164,12 @@ export const forest: LocationDef = {
     {
       id: 'chop',
       label: 'Chop wood',
-      description: 'Fell a small tree and cut it into logs. Slow, exhausting work.',
-      details: 'Needs an axe in your bag or in hand. Logs weigh 3 kg each — mind your carrying capacity.',
+      description: 'Fell a tree, cut it into logs and strip its branches. Slow, exhausting work.',
+      details: 'Needs an axe in your bag or in hand. Logs weigh 3 kg each — what you cannot carry is left on the ground.',
       gains: [
-        { itemId: 'log', quantity: 2 },
+        { itemId: 'log', quantity: CHOPPED_LOGS },
+        { itemId: 'stick', quantity: CHOPPED_STICKS },
+        { itemId: 'vine', quantity: CHOPPED_VINES },
         { itemId: 'resin', chance: RESIN_WHEN_CHOPPING, find: true },
       ],
       minutes: 120,
@@ -170,11 +178,16 @@ export const forest: LocationDef = {
       trains: { strength: 3, endurance: 2 },
       skill: 'foraging',
       run: (ctx) => {
-        ctx.log('You hack at a young tree until it falls, then chop the trunk into logs.');
-        ctx.addItem('log', ctx.gathered(2));
-        if (ctx.chance(ctx.findChance(RESIN_WHEN_CHOPPING, { perception: false }))) {
-          ctx.addItem('resin');
-        }
+        ctx.log('You hack at a tree until it falls, then chop the trunk into logs and strip the branches.');
+        const items = (
+          [
+            ['log', CHOPPED_LOGS],
+            ['stick', CHOPPED_STICKS],
+            ['vine', CHOPPED_VINES],
+          ] as const
+        ).map(([itemId, [min, max]]) => ({ itemId, quantity: ctx.gathered(ctx.randomInt(min, max)) }));
+        const resin = ctx.chance(ctx.findChance(RESIN_WHEN_CHOPPING, { perception: false })) ? 1 : 0;
+        ctx.addItems([...items, { itemId: 'resin', quantity: resin }]);
       },
     },
   ],

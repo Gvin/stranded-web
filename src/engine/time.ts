@@ -58,8 +58,10 @@ export function formatDuration(minutes: number): string {
     const rest = rounded % MINUTES_PER_HOUR;
     return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
   }
-  const days = Math.floor(rounded / MINUTES_PER_DAY);
-  const hours = Math.round((rounded % MINUTES_PER_DAY) / MINUTES_PER_HOUR);
+  // why: rounding to whole hours before splitting off the days, so 59 d 23 h 59 min reads "60 d", not "59 d 24 h".
+  const totalHours = Math.round(rounded / MINUTES_PER_HOUR);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
   return hours === 0 ? `${days} d` : `${days} d ${hours} h`;
 }
 

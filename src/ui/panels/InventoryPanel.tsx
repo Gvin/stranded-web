@@ -87,7 +87,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
       </section>
 
       <section>
-        <h2 className="section-title">Equipment</h2>
+        <h2 className="section-title">Worn and held</h2>
         <ul className="card slots">
           {EQUIP_SLOTS.map((slot) => {
             const item = player.equipment[slot];

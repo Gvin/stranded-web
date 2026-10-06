@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { getActions, getBlockedReason } from '../engine/actions';
+import { getActions, getBlockedReason, LOCATION_OBJECT_ID } from '../engine/actions';
+import type { ObjectDef } from '../engine/definitions';
 import { findAction, performAction } from '../engine/game';
 import { createTestGame, giveItem } from '../engine/testUtils';
 import { days } from '../engine/time';
 import type { GameState } from '../engine/types';
 import { getLocationView } from '../engine/views';
+import { getStock } from '../engine/world';
+import { getLocationDef } from './locations';
 
 const blockedReason = (state: GameState, actionId: string) => {
   const action = findAction(state, actionId);
   return action ? getBlockedReason(state, action) : 'missing action';
+};
+/** The forest floor as an object, holding the forest's own stocks (like the sticks lying around). */
+const FOREST_GROUND: ObjectDef = {
+  id: LOCATION_OBJECT_ID,
+  name: 'Forest',
+  description: '',
+  actions: [],
+  stocks: getLocationDef('forest').stocks,
 };
 const count = (state: GameState, itemId: string) => state.player.inventory.find((s) => s.itemId === itemId)?.quantity ?? 0;
 const actionIds = (state: GameState) => getActions(state).map((a) => a.id);
@@ -143,34 +154,47 @@ describe('forest', () => {
     expect(blockedReason(state, 'obj:location:grass')).toBeUndefined();
   });
 
-  it('has only ten sticks lying around, with one more every 6 hours', () => {
+  it('has thirty sticks lying around, with ten more every day', () => {
     // Arrange
-    let state = createTestGame('forest');
+    const sticks = (state: GameState) => getStock(state, 'forest', FOREST_GROUND, 'sticks');
+    const fresh = createTestGame('forest');
+    const emptied = withStock(createTestGame('forest'), 'forest', { 'location:sticks': { amount: 0, updatedAt: 0 } });
+    const lastTwo = withStock(createTestGame('forest'), 'forest', { 'location:sticks': { amount: 2, updatedAt: 0 } });
 
     // Act
-    for (let i = 0; i < 6; i++) {
-      state = performAction(state, 'obj:location:sticks');
-    }
+    const gathered = performAction(lastTwo, 'obj:location:sticks');
 
     // Assert
-    expect(count(state, 'stick')).toBe(10);
-    expect(blockedReason(state, 'obj:location:sticks')).toMatch(/^Nothing left \(more in /);
+    expect(sticks(fresh)).toBe(30);
+    expect([sticks({ ...emptied, time: days(1) }), sticks({ ...emptied, time: days(5) })]).toEqual([10, 30]);
+    expect(count(gathered, 'stick')).toBe(2);
+    expect(blockedReason(gathered, 'obj:location:sticks')).toBe('Nothing left (more in 2 h 9 min)');
   });
 
-  it('chops two logs with an axe, slowly and at a high energy cost', () => {
+  it('fells a tree with an axe into 8–10 logs, 15–20 sticks and up to 3 vines, slowly and at a high energy cost', () => {
     // Arrange
-    const state = createTestGame('forest');
-    state.player.attributes.strength.base = 60;
-    giveItem(state, 'axe');
+    const lumberjack = (seed: number) => {
+      const state = createTestGame('forest', seed);
+      giveItem(state, 'axe');
+      return state;
+    };
+    const total = (state: GameState, itemId: string) =>
+      count(state, itemId) +
+      (state.locations.forest?.groundItems ?? []).filter((g) => g.itemId === itemId).reduce((sum, g) => sum + g.quantity, 0);
 
     // Act
-    const next = performAction(state, 'obj:location:chop');
+    const results = Array.from({ length: 20 }, (_, i) => performAction(lumberjack(i + 1), 'obj:location:chop'));
 
     // Assert
     expect(blockedReason(createTestGame('forest'), 'obj:location:chop')).toBe('Requires: Axe');
-    expect(next.time).toBe(120);
-    expect(next.player.stats.energy).toBe(75);
-    expect(count(next, 'log')).toBe(2);
+    expect(results[0]?.time).toBe(120);
+    expect(results[0]?.player.stats.energy).toBe(75);
+    expect(new Set(results.map((s) => total(s, 'log')))).toEqual(new Set([8, 9, 10]));
+    expect(results.every((s) => total(s, 'stick') >= 15 && total(s, 'stick') <= 20)).toBe(true);
+    expect(new Set(results.map((s) => total(s, 'vine')))).toEqual(new Set([0, 1, 2, 3]));
+    expect(results[0]?.log.map((e) => e.text).filter((t) => t.startsWith("You can't carry any more."))).toEqual([
+      expect.stringMatching(/^You can't carry any more\. You leave \d+× Log, .+ and .+ on the ground\.$/),
+    ]);
   });
 
   it('regrows one mushroom every 3 days', () => {
