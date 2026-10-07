@@ -1,7 +1,10 @@
 import type { RecipeDef } from '../engine/definitions';
 import { ofType } from '../engine/requirements';
 
-/** Crafting recipes; each costs CRAFT_ENERGY. Set `stations` to require a building or location object nearby (e.g. 'workbench', 'pool'). */
+/**
+ * Crafting recipes; each costs CRAFT_ENERGY and trains the Crafting skill, never attributes. Set `stations` to require a
+ * building slot or location object nearby (e.g. 'workbench', 'pool').
+ */
 export const RECIPES: readonly RecipeDef[] = [
   {
     id: 'opened-coconut',
@@ -21,7 +24,6 @@ export const RECIPES: readonly RecipeDef[] = [
     ingredients: [{ type: 'rope', quantity: 1 }],
     tools: [ofType('sharp')],
     result: { itemId: 'threads', quantity: 1 },
-    trains: { agility: 1 },
     message: 'You split the strands apart with a sharp edge.',
   },
   {
@@ -31,7 +33,6 @@ export const RECIPES: readonly RecipeDef[] = [
     minutes: 15,
     ingredients: [{ type: 'threads', quantity: 2 }],
     result: { itemId: 'rope', quantity: 1 },
-    trains: { agility: 1 },
     message: 'You twist the fibres together into a length of rope.',
   },
   {
@@ -44,8 +45,16 @@ export const RECIPES: readonly RecipeDef[] = [
       { type: 'sharp', quantity: 1 },
     ],
     result: { itemId: 'knife', quantity: 1 },
-    trains: { agility: 1, perception: 1 },
     message: 'You split the end of a stick and wedge the sharp flake into it.',
+  },
+  {
+    id: 'pair-of-flints',
+    name: 'Pair of flints',
+    description: 'Keep two flints together for striking sparks.',
+    minutes: 0,
+    ingredients: [{ itemId: 'flint', quantity: 2 }],
+    result: { itemId: 'pair-of-flints', quantity: 1 },
+    message: 'You knock the two flints together. Sparks fly: they will do.',
   },
   {
     id: 'bandage',
@@ -57,8 +66,20 @@ export const RECIPES: readonly RecipeDef[] = [
       { type: 'rope', quantity: 1 },
     ],
     result: { itemId: 'bandage', quantity: 1 },
-    trains: { perception: 1 },
     message: 'You fold the cloth into a neat dressing and tie it off.',
+  },
+  {
+    id: 'torch',
+    name: 'Torch',
+    description: 'Wrap cloth around a stick and soak it in resin.',
+    minutes: 15,
+    ingredients: [
+      { type: 'stick', quantity: 1 },
+      { type: 'cloth', quantity: 1 },
+      { type: 'glue', quantity: 1 },
+    ],
+    result: { itemId: 'torch', quantity: 1 },
+    message: 'You wrap the cloth tight around the stick and work the resin into it. The torch is ready to be lit.',
   },
   {
     id: 'spear',
@@ -71,7 +92,6 @@ export const RECIPES: readonly RecipeDef[] = [
       { type: 'rope', quantity: 1 },
     ],
     result: { itemId: 'spear', quantity: 1 },
-    trains: { agility: 1, strength: 1 },
     message: 'You bind the sharp point tightly to the end of a long stick.',
   },
   {
@@ -82,7 +102,6 @@ export const RECIPES: readonly RecipeDef[] = [
     ingredients: [{ type: 'stick', quantity: 1 }],
     tools: [ofType('knife')],
     result: { itemId: 'bad-arrow', quantity: 5 },
-    trains: { agility: 1 },
     message: 'You split a stick and whittle the pieces into five crude arrows.',
   },
   {
@@ -95,7 +114,6 @@ export const RECIPES: readonly RecipeDef[] = [
       { type: 'feather', quantity: 1 },
     ],
     result: { itemId: 'wooden-arrow', quantity: 1 },
-    trains: { agility: 1, perception: 1 },
     message: 'You split the feather and bind it to the arrow shaft.',
   },
   {
@@ -108,7 +126,6 @@ export const RECIPES: readonly RecipeDef[] = [
       { type: 'pebble', quantity: 1 },
     ],
     result: { itemId: 'stone-arrow', quantity: 1 },
-    trains: { agility: 1, perception: 1 },
     message: 'You notch a pebble into the tip of the arrow.',
   },
   {
@@ -122,7 +139,6 @@ export const RECIPES: readonly RecipeDef[] = [
       { type: 'sharp', quantity: 1 },
     ],
     result: { itemId: 'axe', quantity: 1 },
-    trains: { strength: 1, agility: 1 },
     message: 'You wedge the sharp blade into a split handle and lash it tight.',
   },
   {
@@ -137,7 +153,6 @@ export const RECIPES: readonly RecipeDef[] = [
     ],
     stations: ['workbench'],
     result: { itemId: 'hammer', quantity: 1 },
-    trains: { strength: 1, agility: 1 },
     message: 'You notch the handle, seat the stone and lash it tight.',
   },
   {
@@ -151,7 +166,6 @@ export const RECIPES: readonly RecipeDef[] = [
     ],
     stations: ['workbench'],
     result: { itemId: 'bow', quantity: 1 },
-    trains: { agility: 2 },
     message: 'You bend a springy stick and string it taut.',
   },
   {

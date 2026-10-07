@@ -10,7 +10,7 @@ import { hit } from './outcomes';
 import { advanceTime } from './simulation';
 import { createTestGame, giveItem } from './testUtils';
 import { days, hours } from './time';
-import type { GameState, WeatherId } from './types';
+import type { GameState, LocationBuildings, WeatherId } from './types';
 import { getLocationInfo } from './world';
 
 const MIDDAY = hours(4);
@@ -62,7 +62,7 @@ describe('environment temperature', () => {
 describe('body temperature', () => {
   it('is one step cooler under a roof, which does not help against the cold', () => {
     // Arrange
-    const hut = { hut: { builtAt: 0 } };
+    const hut: LocationBuildings = { house: { id: 'hut', builtAt: 0 } };
 
     // Act
     const hot = bodyTemperature(withBuildings(gameAt(MIDDAY, 'cloudy', 'camp'), hut));
@@ -78,7 +78,7 @@ describe('body temperature', () => {
     // Arrange
     const outdoors = gameAt(MIDDAY, 'clear');
     outdoors.player.equipment.head = { itemId: 'baseball-hat', health: 30 };
-    const inHut = withBuildings(gameAt(MIDDAY, 'clear', 'camp'), { hut: { builtAt: 0 } });
+    const inHut = withBuildings(gameAt(MIDDAY, 'clear', 'camp'), { house: { id: 'hut', builtAt: 0 } });
     inHut.player.equipment.head = { itemId: 'baseball-hat', health: 30 };
 
     // Act
@@ -90,7 +90,7 @@ describe('body temperature', () => {
 
   it('adds the warmth of clothes to heating, but never above Normal', () => {
     // Arrange
-    const fire = { campfire: { builtAt: 0, litUntil: NIGHT + hours(5) } };
+    const fire: LocationBuildings = { fire: { id: 'campfire', builtAt: 0, fuel: 5, lit: true } };
     const naked = withBuildings(gameAt(NIGHT, 'windy', 'camp'), fire);
     delete naked.player.equipment.body;
     const dressed = withBuildings(gameAt(NIGHT, 'windy', 'camp'), fire);
@@ -235,7 +235,7 @@ describe('weather', () => {
   it('makes the player wet only after 10 minutes out in the rain, starting over under a roof', () => {
     // Arrange
     const state = withBuildings(gameAt(0, 'rainy', 'beach'), {});
-    const hut = withBuildings(gameAt(0, 'rainy', 'camp'), { hut: { builtAt: 0 } });
+    const hut = withBuildings(gameAt(0, 'rainy', 'camp'), { house: { id: 'hut', builtAt: 0 } });
 
     // Act
     advanceTime(state, 5, 'awake');
@@ -256,7 +256,7 @@ describe('weather', () => {
 
   it('gets the player wet on the way through the rain, even when they set off from under a roof', () => {
     // Arrange
-    const state = withBuildings(gameAt(0, 'rainy', 'camp'), { hut: { builtAt: 0 } });
+    const state = withBuildings(gameAt(0, 'rainy', 'camp'), { house: { id: 'hut', builtAt: 0 } });
 
     // Act
     const next = performAction(state, 'travel:forest');
@@ -280,7 +280,7 @@ describe('weather', () => {
 
   it('keeps the player dry under a roof', () => {
     // Arrange
-    const state = withBuildings(gameAt(0, 'stormy', 'camp'), { hut: { builtAt: 0 } });
+    const state = withBuildings(gameAt(0, 'stormy', 'camp'), { house: { id: 'hut', builtAt: 0 } });
 
     // Act
     advanceTime(state, hours(1), 'awake');
@@ -289,34 +289,36 @@ describe('weather', () => {
     expect(state.player.conditions).toEqual([]);
   });
 
-  it('puts out a campfire without a roof, which cannot be lit again until the rain stops', () => {
+  it('puts out a campfire, keeping its fuel, and it cannot be lit again until the rain stops', () => {
     // Arrange
-    const state = withBuildings(gameAt(0, 'cloudy', 'camp'), { campfire: { builtAt: 0, litUntil: hours(5) } });
+    const state = withBuildings(gameAt(0, 'cloudy', 'camp'), { fire: { id: 'campfire', builtAt: 0, fuel: 5, lit: true } });
     giveItem(state, 'stick', 2);
-    giveItem(state, 'grass');
     state.environment.weather = 'rainy';
 
     // Act
     const rained = performAction(state, 'rest');
-    const blocked = getBlockedReason(rained, findAction(rained, 'campfire:relight') ?? fail());
+    const blocked = getBlockedReason(rained, findAction(rained, 'fire:light:friction') ?? fail());
     rained.environment.weather = 'cloudy';
-    const relit = performAction(rained, 'campfire:relight');
+    const relit = performAction(rained, 'fire:light:friction');
 
     // Assert
-    expect(rained.locations.camp?.buildings.campfire?.litUntil).toBeLessThanOrEqual(rained.time);
+    expect(rained.locations.camp?.buildings.fire?.lit).toBe(false);
+    expect(rained.locations.camp?.buildings.fire?.fuel).toBeCloseTo(5 - 10 / 60);
+    expect(rained.log.map((e) => e.text)).toContain('The rain puts out the campfire.');
     expect(blocked).toBe('It is raining: the fire will not catch until the rain stops');
-    expect(relit.locations.camp?.buildings.campfire?.litUntil).toBeGreaterThan(relit.time);
+    expect(relit.locations.camp?.buildings.fire?.lit).toBe(true);
   });
 
-  it('keeps a campfire burning in the rain when the camp has a roof', () => {
+  it('puts out a campfire and a fireplace even under a roof, but never a furnace', () => {
     // Arrange
-    const state = withBuildings(gameAt(0, 'rainy', 'camp'), { campfire: { builtAt: 0, litUntil: hours(5) }, hut: { builtAt: 0 } });
+    const roofed = (id: 'campfire' | 'fireplace' | 'furnace') =>
+      withBuildings(gameAt(0, 'rainy', 'camp'), { fire: { id, builtAt: 0, fuel: 5, lit: true }, house: { id: 'hut', builtAt: 0 } });
 
     // Act
-    const next = performAction(state, 'rest');
+    const results = (['campfire', 'fireplace', 'furnace'] as const).map((id) => performAction(roofed(id), 'rest'));
 
     // Assert
-    expect(next.locations.camp?.buildings.campfire?.litUntil).toBe(hours(5));
+    expect(results.map((s) => s.locations.camp?.buildings.fire?.lit)).toEqual([false, false, true]);
   });
 
   it('makes the sea too rough to dive in a storm', () => {
@@ -452,7 +454,7 @@ describe('wearing out', () => {
 describe('travelling', () => {
   it('leaves the warmth of the campfire behind for the whole way', () => {
     // Arrange
-    const state = withBuildings(gameAt(NIGHT, 'windy', 'camp'), { campfire: { builtAt: 0, litUntil: NIGHT + hours(5) } });
+    const state = withBuildings(gameAt(NIGHT, 'windy', 'camp'), { fire: { id: 'campfire', builtAt: 0, fuel: 5, lit: true } });
     delete state.player.equipment.body;
 
     // Act
@@ -493,7 +495,7 @@ describe('travelling', () => {
 });
 
 describe('cooling down and warming up', () => {
-  const fire = { campfire: { builtAt: 0, litUntil: NIGHT + hours(5) } };
+  const fire: LocationBuildings = { fire: { id: 'campfire', builtAt: 0, fuel: 5, lit: true } };
   const blocked = (state: GameState, actionId: string) => getBlockedReason(state, findAction(state, actionId) ?? fail());
 
   it('offers washing your face at the spring only while it is Very Hot or the player is overheated', () => {
@@ -527,20 +529,20 @@ describe('cooling down and warming up', () => {
     expect(next.player.conditions).toEqual([{ id: 'overheated', remaining: 30 - 5 - 15 }]);
   });
 
-  it('offers sitting next to a burning campfire only while it is Very Cold or the player is freezing or wet', () => {
+  it('offers sitting next to a burning fire only while it is Very Cold or the player is freezing or wet', () => {
     // Arrange
     const cold = withBuildings(gameAt(NIGHT, 'cloudy', 'camp'), fire);
     const wet = withBuildings(gameAt(NIGHT, 'cloudy', 'camp'), fire);
     wet.player.conditions.push({ id: 'wet', remaining: 60 });
     const veryCold = withBuildings(gameAt(NIGHT, 'windy', 'camp'), fire);
-    const unlit = withBuildings(gameAt(NIGHT, 'windy', 'camp'), { campfire: { builtAt: 0, litUntil: 0 } });
+    const unlit = withBuildings(gameAt(NIGHT, 'windy', 'camp'), { fire: { id: 'campfire', builtAt: 0, fuel: 0, lit: false } });
 
     // Act
-    const offered = [cold, wet, veryCold, unlit].map((state) => findAction(state, 'campfire:sit') !== undefined);
+    const offered = [cold, wet, veryCold, unlit].map((state) => findAction(state, 'fire:sit') !== undefined);
 
     // Assert
     expect(offered).toEqual([false, true, true, false]);
-    expect(blocked(wet, 'campfire:sit')).toBeUndefined();
+    expect(blocked(wet, 'fire:sit')).toBeUndefined();
   });
 
   it('starts the hour until freezing over and takes 15 minutes off Freezing and Wet by the fire', () => {
@@ -552,7 +554,7 @@ describe('cooling down and warming up', () => {
     state.player.conditions.push({ id: 'freezing', remaining: 30 }, { id: 'wet', remaining: 10 });
 
     // Act
-    const next = performAction(state, 'campfire:sit');
+    const next = performAction(state, 'fire:sit');
 
     // Assert
     expect(next.time).toBe(NIGHT + 5);

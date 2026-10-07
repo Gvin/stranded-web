@@ -1,7 +1,10 @@
 import { hasBodyCondition } from '../../engine/conditions';
-import { BODY_PART_IDS, type GameState } from '../../engine/types';
+import { BODY_PART_IDS, type BuildingId, type GameState } from '../../engine/types';
 
 // Small helpers shared by the location files.
+
+/** What can be built wherever the player can stay outside the camp: a bed for the night and a roof over it. */
+export const SHELTER_BUILDINGS: readonly BuildingId[] = ['sleepingMat', 'shelter'];
 
 export function plentyText(amount: number, max: number): string {
   if (amount <= 0) {

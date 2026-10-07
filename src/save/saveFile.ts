@@ -67,6 +67,7 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     typeof value.environment.weather === 'string' &&
     typeof value.environment.until === 'number' &&
     Array.isArray(player.craftedRecipes) &&
+    typeof player.awakeSince === 'number' &&
     isRecord(value.locations) &&
     Array.isArray(value.log);
   if (!shapeOk) {

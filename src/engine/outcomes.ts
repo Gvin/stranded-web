@@ -19,7 +19,7 @@ export interface FindDef {
   quantity?: number | readonly [number, number];
   /** How many times this can ever be found at this location. */
   limit?: number;
-  /** The chance is not improved by perception. */
+  /** The chance is not improved by perception: for what is always there, such as the stones of the scree. */
   fixedChance?: boolean;
   /** Health of a found item that wears out; full when not given. */
   health?: number;

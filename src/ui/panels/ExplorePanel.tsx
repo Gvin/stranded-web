@@ -1,4 +1,4 @@
-import { BUILDINGS } from '../../data/buildings';
+import { BUILDINGS, previousLevel } from '../../data/buildings';
 import { formatDuration } from '../../engine/time';
 import type { BuildingId, GameState } from '../../engine/types';
 import { getLocationView } from '../../engine/views';
@@ -25,14 +25,17 @@ const TYPE_LABELS: Record<string, string> = {
   camp: 'Camp',
 };
 
-function FuelRow({ views, onPerform }: { views: readonly ActionView[]; onPerform: PerformAction }) {
+/** A row of small buttons for one kind of action on an object, e.g. every way to light a fire. */
+function ActionRow({ title, views, onPerform }: { title: string; views: readonly ActionView[]; onPerform: PerformAction }) {
   if (views.length === 0) {
     return null;
   }
-  const reason = views.find((v) => v.blocked)?.blocked;
+  // why: when only some buttons are blocked their popups explain why; a shared reason (such as rain) is worth a line.
+  const reasons = new Set(views.map((v) => v.blocked));
+  const reason = reasons.size === 1 ? views[0]?.blocked : undefined;
   return (
     <div className="fuel">
-      <p className="fuel__title">Add to the fire</p>
+      <p className="fuel__title">{title}</p>
       <div className="item__actions">
         {views.map((v) => (
           <ActionButton
@@ -60,6 +63,7 @@ function BuildSection({ state, views, onPerform }: { state: GameState; views: re
       <ul className="recipes">
         {views.map((view) => {
           const building = BUILDINGS[view.action.targetId as BuildingId];
+          const below = previousLevel(building.id);
           return (
             <li key={building.id} className="card recipe">
               <div className="recipe__heading">
@@ -67,6 +71,7 @@ function BuildSection({ state, views, onPerform }: { state: GameState; views: re
                 <h3 className="recipe__name">{building.name}</h3>
               </div>
               <p className="small">{building.description}</p>
+              {below && <p className="muted small">Built on top of your {below.name.toLowerCase()}, which it replaces.</p>}
               <p className="muted small">
                 {building.steps} {building.steps === 1 ? 'step' : 'steps'} · {formatDuration(view.action.minutes)} and ⚡
                 {view.action.energy} each · materials are used up by the first step
@@ -144,7 +149,16 @@ export function ExplorePanel({ state, actions, freshAfterLogId, onPerform }: Exp
                       ))}
                     </div>
                   )}
-                  <FuelRow views={forTarget(object.id).filter((a) => a.action.group === 'fuel')} onPerform={onPerform} />
+                  <ActionRow
+                    title="Light the fire"
+                    views={forTarget(object.id).filter((a) => a.action.group === 'light')}
+                    onPerform={onPerform}
+                  />
+                  <ActionRow
+                    title="Add to the fire"
+                    views={forTarget(object.id).filter((a) => a.action.group === 'fuel')}
+                    onPerform={onPerform}
+                  />
                 </article>
               );
             })}
@@ -167,7 +181,7 @@ export function ExplorePanel({ state, actions, freshAfterLogId, onPerform }: Exp
                     <span className="ground__name">
                       {item.def.name}
                       {item.quantity > 1 && <span className="muted"> ×{item.quantity}</span>}
-                      <ItemHealth itemId={item.def.id} health={item.health} />
+                      <ItemHealth itemId={item.def.id} health={item.health} lit={item.lit} />
                     </span>
                     <span className="ground__expiry">gone in {formatDuration(item.expiresIn)}</span>
                   </div>

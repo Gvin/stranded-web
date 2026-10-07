@@ -18,7 +18,8 @@ export const BODY_PART_IDS: readonly BodyPartId[] = ['head', 'torso', 'leftArm',
 export type BodyConditionId = 'injured' | 'bleeding' | 'fractured' | 'burnt' | 'missing' | 'bandaged' | 'splinted';
 
 /** Player-wide conditions that are stored and wear off over time (the rest are derived from stats). */
-export type TimedConditionId = 'poisoned' | 'dizzy' | 'wet' | 'overheated' | 'freezing';
+export type TimedConditionId =
+  'poisoned' | 'dizzy' | 'wet' | 'overheated' | 'freezing' | 'awfulSleep' | 'badSleep' | 'goodSleep' | 'perfectSleep';
 
 export type SkillId = 'fighting' | 'farming' | 'building' | 'foraging' | 'crafting';
 export const SKILL_IDS: readonly SkillId[] = ['fighting', 'farming', 'building', 'foraging', 'crafting'];
@@ -39,8 +40,40 @@ export const EQUIP_SLOTS: readonly EquipSlot[] = ['head', 'body', 'leftHand', 'r
 export type HandSlot = 'leftHand' | 'rightHand';
 export const HAND_SLOTS: readonly HandSlot[] = ['leftHand', 'rightHand'];
 
-export type BuildingId = 'campfire' | 'hut' | 'storage' | 'workbench' | 'rainCollector';
-export const BUILDING_IDS: readonly BuildingId[] = ['campfire', 'hut', 'storage', 'workbench', 'rainCollector'];
+/** Every building; buildings that improve on each other share a slot (see BUILDING_SLOTS) as its levels. */
+export type BuildingId =
+  | 'sleepingMat'
+  | 'shelter'
+  | 'hut'
+  | 'house'
+  | 'campfire'
+  | 'fireplace'
+  | 'furnace'
+  | 'basicWorkbench'
+  | 'workbench'
+  | 'smallStorage'
+  | 'mediumStorage'
+  | 'bigStorage'
+  | 'rainCollector';
+export const BUILDING_IDS: readonly BuildingId[] = [
+  'sleepingMat',
+  'shelter',
+  'hut',
+  'house',
+  'campfire',
+  'fireplace',
+  'furnace',
+  'basicWorkbench',
+  'workbench',
+  'smallStorage',
+  'mediumStorage',
+  'bigStorage',
+  'rainCollector',
+];
+
+/** A place for one building per location; its buildings are levels, each built on top of the one before. */
+export type BuildingSlot = 'house' | 'fire' | 'workbench' | 'storage' | 'rainCollector';
+export const BUILDING_SLOTS: readonly BuildingSlot[] = ['house', 'fire', 'workbench', 'storage', 'rainCollector'];
 
 export type LogTone = 'neutral' | 'good' | 'bad' | 'info';
 
@@ -70,6 +103,8 @@ export interface InventoryStack {
   quantity: number;
   /** Health left, for items that wear out. Such items never stack: their quantity is always 1. */
   health?: number;
+  /** Set while the item burns (a lit torch). */
+  lit?: boolean;
 }
 
 /** An item held in a hand or worn. */
@@ -77,6 +112,8 @@ export interface EquippedItem {
   itemId: string;
   /** Health left, for items that wear out. */
   health?: number;
+  /** Set while the item burns (a lit torch). */
+  lit?: boolean;
 }
 
 export interface GroundItem {
@@ -86,6 +123,8 @@ export interface GroundItem {
   droppedAt: number;
   /** Health left, for items that wear out (always a single item). */
   health?: number;
+  /** Set while the item burns (a lit torch). */
+  lit?: boolean;
 }
 
 export interface ObjectStock {
@@ -114,14 +153,18 @@ export interface Construction {
 }
 
 export interface BuildingState {
+  /** The level of the slot that stands here. */
+  id: BuildingId;
   builtAt: number;
 }
 
+/** What stands in each building slot of a location. */
 export interface LocationBuildings {
-  campfire?: BuildingState & { litUntil: number };
-  hut?: BuildingState;
-  storage?: BuildingState & { items: InventoryStack[] };
+  house?: BuildingState;
+  /** Fuel left in units (one burns for an hour in a Campfire), and whether it burns right now. */
+  fire?: BuildingState & { fuel: number; lit: boolean };
   workbench?: BuildingState;
+  storage?: BuildingState & { items: InventoryStack[] };
   /** Holds the water it has collected, in bottles. */
   rainCollector?: BuildingState & { water: number };
 }
@@ -144,6 +187,8 @@ export interface PlayerState {
   exposure: { veryHot: number; veryCold: number; rain: number };
   /** Ids of every recipe the player has made at least once. */
   craftedRecipes: string[];
+  /** Game minute the player last woke up (the start of the game before the first sleep); 20 hours later they are Sleepy. */
+  awakeSince: number;
 }
 
 export interface LogEntry {

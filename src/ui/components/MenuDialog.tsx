@@ -20,12 +20,14 @@ export function MenuDialog({ onClose, onNewGame }: MenuDialogProps) {
         </li>
         <li>Bandage wounds with rags to stop bleeding. Splint broken bones with sticks and a binding.</li>
         <li>
-          Sleep when your energy is below 50. A hut at your camp makes sleep much more restful. Working on with no energy left costs health.
+          Sleep when your energy is below 50, or once you are sleepy after 20 hours awake. Where you sleep matters: the bare ground leaves
+          you aching, a mat, shelter, hut or house each rest you better. Working on with no energy left costs health.
         </li>
         <li>
-          Heat makes you thirsty and cold makes you hungry; hours of either weaken you. A roof, a burning campfire and clothes help, and the
+          Heat makes you thirsty and cold makes you hungry; hours of either weaken you. A roof, a burning fire and clothes help, and the
           rain gets you wet. Worn clothes wear out.
         </li>
+        <li>A fire burns only while it has fuel. Rain puts out a campfire or fireplace, even under a roof.</li>
         <li>Attributes grow slowly as you use them.</li>
         <li>Hover over an action (or long-press it on a touch screen) to see what it needs and what it may give.</li>
       </ul>

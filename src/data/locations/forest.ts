@@ -1,8 +1,9 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
 import { checkGainChance } from '../../engine/gains';
+import { type FindDef, findGains, rollFinds } from '../../engine/outcomes';
 import { carried, holding } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
-import { plentyText } from './shared';
+import { plentyText, SHELTER_BUILDINGS } from './shared';
 
 /** Chance of a piece of resin while gathering sticks, and while chopping wood. */
 const RESIN_WITH_STICKS = 0.05;
@@ -12,6 +13,11 @@ const RESIN_WHEN_CHOPPING = 0.3;
 const CHOPPED_LOGS = [8, 10] as const;
 const CHOPPED_STICKS = [15, 20] as const;
 const CHOPPED_VINES = [0, 3] as const;
+const CHOPPED_LEAVES = [20, 30] as const;
+
+/** Found together with sticks, and moss also while picking berries. */
+const LEAVES: FindDef = { itemId: 'leaves', chance: 0.3, quantity: [2, 4] };
+const MOSS: FindDef = { itemId: 'moss', chance: 0.2, quantity: [1, 2] };
 
 const berryBushes: ObjectDef = {
   id: 'berry-bushes',
@@ -28,6 +34,7 @@ const berryBushes: ObjectDef = {
       gains: (state) => [
         { itemId: 'wild-berries', quantity: [1, 4] },
         { itemId: 'bitter-berries', quantity: [1, 4], chance: 1 - checkGainChance(state, 'perception', 25) },
+        ...findGains(state, 'forest', 'berry-bushes', [MOSS]),
       ],
       minutes: 20,
       energy: 2,
@@ -41,10 +48,11 @@ const berryBushes: ObjectDef = {
         if (bitter > 0 && ctx.check('perception', 25)) {
           ctx.log('You notice some of them smell bitter and leave those on the bush.');
           ctx.addItem('wild-berries', picked - bitter);
-          return;
+        } else {
+          ctx.addItem('wild-berries', picked - bitter);
+          ctx.addItem('bitter-berries', bitter);
         }
-        ctx.addItem('wild-berries', picked - bitter);
-        ctx.addItem('bitter-berries', bitter);
+        rollFinds(ctx, 'berry-bushes', [MOSS]);
       },
     },
   ],
@@ -126,6 +134,7 @@ export const forest: LocationDef = {
   objects: [berryBushes, vines, mushrooms],
   // why: 30 sticks lie around and 10 more drop every day, enough for building, crafting and keeping a fire going.
   stocks: { sticks: { initial: 30, max: 30, regenMinutes: days(1) / 10 } },
+  buildings: SHELTER_BUILDINGS,
   actions: [
     {
       id: 'grass',
@@ -145,9 +154,10 @@ export const forest: LocationDef = {
       label: 'Gather sticks',
       description: 'Pick straight sticks off the forest floor.',
       details: 'Only so many sticks lie around; a new one drops from the trees every few hours.',
-      gains: [
+      gains: (state) => [
         { itemId: 'stick', quantity: [2, 3] },
-        { itemId: 'resin', chance: RESIN_WITH_STICKS, find: true },
+        { itemId: 'resin', chance: RESIN_WITH_STICKS, perception: true, find: true },
+        ...findGains(state, 'forest', 'location', [LEAVES, MOSS]),
       ],
       minutes: 15,
       energy: 2,
@@ -156,9 +166,10 @@ export const forest: LocationDef = {
       run: (ctx) => {
         ctx.log('You pick straight sticks off the forest floor.');
         ctx.addItem('stick', ctx.takeStock(ctx.gathered(ctx.randomInt(2, 3)), 'sticks'));
-        if (ctx.chance(ctx.findChance(RESIN_WITH_STICKS, { perception: false }))) {
+        if (ctx.chance(ctx.findChance(RESIN_WITH_STICKS))) {
           ctx.addItem('resin');
         }
+        rollFinds(ctx, 'location', [LEAVES, MOSS]);
       },
     },
     {
@@ -170,7 +181,8 @@ export const forest: LocationDef = {
         { itemId: 'log', quantity: CHOPPED_LOGS },
         { itemId: 'stick', quantity: CHOPPED_STICKS },
         { itemId: 'vine', quantity: CHOPPED_VINES },
-        { itemId: 'resin', chance: RESIN_WHEN_CHOPPING, find: true },
+        { itemId: 'leaves', quantity: CHOPPED_LEAVES },
+        { itemId: 'resin', chance: RESIN_WHEN_CHOPPING, perception: true, find: true },
       ],
       minutes: 120,
       energy: 25,
@@ -184,9 +196,10 @@ export const forest: LocationDef = {
             ['log', CHOPPED_LOGS],
             ['stick', CHOPPED_STICKS],
             ['vine', CHOPPED_VINES],
+            ['leaves', CHOPPED_LEAVES],
           ] as const
         ).map(([itemId, [min, max]]) => ({ itemId, quantity: ctx.gathered(ctx.randomInt(min, max)) }));
-        const resin = ctx.chance(ctx.findChance(RESIN_WHEN_CHOPPING, { perception: false })) ? 1 : 0;
+        const resin = ctx.chance(ctx.findChance(RESIN_WHEN_CHOPPING)) ? 1 : 0;
         ctx.addItems([...items, { itemId: 'resin', quantity: resin }]);
       },
     },

@@ -1,4 +1,4 @@
-import { STORAGE_CAPACITY } from '../../data/buildings';
+import { BUILDINGS } from '../../data/buildings';
 import { getItemDef } from '../../data/items';
 import type { CharacterSheet } from '../../engine/character';
 import type { ItemCategory, ItemDef } from '../../engine/definitions';
@@ -67,7 +67,6 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
   const { player } = state;
   const byTarget = (category: string, itemId: string, prefix?: string) =>
     actions.filter((a) => a.action.category === category && a.action.targetId === itemId && (!prefix || a.action.id.startsWith(prefix)));
-  const unequipFor = (slot: EquipSlot) => actions.find((a) => a.action.id === `unequip:${slot}`);
   const load = sheet.carryCapacity > 0 ? sheet.carriedWeight / sheet.carryCapacity : 1;
   const storage = getLocationState(state, player.locationId).buildings.storage;
 
@@ -91,16 +90,19 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
         <ul className="card slots">
           {EQUIP_SLOTS.map((slot) => {
             const item = player.equipment[slot];
-            const unequip = unequipFor(slot);
             return (
               <li key={slot} className="slot">
                 <span className="slot__name">{SLOT_NAMES[slot]}</span>
                 <span className={item ? 'slot__item' : 'slot__item muted'}>
                   {item && <ItemIcon itemId={item.itemId} size={22} />}
                   {item ? getItemDef(item.itemId).name : 'empty'}
-                  {item && <ItemHealth itemId={item.itemId} health={item.health} />}
+                  {item && <ItemHealth itemId={item.itemId} health={item.health} lit={item.lit} />}
                 </span>
-                {unequip && <ActionButton view={unequip} onPerform={onPerform} compact />}
+                <span className="slot__actions">
+                  {byTarget('item', slot).map((a) => (
+                    <ActionButton key={a.action.id} view={a} onPerform={onPerform} compact />
+                  ))}
+                </span>
               </li>
             );
           })}
@@ -131,7 +133,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
                         <ItemIcon itemId={def.id} size={28} />
                         {def.name}
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
-                        <ItemHealth itemId={def.id} health={stack.health} />
+                        <ItemHealth itemId={def.id} health={stack.health} lit={stack.lit} />
                       </span>
                       <span className="item__stats">{itemStats(def)}</span>
                     </div>
@@ -158,7 +160,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
       {storage && (
         <section>
           <h2 className="section-title">
-            Storage · {stackWeight(storage.items).toFixed(1)} / {STORAGE_CAPACITY} kg
+            {BUILDINGS[storage.id].name} · {stackWeight(storage.items).toFixed(1)} / {BUILDINGS[storage.id].storage?.capacity ?? 0} kg
           </h2>
           {storage.items.length === 0 ? (
             <p className="card muted">The storage is empty. Use "Store" on items in your bag.</p>
@@ -174,7 +176,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
                         <ItemIcon itemId={def.id} size={28} />
                         {def.name}
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
-                        <ItemHealth itemId={def.id} health={stack.health} />
+                        <ItemHealth itemId={def.id} health={stack.health} lit={stack.lit} />
                       </span>
                       <span className="item__stats">{def.weight} kg</span>
                     </div>

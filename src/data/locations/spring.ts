@@ -1,6 +1,7 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
 import { canCoolDown, coolDown } from '../../engine/environment';
 import { ENVIRONMENT_RULES } from '../../engine/rules';
+import { SHELTER_BUILDINGS } from './shared';
 
 const pool: ObjectDef = {
   id: 'pool',
@@ -44,4 +45,5 @@ export const spring: LocationDef = {
     'Cold, clear water bubbles up between mossy boulders and gathers in a small pool before trickling away into the ferns. ' +
     'The air here is cool and smells of wet stone.',
   objects: [pool],
+  buildings: SHELTER_BUILDINGS,
 };

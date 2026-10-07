@@ -64,15 +64,19 @@ export function holdingItem(player: PlayerState, itemId: string): boolean {
   return HAND_SLOTS.some((slot) => equippedItemId(player, slot) === itemId);
 }
 
-/** Adds items to a list of stacks; items that wear out get one entry each, at the given health or at full health. */
-export function addToStacks(stacks: InventoryStack[], itemId: string, quantity: number, health?: number): void {
+/**
+ * Adds items to a list of stacks; items that wear out get one entry each, at the given health or at full health, and
+ * burning if `lit` (a torch).
+ */
+export function addToStacks(stacks: InventoryStack[], itemId: string, quantity: number, health?: number, lit?: boolean): void {
   if (quantity <= 0) {
     return;
   }
   const { maxHealth } = getItemDef(itemId);
   if (maxHealth !== undefined) {
     for (let i = 0; i < quantity; i++) {
-      stacks.push({ itemId, quantity: 1, health: health ?? maxHealth });
+      const entry: InventoryStack = { itemId, quantity: 1, health: health ?? maxHealth };
+      stacks.push(lit ? { ...entry, lit } : entry);
     }
     return;
   }
@@ -84,8 +88,8 @@ export function addToStacks(stacks: InventoryStack[], itemId: string, quantity: 
   }
 }
 
-export function addToInventory(player: PlayerState, itemId: string, quantity: number, health?: number): void {
-  addToStacks(player.inventory, itemId, quantity, health);
+export function addToInventory(player: PlayerState, itemId: string, quantity: number, health?: number, lit?: boolean): void {
+  addToStacks(player.inventory, itemId, quantity, health, lit);
 }
 
 /** Removes a quantity of an item from a list of stacks, the most worn entries first; false (and nothing removed) when there is not enough. */
@@ -133,12 +137,8 @@ export function findEntry(stacks: readonly InventoryStack[], key: string): Inven
   return stacks.find((_, index) => entryKey(stacks, index) === key);
 }
 
-/** Takes up to `quantity` units out of one entry and returns what was taken (with its health), or undefined. */
-export function takeFromEntry(
-  stacks: InventoryStack[],
-  key: string,
-  quantity: number,
-): { itemId: string; quantity: number; health?: number } | undefined {
+/** Takes up to `quantity` units out of one entry and returns what was taken (with its health and flame), or undefined. */
+export function takeFromEntry(stacks: InventoryStack[], key: string, quantity: number): InventoryStack | undefined {
   const entry = findEntry(stacks, key);
   if (!entry || quantity <= 0) {
     return undefined;
@@ -148,9 +148,7 @@ export function takeFromEntry(
   if (entry.quantity === 0) {
     stacks.splice(stacks.indexOf(entry), 1);
   }
-  return entry.health === undefined
-    ? { itemId: entry.itemId, quantity: taken }
-    : { itemId: entry.itemId, quantity: taken, health: entry.health };
+  return { ...entry, quantity: taken };
 }
 
 /**
@@ -272,14 +270,14 @@ export function bestWeapon(player: PlayerState): { def: EquipmentDef; bonus: num
   return best;
 }
 
-/** Moves the item in the slot back into the bag, keeping its health, and returns its id. */
+/** Moves the item in the slot back into the bag, keeping its health and flame, and returns its id. */
 export function unequip(player: PlayerState, slot: EquipSlot): string | undefined {
   const item = player.equipment[slot];
   if (!item) {
     return undefined;
   }
   delete player.equipment[slot];
-  addToInventory(player, item.itemId, 1, item.health);
+  addToInventory(player, item.itemId, 1, item.health, item.lit);
   return item.itemId;
 }
 

@@ -47,6 +47,7 @@ export function createStartingState(seed: number): GameState {
       equipment: { body: { itemId: 'clothes', health: STARTING_CLOTHES_HEALTH } },
       exposure: { veryHot: 0, veryCold: 0, rain: 0 },
       craftedRecipes: [],
+      awakeSince: 0,
     },
     locations: {
       [START_LOCATION_ID]: { visited: true, groundItems: [], stock: {}, finds: {}, buildings: {}, constructions: {} },

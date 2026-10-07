@@ -19,7 +19,7 @@ describe('advanceTime', () => {
     expect(state.player.stats.hunger).toBeCloseTo(8);
   });
 
-  it('raises thirst and hunger less while sleeping and restores energy', () => {
+  it('raises thirst and hunger less while sleeping and restores energy, 7 an hour on the bare ground', () => {
     // Arrange
     const state = createTestGame();
     state.player.stats.energy = 10;
@@ -29,7 +29,7 @@ describe('advanceTime', () => {
 
     // Assert
     expect(state.player.stats.thirst).toBeCloseTo(9.6);
-    expect(state.player.stats.energy).toBeCloseTo(54);
+    expect(state.player.stats.energy).toBeCloseTo(38);
   });
 
   it('eases heavy bleeding through medium and light until it stops', () => {

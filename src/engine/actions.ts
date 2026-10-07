@@ -1,13 +1,14 @@
-import { BUILDINGS, CAMPFIRE_INITIAL_BURN, CAMPFIRE_MAX_BURN, COLLECTOR_WASH_WATER, STORAGE_CAPACITY } from '../data/buildings';
+import { BUILDINGS, COLLECTOR_WASH_WATER, nextLevel, previousLevel } from '../data/buildings';
 import { getItemDef } from '../data/items';
 import { getLocationDef, getRoutesFrom } from '../data/locations';
 import { RECIPES } from '../data/recipes';
 import { getCharacterSheet } from './character';
 import { bodyPartName, canHoldWith, hasBodyCondition, TIMED_CONDITIONS } from './conditions';
-import { type ActionContext, formatAmount } from './context';
+import { type ActionContext, formatAmount, itemAmount } from './context';
 import type {
   ActionDef,
   AttributeXp,
+  BuildingDef,
   EquipmentDef,
   FoodDef,
   Ingredient,
@@ -17,7 +18,8 @@ import type {
   TimeMode,
 } from './definitions';
 import { type Gain, resolveGains } from './gains';
-import { canCoolDown, canWarmUp, coolDown, isRaining, roofAt, warmUp } from './environment';
+import { canCoolDown, canWarmUp, coolDown, isRaining, warmUp } from './environment';
+import { fireDef, fireRoom, rainReaches } from './fire';
 import {
   addToInventory,
   addToStacks,
@@ -36,31 +38,38 @@ import {
   unequip,
 } from './inventory';
 import { emptyFoodGroups, feedFoodGroup, foodGroupList } from './nutrition';
-import { ingredient, station, workingArm } from './requirements';
+import { carried, flame, ingredient, litTorch, station, workingArm } from './requirements';
 import {
   BUILDING_STEP_ENERGY,
   BUILDING_STEP_MINUTES,
   CRAFT_ENERGY,
   ENVIRONMENT_RULES,
+  FIRE_LIGHTING,
+  FLINTS_WEAR_PER_USE,
   ITEM_WEAR_PER_DAY,
   SKILL_NAMES,
+  SLEEP_RULES,
   speedFactor,
   SURVIVAL_RULES,
+  TORCH_BURN_PER_HOUR,
 } from './rules';
+import { canSleep, sleepAt, wakeUp } from './sleep';
 import { refundableUnits, refundChances, skilledMinutes, skillLevel } from './skills';
 import { formatDuration, hours, minutesUntilHour } from './time';
 import {
   BODY_PART_IDS,
-  type BuildingId,
+  BUILDING_SLOTS,
   EQUIP_SLOTS,
   type EquipSlot,
   type GameState,
   HAND_SLOTS,
+  type HandSlot,
   type InventoryStack,
   type LocationBuildings,
+  type LocationState,
   type SkillId,
 } from './types';
-import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, isCampfireLit } from './world';
+import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, roofAt } from './world';
 
 export type ActionCategory = 'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'build' | 'body';
 
@@ -88,8 +97,8 @@ export interface GameAction {
   object?: ObjectDef;
   /** What the action targets: object, building, item, ground item, equip slot, body part, recipe or location id. */
   targetId?: string;
-  /** Sub-group for compact display, e.g. all ways to feed a fire. */
-  group?: 'fuel';
+  /** Sub-group for compact display: all ways to feed a fire, or to light it. */
+  group?: 'fuel' | 'light';
   /** The item the action uses or works on, so the UI can show its icon. */
   itemId?: string;
   /** Its time passes on the way (at the travel location, out in the open) rather than where the player started. */
@@ -127,7 +136,7 @@ export function getActions(state: GameState): GameAction[] {
   return [
     ...locationActions(state),
     ...objectActions(state),
-    ...campfireActions(state),
+    ...fireActions(state),
     ...rainCollectorActions(state),
     ...travelActions(state),
     ...pickupActions(state),
@@ -219,17 +228,16 @@ function signed(value: number): string {
 }
 
 function locationActions(state: GameState): GameAction[] {
-  const hut = getLocationState(state, state.player.locationId).buildings.hut !== undefined;
   const untilMorning = minutesUntilHour(state.time, SURVIVAL_RULES.wakeUpHour);
-  // why: sleeping is only possible when tired, and the actions are hidden rather than shown as blocked until then.
-  const tired = state.player.stats.energy < SURVIVAL_RULES.sleepBelowEnergy;
+  // why: sleeping is only possible when tired or Sleepy, and the actions are hidden rather than shown as blocked until then.
+  const sleep = canSleep(state);
   return [
     {
       id: 'rest',
       label: 'Rest',
       category: 'location',
       description: 'Sit down and catch your breath. Restores some energy.',
-      details: 'Thirst and hunger keep growing while you rest. Wounds and health recover a little faster than when active.',
+      details: 'Thirst and hunger keep growing while you rest.',
       gains: [{ label: `+${SURVIVAL_RULES.energyRegenPerHour.resting} energy` }],
       minutes: 60,
       energy: 0,
@@ -237,37 +245,55 @@ function locationActions(state: GameState): GameAction[] {
       requirements: [],
       run: (ctx) => ctx.log('You sit down and rest for a while.'),
     },
-    ...(tired ? [sleepAction('sleep', 'Sleep', hours(8), hut)] : []),
-    ...(tired && untilMorning > 0 && untilMorning <= hours(SURVIVAL_RULES.sleepTillMorningMaxHours)
-      ? [sleepAction('sleep-till-morning', 'Sleep till morning', untilMorning, hut)]
+    ...(sleep ? [sleepAction(state, 'sleep', 'Sleep', hours(8))] : []),
+    ...(sleep && untilMorning > 0 && untilMorning <= hours(SURVIVAL_RULES.sleepTillMorningMaxHours)
+      ? [sleepAction(state, 'sleep-till-morning', 'Sleep till morning', untilMorning)]
       : []),
   ];
 }
 
-function sleepAction(id: string, label: string, minutes: number, hut: boolean): GameAction {
-  const energy = Math.round(
-    (minutes / 60) * (SURVIVAL_RULES.energyRegenPerHour.sleeping + (hut ? SURVIVAL_RULES.shelteredSleepEnergyBonusPerHour : 0)),
-  );
+/** Sleeping where the player is: what they get back depends on what they sleep on (see `sleepAt`). */
+function sleepAction(state: GameState, id: string, label: string, minutes: number): GameAction {
+  const sleep = sleepAt(state);
+  const sheet = getCharacterSheet(state);
+  const { stats } = state.player;
+  const sleptHours = minutes / 60;
+  const energy = Math.min(Math.round(sleptHours * sleep.energyPerHour), Math.max(0, Math.round(sheet.max.energy - stats.energy)));
+  const health = Math.min(Math.round(sleptHours * sleep.healthPerHour), Math.max(0, Math.round(sheet.max.health - stats.health)));
+  const condition = sleep.condition && TIMED_CONDITIONS[sleep.condition];
+  const percent = condition?.fixedModifiers?.strength ?? 0;
+  const perHour =
+    sleep.healthPerHour > 0
+      ? `${sleep.energyPerHour} energy and ${sleep.healthPerHour} health`
+      : `${sleep.energyPerHour} energy and no health`;
   return {
     id,
     label,
     category: 'location',
     description:
       id === 'sleep'
-        ? 'Sleep through the next hours. A hut makes it far more restful.'
-        : `Sleep until ${String(SURVIVAL_RULES.wakeUpHour).padStart(2, '0')}:00. A hut makes it far more restful.`,
-    details: 'Thirst and hunger grow more slowly while you sleep, and health recovers faster.',
-    gains: [{ label: `+${energy} energy${hut ? ' (hut)' : ''}` }, { label: 'Faster healing' }],
+        ? `Sleep for ${formatDuration(minutes)} ${sleep.where}.`
+        : `Sleep until ${String(SURVIVAL_RULES.wakeUpHour).padStart(2, '0')}:00 ${sleep.where}.`,
+    details: `Sleeping ${sleep.where} gives back ${perHour} an hour. Thirst and hunger grow more slowly while you sleep.`,
+    gains: [
+      { label: `+${energy} energy` },
+      ...(health > 0 ? [{ label: `Up to +${health} health` }] : []),
+      ...(condition
+        ? [
+            {
+              label: `${condition.name} for ${SLEEP_RULES.conditionHours} h: ${percent > 0 ? '+' : '−'}${Math.abs(percent)}% to all attributes`,
+            },
+          ]
+        : []),
+    ],
     minutes,
     energy: 0,
     timeMode: 'sleeping',
     requirements: [],
     run: (ctx) => {
-      ctx.log(
-        ctx.location().buildings.hut
-          ? 'You sleep soundly in your hut and wake up refreshed.'
-          : 'You sleep fitfully in the open and wake up stiff.',
-      );
+      const slept = sleepAt(ctx.state);
+      wakeUp(ctx.state, slept);
+      ctx.log(slept.message, slept.condition === 'awfulSleep' || slept.condition === 'badSleep' ? 'bad' : 'good');
     },
   };
 }
@@ -328,41 +354,142 @@ function objectActions(state: GameState): GameAction[] {
     .flatMap((object) => object.actions.filter((def) => def.visibleIf?.(state) ?? true).map((def) => fromActionDef(state, def, object)));
 }
 
-function campfireActions(state: GameState): GameAction[] {
-  const location = getLocationState(state, state.player.locationId);
-  if (!location.buildings.campfire) {
+/** Sticks as an ingredient, for the ways to light a fire. */
+function sticks(quantity: number): readonly Ingredient[] {
+  return [{ type: 'stick', quantity }];
+}
+
+/** The pair of flints in the bag that is most worn loses health; at 0 it is gone. */
+function wearFlints(ctx: ActionContext): void {
+  const inventory = ctx.state.player.inventory;
+  const pair = inventory.filter((s) => s.itemId === 'pair-of-flints').sort((a, b) => (a.health ?? 0) - (b.health ?? 0))[0];
+  if (pair?.health === undefined) {
+    return;
+  }
+  pair.health -= FLINTS_WEAR_PER_USE;
+  if (pair.health <= 1e-9) {
+    inventory.splice(inventory.indexOf(pair), 1);
+    ctx.log('Your pair of flints is worn down to nothing.', 'bad');
+  }
+}
+
+/** The four ways to light the fire where the player is; the rain stops all of them unless the fire is rainproof. */
+function lightActions(state: GameState, name: string): GameAction[] {
+  const base = { category: 'building' as const, timeMode: 'awake' as const, targetId: 'fire', group: 'light' as const };
+  const here = getLocationState(state, state.player.locationId).buildings.fire;
+  // why: in the rain no way lights the fire, so each one gives the rain as its reason instead of what it would need.
+  const needs = (requirements: Requirement[]) => (here && isRaining(state) && rainReaches(here) ? [] : requirements);
+  const { bowDrill, flints, friction } = FIRE_LIGHTING;
+  const block = (s: GameState) => {
+    const fire = getLocationState(s, s.player.locationId).buildings.fire;
+    return fire && isRaining(s) && rainReaches(fire) ? 'It is raining: the fire will not catch until the rain stops' : undefined;
+  };
+  const light = (ctx: ActionContext, how: string) => {
+    const fire = ctx.location().buildings.fire;
+    if (fire) {
+      fire.lit = true;
+    }
+    ctx.log(`${how} The ${name} catches and starts to burn.`, 'good');
+  };
+  return [
+    {
+      ...base,
+      id: 'fire:light:bow-drill',
+      label: 'Bow drill',
+      description: 'Spin a stick against dry wood with the bow string.',
+      details: 'Uses up one stick.',
+      minutes: bowDrill.minutes,
+      energy: bowDrill.energy,
+      requirements: needs([carried('bow'), ...sticks(bowDrill.sticksNeeded).map(ingredient)]),
+      block,
+      run: (ctx) => {
+        consumeIngredients(ctx, sticks(bowDrill.sticksUsed));
+        light(ctx, 'You saw the bow back and forth until the tinder smoulders.');
+      },
+    },
+    {
+      ...base,
+      id: 'fire:light:flints',
+      label: 'Pair of flints',
+      description: 'Strike sparks into the tinder.',
+      details: `The pair of flints loses ${FLINTS_WEAR_PER_USE} health.`,
+      minutes: flints.minutes,
+      energy: flints.energy,
+      requirements: needs([ingredient({ itemId: 'pair-of-flints', quantity: 1 })]),
+      block,
+      run: (ctx) => {
+        wearFlints(ctx);
+        light(ctx, 'You strike the flints until a spark catches in the tinder.');
+      },
+    },
+    {
+      ...base,
+      id: 'fire:light:friction',
+      label: 'Friction',
+      description: 'Rub two sticks together until the tinder smoulders. Slow and tiring.',
+      details: `Needs ${friction.sticksNeeded} sticks and uses up ${friction.sticksUsed} of them.`,
+      minutes: friction.minutes,
+      energy: friction.energy,
+      requirements: needs(sticks(friction.sticksNeeded).map(ingredient)),
+      block,
+      run: (ctx) => {
+        consumeIngredients(ctx, sticks(friction.sticksUsed));
+        light(ctx, 'You rub two sticks together until your palms burn and the tinder smoulders.');
+      },
+    },
+    {
+      ...base,
+      id: 'fire:light:torch',
+      label: 'Torch',
+      description: 'Hold a lit torch to the tinder.',
+      minutes: 0,
+      energy: 0,
+      requirements: needs([litTorch()]),
+      block,
+      run: (ctx) => light(ctx, 'You hold the torch to the tinder.'),
+    },
+  ];
+}
+
+/** Feeding, lighting and putting out the fire where the player is, and what a burning fire is good for. */
+function fireActions(state: GameState): GameAction[] {
+  const fire = getLocationState(state, state.player.locationId).buildings.fire;
+  if (!fire) {
     return [];
   }
-  const base = { category: 'building' as const, energy: 0, timeMode: 'awake' as const, targetId: 'campfire' };
-  if (!isCampfireLit(location, state.time)) {
-    const relight: readonly Ingredient[] = [
-      { type: 'stick', quantity: 2 },
-      { type: 'threads', quantity: 1 },
-    ];
-    return [
-      {
-        ...base,
-        id: 'campfire:relight',
-        label: 'Relight the campfire',
-        description: 'Coax a new fire out of fresh tinder.',
-        gains: [{ label: `Fire burns ${formatDuration(CAMPFIRE_INITIAL_BURN)}` }],
-        minutes: 15,
-        energy: 2,
-        requirements: relight.map(ingredient),
-        block: (s) =>
-          isRaining(s) && !roofAt(s, s.player.locationId) ? 'It is raining: the fire will not catch until the rain stops' : undefined,
-        run: (ctx) => {
-          consumeIngredients(ctx, relight);
-          const campfire = ctx.location().buildings.campfire;
-          if (campfire) {
-            campfire.litUntil = ctx.state.time + CAMPFIRE_INITIAL_BURN;
-          }
-          ctx.log('You blow on the smouldering tinder until it catches. The fire crackles back to life.', 'good');
-        },
+  const { capacity, burnPerHour } = fireDef(fire);
+  const name = BUILDINGS[fire.id].name.toLowerCase();
+  const base = { category: 'building' as const, energy: 0, timeMode: 'awake' as const, targetId: 'fire' };
+  const feed = itemsOfType('fuel')
+    .filter((def) => countItem(state.player, def.id) > 0)
+    .map((def): GameAction => ({
+      ...base,
+      id: `fire:fuel:${def.id}`,
+      label: def.name,
+      itemId: def.id,
+      description: `Put ${def.singular} on the fire.`,
+      details: `The ${name} holds ${capacity} fuel and burns ${burnPerHour} an hour while it is lit.`,
+      gains: [{ label: `+${def.fuel ?? 0} fuel` }],
+      minutes: 0,
+      group: 'fuel',
+      requirements: [],
+      block: (s) => {
+        const current = getLocationState(s, s.player.locationId).buildings.fire;
+        return current && (def.fuel ?? 0) > fireRoom(current) + 1e-9 ? 'There is no room for it in the fire' : undefined;
       },
-    ];
+      run: (ctx) => {
+        const current = ctx.location().buildings.fire;
+        if (!current) {
+          return;
+        }
+        ctx.removeItem(def.id);
+        current.fuel = Math.min(fireDef(current).capacity, current.fuel + (def.fuel ?? 0));
+        ctx.log(`You put ${def.singular} on the fire.`);
+      },
+    }));
+  if (!fire.lit) {
+    return [...feed, ...(fire.fuel > 0 ? lightActions(state, name) : [])];
   }
-  const fuels = itemsOfType('fuel').filter((def) => countItem(state.player, def.id) > 0);
   const cookables = state.player.inventory
     .map((stack) => getItemDef(stack.itemId))
     .filter((def): def is FoodDef => def.category === 'food' && def.cooksInto !== undefined);
@@ -371,7 +498,7 @@ function campfireActions(state: GameState): GameAction[] {
     ? [
         {
           ...base,
-          id: 'campfire:sit',
+          id: 'fire:sit',
           label: 'Sit next to the fire',
           description: 'Warm yourself and dry off by the flames.',
           details: 'Offered while the island is Very Cold or you are freezing or wet.',
@@ -391,36 +518,10 @@ function campfireActions(state: GameState): GameAction[] {
     : [];
   return [
     ...sit,
-    ...fuels.map((def): GameAction => ({
-      ...base,
-      id: `campfire:fuel:${def.id}`,
-      label: def.name,
-      itemId: def.id,
-      description: `Burn one ${def.name.toLowerCase()} to keep the fire going.`,
-      details: `The fire can hold at most ${formatDuration(CAMPFIRE_MAX_BURN)} of fuel.`,
-      gains: [{ label: `+${formatDuration(def.fuelMinutes ?? 0)} of fire` }],
-      minutes: 1,
-      group: 'fuel',
-      requirements: [],
-      block: (s) => {
-        const litUntil = getLocationState(s, s.player.locationId).buildings.campfire?.litUntil ?? 0;
-        return litUntil - s.time >= CAMPFIRE_MAX_BURN ? 'The fire is already roaring' : undefined;
-      },
-      run: (ctx) => {
-        ctx.removeItem(def.id);
-        const campfire = ctx.location().buildings.campfire;
-        if (campfire) {
-          campfire.litUntil = Math.min(
-            ctx.state.time + CAMPFIRE_MAX_BURN,
-            Math.max(campfire.litUntil, ctx.state.time) + (def.fuelMinutes ?? 0),
-          );
-        }
-        ctx.log(`You feed the fire (−1 ${def.name.toLowerCase()}). The flames leap higher.`);
-      },
-    })),
+    ...feed,
     ...cookables.map((def): GameAction => ({
       ...base,
-      id: `campfire:cook:${def.id}`,
+      id: `fire:cook:${def.id}`,
       label: `Cook ${def.name.toLowerCase()}`,
       itemId: def.id,
       description: `Turns it into ${getItemDef(def.cooksInto as string).name.toLowerCase()}.`,
@@ -435,6 +536,21 @@ function campfireActions(state: GameState): GameAction[] {
         ctx.addItem(def.cooksInto as string);
       },
     })),
+    {
+      ...base,
+      id: 'fire:put-out',
+      label: `Put out the ${name}`,
+      description: 'Smother the flames. The fuel left in it keeps for later.',
+      minutes: 0,
+      requirements: [],
+      run: (ctx) => {
+        const current = ctx.location().buildings.fire;
+        if (current) {
+          current.lit = false;
+        }
+        ctx.log(`You smother the ${name}. The fuel left in it will keep.`);
+      },
+    },
   ];
 }
 
@@ -575,8 +691,8 @@ function pickupActions(state: GameState): GameAction[] {
       if (current.quantity <= 0) {
         groundItems.splice(groundItems.indexOf(current), 1);
       }
-      ctx.addItem(current.itemId, fits, { silent: true, health: current.health });
-      ctx.log(`You pick up ${formatAmount(current.itemId, fits, current.health).toLowerCase()}.`);
+      ctx.addItem(current.itemId, fits, { silent: true, health: current.health, lit: current.lit });
+      ctx.log(`You pick up ${itemAmount(current.itemId, fits, current.health)}.`);
     },
   }));
 }
@@ -658,7 +774,7 @@ function slotsFor(def: EquipmentDef): EquipSlot[] {
 function equipAction(def: EquipmentDef, slot: EquipSlot, key: string): GameAction {
   const name = def.name.toLowerCase();
   const hand = isHandSlot(slot);
-  const wearing = def.maxHealth === undefined ? '' : ` Worn, it loses ${ITEM_WEAR_PER_DAY} health a day and falls apart at 0.`;
+  const wearing = def.maxHealth === undefined || hand ? '' : ` Worn, it loses ${ITEM_WEAR_PER_DAY} health a day and falls apart at 0.`;
   return {
     id: `equip:${key}:${slot}`,
     label: hand ? `Hold in ${SLOT_LABELS[slot]}` : 'Wear',
@@ -681,16 +797,67 @@ function equipAction(def: EquipmentDef, slot: EquipSlot, key: string): GameActio
         return;
       }
       const previous = unequip(player, slot);
-      player.equipment[slot] = item.health === undefined ? { itemId: item.itemId } : { itemId: item.itemId, health: item.health };
+      const { quantity: _quantity, ...held } = item;
+      void _quantity;
+      player.equipment[slot] = held;
       const swap = previous ? ` and put away the ${getItemDef(previous).name.toLowerCase()}` : '';
       ctx.log(hand ? `You take the ${name} in your ${SLOT_LABELS[slot]}${swap}.` : `You put on the ${name}${swap}.`);
     },
   };
 }
 
+/** Lighting or putting out a torch in the bag (by entry key) or in a hand. */
+function torchActions(where: { key: string } | { slot: HandSlot }, lit: boolean): GameAction[] {
+  const target = 'key' in where ? where.key : where.slot;
+  const torchOf = (s: GameState) => ('key' in where ? findEntry(s.player.inventory, where.key) : s.player.equipment[where.slot]);
+  const base = { category: 'item' as const, minutes: 0, energy: 0, timeMode: 'awake' as const, targetId: target };
+  if (lit) {
+    return [
+      {
+        ...base,
+        id: `torch:put-out:${target}`,
+        label: 'Put out',
+        description: 'Smother the flame. You can light the torch again later.',
+        requirements: [],
+        run: (ctx) => {
+          const torch = torchOf(ctx.state);
+          if (torch) {
+            delete torch.lit;
+          }
+          ctx.log('You put out the torch.');
+        },
+      },
+    ];
+  }
+  return [
+    {
+      ...base,
+      id: `torch:light:${target}`,
+      label: 'Light',
+      description: 'Light the torch from a burning fire or another lit torch.',
+      details: `A lit torch loses ${TORCH_BURN_PER_HOUR} health an hour wherever it is. Rain puts it out unless you are under a roof.`,
+      requirements: [flame()],
+      block: (s) => (isRaining(s) && !roofAt(s, s.player.locationId) ? 'The rain would put it out at once' : undefined),
+      run: (ctx) => {
+        const torch = torchOf(ctx.state);
+        if (torch) {
+          torch.lit = true;
+        }
+        ctx.log('You light the torch. It burns with a smoky flame.', 'good');
+      },
+    },
+  ];
+}
+
 function inventoryActions(state: GameState): GameAction[] {
   const actions: GameAction[] = [];
   const player = state.player;
+  for (const slot of HAND_SLOTS) {
+    const held = player.equipment[slot];
+    if (held && getItemDef(held.itemId).lightable) {
+      actions.push(...torchActions({ slot }, held.lit === true));
+    }
+  }
   for (const slot of EQUIP_SLOTS) {
     const equipped = getEquipped(player, slot);
     if (equipped) {
@@ -720,6 +887,9 @@ function inventoryActions(state: GameState): GameAction[] {
     if (def.category === 'equipment') {
       actions.push(...slotsFor(def).map((slot) => equipAction(def, slot, key)));
     }
+    if (def.lightable) {
+      actions.push(...torchActions({ key }, stack.lit === true));
+    }
     const drop = (all: boolean): GameAction => ({
       id: `drop:${key}:${all ? 'all' : 'one'}`,
       label: all ? 'Drop all' : 'Drop',
@@ -734,8 +904,8 @@ function inventoryActions(state: GameState): GameAction[] {
         const inventory = ctx.state.player.inventory;
         const item = takeFromEntry(inventory, key, all ? (findEntry(inventory, key)?.quantity ?? 0) : 1);
         if (item) {
-          dropOnGround(ctx.state, ctx.state.player.locationId, item.itemId, item.quantity, item.health);
-          ctx.log(`You drop ${formatAmount(item.itemId, item.quantity, item.health).toLowerCase()} on the ground.`);
+          dropOnGround(ctx.state, ctx.state.player.locationId, item.itemId, item.quantity, item.health, item.lit);
+          ctx.log(`You drop ${itemAmount(item.itemId, item.quantity, item.health)} on the ground.`);
         }
       },
     });
@@ -747,20 +917,21 @@ function inventoryActions(state: GameState): GameAction[] {
   return actions;
 }
 
-/** Store and take actions for a small storage at the player's location, one set per bag or storage entry. */
+/** Store and take actions for the storage at the player's location, one set per bag or storage entry. */
 function storageActions(state: GameState): GameAction[] {
   const storage = getLocationState(state, state.player.locationId).buildings.storage;
   if (!storage) {
     return [];
   }
+  const capacity = BUILDINGS[storage.id].storage?.capacity ?? 0;
   const storageFree = (s: GameState): number =>
-    STORAGE_CAPACITY - stackWeight(getLocationState(s, s.player.locationId).buildings.storage?.items ?? []);
+    capacity - stackWeight(getLocationState(s, s.player.locationId).buildings.storage?.items ?? []);
   const base = { category: 'storage' as const, minutes: 1, energy: 0, timeMode: 'awake' as const, requirements: [] };
   const store = (itemId: string, key: string, all: boolean): GameAction => ({
     ...base,
     id: `store:${key}:${all ? 'all' : 'one'}`,
     label: all ? 'Store all' : 'Store',
-    details: `Stored items never rot. The storage holds ${STORAGE_CAPACITY} kg.`,
+    details: `Stored items never rot. The ${BUILDINGS[storage.id].name.toLowerCase()} holds ${capacity} kg.`,
     targetId: key,
     block: (s) => (unitsThatFit(itemId, storageFree(s), 1) < 1 ? 'The storage is full' : undefined),
     run: (ctx) => {
@@ -771,8 +942,13 @@ function storageActions(state: GameState): GameAction[] {
       if (!items || !item) {
         return;
       }
+      // why: a burning torch is put out before it goes into storage.
       addToStacks(items, item.itemId, item.quantity, item.health);
-      ctx.log(`You put ${formatAmount(item.itemId, item.quantity, item.health).toLowerCase()} into storage.`);
+      ctx.log(
+        item.lit
+          ? `You put out the torch and put it into storage.`
+          : `You put ${itemAmount(item.itemId, item.quantity, item.health)} into storage.`,
+      );
     },
   });
   const take = (itemId: string, key: string, all: boolean): GameAction => ({
@@ -790,7 +966,7 @@ function storageActions(state: GameState): GameAction[] {
         return;
       }
       addToInventory(ctx.state.player, item.itemId, item.quantity, item.health);
-      ctx.log(`You take ${formatAmount(item.itemId, item.quantity, item.health).toLowerCase()} from storage.`);
+      ctx.log(`You take ${itemAmount(item.itemId, item.quantity, item.health)} from storage.`);
     },
   });
   const forEntries = (
@@ -804,78 +980,96 @@ function storageActions(state: GameState): GameAction[] {
   return [...forEntries(state.player.inventory, store), ...forEntries(storage.items, take)];
 }
 
-function newBuilding(id: BuildingId, time: number): LocationBuildings {
-  switch (id) {
-    case 'campfire':
-      return { campfire: { builtAt: time, litUntil: time + CAMPFIRE_INITIAL_BURN } };
+/**
+ * What stands in the building's slot once it is finished. A level built on top of another keeps what the one below held:
+ * the fire's fuel (up to its new capacity) and flame, the stored items, the collected water. A new fire comes full of fuel,
+ * since what it is built of burns, but unlit.
+ */
+function finishedBuilding(def: BuildingDef, location: LocationState, time: number): LocationBuildings {
+  const { fire, storage, rainCollector } = location.buildings;
+  switch (def.slot) {
+    case 'fire': {
+      const capacity = def.fire?.capacity ?? 0;
+      return { fire: { id: def.id, builtAt: time, fuel: fire ? Math.min(capacity, fire.fuel) : capacity, lit: fire?.lit ?? false } };
+    }
     case 'storage':
-      return { storage: { builtAt: time, items: [] } };
+      return { storage: { id: def.id, builtAt: time, items: storage?.items ?? [] } };
     case 'rainCollector':
-      return { rainCollector: { builtAt: time, water: 0 } };
+      return { rainCollector: { id: def.id, builtAt: time, water: rainCollector?.water ?? 0 } };
     default:
-      return { [id]: { builtAt: time } };
+      return { [def.slot]: { id: def.id, builtAt: time } };
   }
 }
 
-/** Building steps for the buildings this location allows: starting new ones and continuing unfinished ones. */
+/**
+ * Building steps for this location: in every slot, the next level (the first when the slot is empty) if the location
+ * allows it, started or continued.
+ */
 function buildActions(state: GameState): GameAction[] {
   const locationId = state.player.locationId;
   const location = getLocationState(state, locationId);
-  return (getLocationDef(locationId).buildings ?? [])
-    .map((id) => BUILDINGS[id])
-    .filter((building) => location.buildings[building.id] === undefined)
-    .map((building): GameAction => {
-      const started = location.constructions[building.id] !== undefined;
-      const step = (location.constructions[building.id]?.stepsDone ?? 0) + 1;
-      const name = building.name.toLowerCase();
-      const minutes = skilledMinutes(BUILDING_STEP_MINUTES, skillLevel(state.player, 'building'));
-      return {
-        id: `build:${building.id}`,
-        label: started ? `Continue building (step ${step} of ${building.steps})` : 'Start building',
-        category: 'build',
-        description: building.description,
-        details:
-          `Building takes ${building.steps} ${building.steps === 1 ? 'step' : 'steps'} of ${formatDuration(minutes)}. ` +
-          'The materials are used up by the first step; tools are needed for every step.',
-        gains: [{ label: step >= building.steps ? `The ${name} is finished` : `Step ${step} of ${building.steps} done` }],
-        minutes,
-        energy: BUILDING_STEP_ENERGY,
-        timeMode: 'awake',
-        requirements: [workingArm(), ...(started ? [] : building.ingredients.map(ingredient)), ...(building.tools ?? [])],
-        block: started
-          ? undefined
-          : (s) => (allocateIngredients(s.player, building.ingredients) ? undefined : 'Not enough materials for all ingredients'),
-        trains: building.trains,
-        skill: 'building',
-        targetId: building.id,
-        run: (ctx) => {
-          const target = ensureLocationState(ctx.state, locationId);
-          const nameBefore = getLocationInfo(ctx.state, locationId).name;
-          const current = target.constructions[building.id];
-          let used = current?.used;
-          if (!current) {
-            used = useUpIngredients(ctx, building.ingredients);
-            ctx.log(`You start building the ${name}. (Used: ${describeStacks(used.flat())})`, 'info');
-          }
-          const done = (current?.stepsDone ?? 0) + 1;
-          const constructions = { ...target.constructions };
-          if (done >= building.steps) {
-            delete constructions[building.id];
-            target.buildings = { ...target.buildings, ...newBuilding(building.id, ctx.state.time) };
-            ctx.log(building.message, 'good');
-            giveBackResources(ctx, 'building', used ?? assumedUse(building.ingredients));
-          } else {
-            constructions[building.id] = used ? { stepsDone: done, used } : { stepsDone: done };
-            ctx.log(`You work on the ${name}. ${done} of ${building.steps} steps done.`);
-          }
-          target.constructions = constructions;
-          const nameAfter = getLocationInfo(ctx.state, locationId).name;
-          if (nameAfter !== nameBefore) {
-            ctx.log(`The ${nameBefore.toLowerCase()} is starting to feel like home. This is your ${nameAfter.toLowerCase()} now.`, 'info');
-          }
-        },
-      };
-    });
+  const allowed = getLocationDef(locationId).buildings ?? [];
+  return BUILDING_SLOTS.flatMap((slot) => {
+    const next = nextLevel(slot, location.buildings[slot]?.id);
+    return next && allowed.includes(next.id) ? [buildAction(state, next)] : [];
+  });
+}
+
+function buildAction(state: GameState, building: BuildingDef): GameAction {
+  const locationId = state.player.locationId;
+  const location = getLocationState(state, locationId);
+  const started = location.constructions[building.id] !== undefined;
+  const step = (location.constructions[building.id]?.stepsDone ?? 0) + 1;
+  const name = building.name.toLowerCase();
+  const below = previousLevel(building.id);
+  const minutes = skilledMinutes(BUILDING_STEP_MINUTES, skillLevel(state.player, 'building'));
+  return {
+    id: `build:${building.id}`,
+    label: started ? `Continue building (step ${step} of ${building.steps})` : 'Start building',
+    category: 'build',
+    description: building.description,
+    details:
+      (below ? `Built on top of your ${below.name.toLowerCase()}, which it replaces once it is finished. ` : '') +
+      `Building takes ${building.steps} ${building.steps === 1 ? 'step' : 'steps'} of ${formatDuration(minutes)}. ` +
+      'The materials are used up by the first step; tools are needed for every step.',
+    gains: [{ label: step >= building.steps ? `The ${name} is finished` : `Step ${step} of ${building.steps} done` }],
+    minutes,
+    energy: BUILDING_STEP_ENERGY,
+    timeMode: 'awake',
+    requirements: [workingArm(), ...(started ? [] : building.ingredients.map(ingredient)), ...(building.tools ?? [])],
+    block: started
+      ? undefined
+      : (s) => (allocateIngredients(s.player, building.ingredients) ? undefined : 'Not enough materials for all ingredients'),
+    trains: building.trains,
+    skill: 'building',
+    targetId: building.id,
+    run: (ctx) => {
+      const target = ensureLocationState(ctx.state, locationId);
+      const nameBefore = getLocationInfo(ctx.state, locationId).name;
+      const current = target.constructions[building.id];
+      let used = current?.used;
+      if (!current) {
+        used = useUpIngredients(ctx, building.ingredients);
+        ctx.log(`You start building the ${name}. (Used: ${describeStacks(used.flat())})`, 'info');
+      }
+      const done = (current?.stepsDone ?? 0) + 1;
+      const constructions = { ...target.constructions };
+      if (done >= building.steps) {
+        delete constructions[building.id];
+        target.buildings = { ...target.buildings, ...finishedBuilding(building, target, ctx.state.time) };
+        ctx.log(building.message, 'good');
+        giveBackResources(ctx, 'building', used ?? assumedUse(building.ingredients));
+      } else {
+        constructions[building.id] = used ? { stepsDone: done, used } : { stepsDone: done };
+        ctx.log(`You work on the ${name}. ${done} of ${building.steps} steps done.`);
+      }
+      target.constructions = constructions;
+      const nameAfter = getLocationInfo(ctx.state, locationId).name;
+      if (nameAfter !== nameBefore) {
+        ctx.log(`The ${nameBefore.toLowerCase()} is starting to feel like home. This is your ${nameAfter.toLowerCase()} now.`, 'info');
+      }
+    },
+  };
 }
 
 function craftActions(state: GameState): GameAction[] {
@@ -892,7 +1086,6 @@ function craftActions(state: GameState): GameAction[] {
     timeMode: 'awake',
     requirements: [workingArm(), ...recipe.ingredients.map(ingredient), ...(recipe.tools ?? []), ...(recipe.stations ?? []).map(station)],
     block: (s) => (allocateIngredients(s.player, recipe.ingredients) ? undefined : 'Not enough materials for all ingredients'),
-    trains: recipe.trains,
     skill: 'crafting' as const,
     targetId: recipe.id,
     run: (ctx: ActionContext) => {

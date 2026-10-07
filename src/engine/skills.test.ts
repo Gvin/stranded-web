@@ -51,9 +51,8 @@ describe('skill training', () => {
   it('gives 10 Building points per building step', () => {
     // Arrange
     const state = createTestGame('camp');
-    giveItem(state, 'stick', 4);
-    giveItem(state, 'grass');
-    giveItem(state, 'stone', 3);
+    giveItem(state, 'stick', 5);
+    giveItem(state, 'grass', 3);
 
     // Act
     const next = performAction(state, 'build:campfire');
@@ -83,7 +82,7 @@ describe('Building and Crafting speed', () => {
     const knifeMaker = crafter(5, { stick: 1, flint: 1 });
 
     // Act
-    const step = findAction(builder, 'build:hut')?.minutes;
+    const step = findAction(builder, 'build:sleepingMat')?.minutes;
     const knife = findAction(knifeMaker, 'craft:knife')?.minutes;
 
     // Assert
@@ -198,9 +197,8 @@ describe('getting resources back', () => {
   it('gives back building materials when the building is finished', () => {
     // Arrange
     const state = withSkill(createTestGame('camp'), 'building', 9);
-    giveItem(state, 'stick', 4);
-    giveItem(state, 'grass');
-    giveItem(state, 'stone', 3);
+    giveItem(state, 'stick', 5);
+    giveItem(state, 'grass', 3);
     const started = structuredClone(state);
     started.player.inventory = [];
     started.locations.camp = {
@@ -220,8 +218,8 @@ describe('getting resources back', () => {
     // Assert
     expect(firstStep.player.inventory).toEqual([]);
     expect(finished.player.inventory).toHaveLength(1);
-    expect(['stick', 'stone']).toContain(finished.player.inventory[0]?.itemId);
+    expect(['stick', 'grass']).toContain(finished.player.inventory[0]?.itemId);
     expect(finishedOld.player.inventory).toHaveLength(1);
-    expect(['stick', 'stone']).toContain(finishedOld.player.inventory[0]?.itemId);
+    expect(['stick', 'grass']).toContain(finishedOld.player.inventory[0]?.itemId);
   });
 });

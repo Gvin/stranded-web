@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { getActions } from '../engine/actions';
 import { performAction } from '../engine/game';
 import { createTestGame, giveItem } from '../engine/testUtils';
-import { BODY_PART_IDS } from '../engine/types';
+import { BODY_PART_IDS, BUILDING_SLOTS } from '../engine/types';
 import { ICON_BODIES } from '../icons/gameIcons';
-import { BUILDINGS } from './buildings';
+import { BUILDINGS, previousLevel, slotLevels } from './buildings';
 import { ITEMS } from './items';
 import { getRoutesFrom, LOCATIONS, ROUTES } from './locations';
 import { RECIPES } from './recipes';
@@ -40,7 +40,7 @@ describe('island content', () => {
       'itemId' in i ? !ITEMS[i.itemId] : !Object.values(ITEMS).some((d) => d.types?.includes(i.type)),
     );
     const badCooking = Object.values(ITEMS).filter((i) => i.category === 'food' && i.cooksInto && !ITEMS[i.cooksInto]);
-    const fuelWithoutBurnTime = Object.values(ITEMS).filter((i) => i.types?.includes('fuel') && !i.fuelMinutes);
+    const fuelWithoutBurnTime = Object.values(ITEMS).filter((i) => i.types?.includes('fuel') && !i.fuel);
 
     // Assert
     expect(badRoutes).toEqual([]);
@@ -73,9 +73,9 @@ describe('island content', () => {
       Hammer: ['heavy'],
       Knife: ['knife'],
       Threads: ['threads', 'fuel'],
-      Bow: ['fuel'],
       Cloth: ['fuel', 'cloth'],
       Resin: ['glue'],
+      Moss: ['fuel'],
       Bandage: ['fuel'],
     });
   });
@@ -99,6 +99,34 @@ describe('island content', () => {
 
     // Assert
     expect(bad).toEqual([]);
+  });
+
+  it('numbers the levels of every building slot from 1, and offers a level only where the one below it can stand', () => {
+    // Act
+    const gaps = BUILDING_SLOTS.filter((slot) => !slotLevels(slot).every((def, index) => def.level === index + 1));
+    const unreachable = LOCATIONS.flatMap((l) =>
+      (l.buildings ?? []).filter((id) => {
+        const below = previousLevel(id);
+        return below !== undefined && !(l.buildings ?? []).includes(below.id);
+      }),
+    );
+
+    // Assert
+    expect(gaps).toEqual([]);
+    expect(unreachable).toEqual([]);
+  });
+
+  it('names every item for sentences, with "a" or "an" as the word after it needs', () => {
+    // Act
+    const wrong = Object.values(ITEMS)
+      .filter((i) => {
+        const [article, word = ''] = i.singular.split(' ');
+        return article !== (/^[aeiou]/.test(word) ? 'an' : 'a') || i.plural.length === 0;
+      })
+      .map((i) => i.id);
+
+    // Assert
+    expect(wrong).toEqual([]);
   });
 
   it('has unique object ids within every location', () => {
@@ -126,12 +154,17 @@ describe('island content', () => {
       stock: {},
       finds: {},
       buildings: {
-        campfire: { builtAt: 0, litUntil: 600 },
-        storage: { builtAt: 0, items: [{ itemId: 'rope', quantity: 2 }] },
-        workbench: { builtAt: 0 },
-        rainCollector: { builtAt: 0, water: 2 },
+        house: { id: 'hut', builtAt: 0 },
+        fire: { id: 'campfire', builtAt: 0, fuel: 3, lit: true },
+        storage: { id: 'smallStorage', builtAt: 0, items: [{ itemId: 'rope', quantity: 2 }] },
+        workbench: { id: 'basicWorkbench', builtAt: 0 },
+        rainCollector: { id: 'rainCollector', builtAt: 0, water: 2 },
       },
     };
+    const torch = state.player.inventory.find((s) => s.itemId === 'torch');
+    if (torch) {
+      torch.lit = true;
+    }
     state.player.stats.energy = 50;
 
     // Act

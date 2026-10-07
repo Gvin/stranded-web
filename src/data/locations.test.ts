@@ -193,7 +193,7 @@ describe('forest', () => {
     expect(results.every((s) => total(s, 'stick') >= 15 && total(s, 'stick') <= 20)).toBe(true);
     expect(new Set(results.map((s) => total(s, 'vine')))).toEqual(new Set([0, 1, 2, 3]));
     expect(results[0]?.log.map((e) => e.text).filter((t) => t.startsWith("You can't carry any more."))).toEqual([
-      expect.stringMatching(/^You can't carry any more\. You leave \d+× Log, .+ and .+ on the ground\.$/),
+      expect.stringMatching(/^You can't carry any more\. You leave \d+ logs, .+ and .+ on the ground\.$/),
     ]);
   });
 
@@ -212,6 +212,67 @@ describe('forest', () => {
   });
 });
 
+describe('leaves, moss and clay', () => {
+  const SEEDS = Array.from({ length: 100 }, (_, i) => i + 1);
+  const total = (state: GameState, itemId: string, locationId: string) =>
+    count(state, itemId) +
+    (state.locations[locationId]?.groundItems ?? []).filter((g) => g.itemId === itemId).reduce((sum, g) => sum + g.quantity, 0);
+
+  it('are easier to spot with good perception, which raises the chances but not the amounts', () => {
+    // Arrange
+    const sharp = createTestGame('forest');
+    sharp.player.attributes.perception.base = 40;
+
+    // Act
+    const chances = findAction(sharp, 'obj:location:sticks')
+      ?.gains?.filter((g) => g.itemId !== 'stick')
+      .map((g) => [g.label, g.chance]);
+
+    // Assert
+    expect(chances).toEqual([
+      ['Resin', 0.05 * 1.5],
+      ['Leaves ×2–4', 0.3 * 1.5],
+      ['Moss ×1–2', 0.2 * 1.5],
+    ]);
+  });
+
+  it('turn up now and then: leaves and moss with sticks, moss with berries, clay among stones', () => {
+    // Act
+    const sticks = SEEDS.map((seed) => performAction(createTestGame('forest', seed), 'obj:location:sticks'));
+    const berries = SEEDS.map((seed) => performAction(createTestGame('forest', seed), 'obj:berry-bushes:pick'));
+    const stones = SEEDS.map((seed) => performAction(createTestGame('rocks', seed), 'obj:location:stones'));
+    const amounts = (states: GameState[], itemId: string, locationId: string) => new Set(states.map((s) => total(s, itemId, locationId)));
+    const gains = (state: GameState, actionId: string) =>
+      findAction(state, actionId)
+        ?.gains?.filter((g) => ['leaves', 'moss', 'clay'].includes(g.itemId ?? ''))
+        .map((g) => [g.label, g.chance]);
+
+    // Assert
+    expect(amounts(sticks, 'leaves', 'forest')).toEqual(new Set([0, 2, 3, 4]));
+    expect(amounts(sticks, 'moss', 'forest')).toEqual(new Set([0, 1, 2]));
+    expect(amounts(berries, 'moss', 'forest')).toEqual(new Set([0, 1, 2]));
+    expect(amounts(stones, 'clay', 'rocks')).toEqual(new Set([0, 1]));
+    expect(gains(createTestGame('forest'), 'obj:location:sticks')).toEqual([
+      ['Leaves ×2–4', 0.3],
+      ['Moss ×1–2', 0.2],
+    ]);
+    expect(gains(createTestGame('rocks'), 'obj:location:stones')).toEqual([['Clay', 0.05]]);
+  });
+
+  it('strips 20 to 30 leaves off every felled tree', () => {
+    // Act
+    const leaves = SEEDS.slice(0, 20).map((seed) => {
+      const state = createTestGame('forest', seed);
+      giveItem(state, 'axe');
+      return total(performAction(state, 'obj:location:chop'), 'leaves', 'forest');
+    });
+
+    // Assert
+    expect(Math.min(...leaves)).toBeGreaterThanOrEqual(20);
+    expect(Math.max(...leaves)).toBeLessThanOrEqual(30);
+  });
+});
+
 describe('rocks, camp and spring', () => {
   it('lets the player gather stones and pebbles in the rocky interior without limit', () => {
     // Arrange
@@ -226,7 +287,7 @@ describe('rocks, camp and spring', () => {
     expect(getLocationView(state).objects).toEqual([]);
     expect(actionIds(state).filter((id) => id.startsWith('obj:'))).toEqual(['obj:location:stones', 'obj:location:pebbles']);
     expect(count(state, 'pebble')).toBeGreaterThanOrEqual(16);
-    expect(findAction(state, 'obj:location:stones')?.gains?.map((g) => g.itemId)).toEqual(['stone', 'flint']);
+    expect(findAction(state, 'obj:location:stones')?.gains?.map((g) => g.itemId)).toEqual(['stone', 'flint', 'clay']);
   });
 
   it('keeps the camp empty apart from what the player builds', () => {

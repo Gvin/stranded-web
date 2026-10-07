@@ -1,6 +1,7 @@
 import { getItemDef } from '../data/items';
 import { hasWorkingArm } from './conditions';
 import type { Ingredient, Requirement, ResourceType } from './definitions';
+import { hasFlame, hasLitTorch } from './fire';
 import { bestArrow, countItem, countType, hasType, holdingItem, holdingType, possesses } from './inventory';
 import { isStationPresent, stationName } from './world';
 
@@ -88,7 +89,23 @@ export function arrow(): Requirement {
   };
 }
 
-/** A building or location object must be present here. */
+/** A lit torch carried or lying on the ground here, to light a fire from. */
+export function litTorch(): Requirement {
+  return {
+    describe: () => 'A lit torch',
+    test: hasLitTorch,
+  };
+}
+
+/** A burning fire here or a lit torch, to light a torch from. */
+export function flame(): Requirement {
+  return {
+    describe: () => 'A burning fire or a lit torch',
+    test: hasFlame,
+  };
+}
+
+/** A building slot or location object must be present here. */
 export function station(id: string): Requirement {
   return {
     describe: () => `${stationName(id)} nearby`,

@@ -3,12 +3,13 @@ import { WEATHERS } from '../data/weather';
 import { hasTimedCondition, renewTimedCondition, TIMED_CONDITIONS } from './conditions';
 import { type ActionContext, appendLog } from './context';
 import type { WeatherDef } from './definitions';
+import { putOutRainedFires, putOutRainedTorches } from './fire';
 import { wornWith } from './inventory';
 import { nextRandom, randomInt } from './random';
 import { ENVIRONMENT_RULES, TEMPERATURE_IDS, type TemperatureId } from './rules';
 import { toClock } from './time';
-import { BUILDING_IDS, type GameState, type TimedConditionId, WEATHER_IDS, type WeatherId } from './types';
-import { getLocationState, isCampfireLit } from './world';
+import { type GameState, type TimedConditionId, WEATHER_IDS, type WeatherId } from './types';
+import { getLocationState, roofAt } from './world';
 
 // The environment: island-wide weather, the temperature of the time of day, and the body temperature they give the player.
 
@@ -64,20 +65,10 @@ export function isStormy(state: GameState): boolean {
   return getWeather(state).storm === true;
 }
 
-/** The building that gives the location a roof, if any. */
-export function roofAt(state: GameState, locationId: string): string | undefined {
-  const location = getLocationState(state, locationId);
-  const id = BUILDING_IDS.find((b) => BUILDINGS[b].roof && location.buildings[b] !== undefined);
-  return id && BUILDINGS[id].name;
-}
-
-/** The building that warms the location right now (a campfire only while it burns), if any. */
+/** The fire that warms the location right now (only while it burns), if any. */
 export function heatingAt(state: GameState, locationId: string): string | undefined {
-  const location = getLocationState(state, locationId);
-  const id = BUILDING_IDS.find(
-    (b) => BUILDINGS[b].heating && (b === 'campfire' ? isCampfireLit(location, state.time) : location.buildings[b] !== undefined),
-  );
-  return id && BUILDINGS[id].name;
+  const fire = getLocationState(state, locationId).buildings.fire;
+  return fire?.lit ? BUILDINGS[fire.id].name : undefined;
 }
 
 export function getBodyTemperature(state: GameState): BodyTemperature {
@@ -144,38 +135,25 @@ export function warmUp(ctx: ActionContext): void {
   shortenCondition(ctx, 'wet', ENVIRONMENT_RULES.recoveryMinutes);
 }
 
-/** Puts out the campfires that stand in the rain without a roof. */
-function putOutRainedCampfires(state: GameState): void {
-  for (const [locationId, location] of Object.entries(state.locations)) {
-    const campfire = location.buildings.campfire;
-    if (!campfire || !isCampfireLit(location, state.time) || roofAt(state, locationId)) {
-      continue;
-    }
-    campfire.litUntil = state.time;
-    if (locationId === state.player.locationId) {
-      appendLog(state, 'The rain puts out the campfire.', 'bad');
-    }
-  }
-}
-
 /** Fills every rain collector on the island; a roof over its location does not matter. */
 function fillRainCollectors(state: GameState, rainfall: number, minutes: number): void {
-  const collector = BUILDINGS.rainCollector.collector;
-  if (!collector || rainfall <= 0) {
+  if (rainfall <= 0) {
     return;
   }
   for (const location of Object.values(state.locations)) {
     const building = location.buildings.rainCollector;
-    if (building) {
+    const collector = building && BUILDINGS[building.id].collector;
+    if (building && collector) {
       building.water = Math.min(collector.capacity, building.water + (collector.bottlesPerHour * rainfall * minutes) / 60);
     }
   }
 }
 
-/** Puts out the campfires the rain falls on right now. */
+/** Puts out the fires and torches the rain falls on right now. */
 export function applyRain(state: GameState): void {
   if (isRaining(state)) {
-    putOutRainedCampfires(state);
+    putOutRainedFires(state);
+    putOutRainedTorches(state);
   }
 }
 

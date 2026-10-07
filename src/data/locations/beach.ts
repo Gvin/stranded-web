@@ -4,7 +4,7 @@ import { checkGainChance } from '../../engine/gains';
 import { type FindDef, findGains, hasLimitedFindsLeft, rollFinds } from '../../engine/outcomes';
 import { unbrokenLimbs } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
-import { hasBrokenLimb, plentyText } from './shared';
+import { hasBrokenLimb, plentyText, SHELTER_BUILDINGS } from './shared';
 
 const WRECKAGE_FINDS: FindDef[] = [
   { itemId: 'cloth', chance: 0.45, quantity: [1, 2], limit: 8 },
@@ -195,4 +195,5 @@ export const beach: LocationDef = {
     'Pale sand curves around a turquoise bay. The wreck of your ship lies broken on the reef, and the tide keeps washing ' +
     'timber and torn cloth ashore. Tall palms lean over the sand, and behind them rises the dark wall of a forest.',
   objects: [wreckage, palms, sea],
+  buildings: SHELTER_BUILDINGS,
 };

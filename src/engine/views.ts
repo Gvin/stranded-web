@@ -1,13 +1,14 @@
-import { BUILDINGS, STORAGE_CAPACITY } from '../data/buildings';
+import { BUILDINGS } from '../data/buildings';
 import { getItemDef } from '../data/items';
 import { getLocationDef } from '../data/locations';
 import { formatWater, isObjectPresent } from './actions';
 import type { ItemDef, LocationInfo } from './definitions';
+import { fireDef } from './fire';
 import { stackWeight } from './inventory';
 import { formatDuration } from './time';
 import type { IconName } from '../icons/gameIcons';
-import { BUILDING_IDS, type BuildingId, type GameState } from './types';
-import { getLocationInfo, getLocationState, getStock, groundItemExpiresAt, isCampfireLit } from './world';
+import { BUILDING_IDS, BUILDING_SLOTS, type BuildingId, type GameState } from './types';
+import { getLocationInfo, getLocationState, getStock, groundItemExpiresAt } from './world';
 
 // Read-only projections of the state for the UI.
 
@@ -31,6 +32,8 @@ export interface GroundItemView {
   expiresIn: number;
   /** Health left, for an item that wears out. */
   health?: number;
+  /** A torch burning on the ground. */
+  lit?: boolean;
 }
 
 export interface LocationView extends LocationInfo {
@@ -53,30 +56,38 @@ function constructionViews(state: GameState): ObjectView[] {
   }));
 }
 
+/** Fuel for display, to a tenth: "3.5". */
+export function formatFuel(fuel: number): string {
+  return String(Math.round(fuel * 10) / 10);
+}
+
+/** What stands in each building slot here; the view's id is the slot, which the building's actions target. */
 function buildingViews(state: GameState): ObjectView[] {
   const location = getLocationState(state, state.player.locationId);
-  return BUILDING_IDS.filter((id) => location.buildings[id] !== undefined).map((id) => {
-    const view: ObjectView = {
-      id,
-      name: BUILDINGS[id].name,
-      description: BUILDINGS[id].description,
-      building: true,
-      icon: BUILDINGS[id].icon,
-    };
-    const { campfire, storage, rainCollector } = location.buildings;
-    if (id === 'campfire' && campfire) {
-      const lit = isCampfireLit(location, state.time);
-      view.name = lit ? 'Campfire' : 'Cold campfire';
-      view.description = lit ? 'A crackling fire. You can cook raw food here.' : 'A ring of stones around cold ashes.';
-      view.status = lit ? `burns for ${formatDuration(campfire.litUntil - state.time)}` : 'out';
+  return BUILDING_SLOTS.flatMap((slot) => {
+    const building = location.buildings[slot];
+    if (!building) {
+      return [];
     }
-    if (id === 'storage' && storage) {
-      view.status = `${stackWeight(storage.items).toFixed(1)} / ${STORAGE_CAPACITY} kg`;
+    const def = BUILDINGS[building.id];
+    const view: ObjectView = { id: slot, name: def.name, description: def.description, building: true, icon: def.icon };
+    const { fire, storage, rainCollector } = location.buildings;
+    if (slot === 'fire' && fire) {
+      const { capacity, burnPerHour } = fireDef(fire);
+      const fuel = `${formatFuel(fire.fuel)} / ${capacity} fuel`;
+      view.status = fire.lit
+        ? `burning · ${fuel}, ${formatDuration((fire.fuel / burnPerHour) * 60)} left`
+        : fire.fuel > 0
+          ? `out · ${fuel}`
+          : 'out · no fuel';
     }
-    if (id === 'rainCollector' && rainCollector) {
-      view.status = `${formatWater(rainCollector.water)} / ${BUILDINGS.rainCollector.collector?.capacity ?? 0} bottles of water`;
+    if (slot === 'storage' && storage) {
+      view.status = `${stackWeight(storage.items).toFixed(1)} / ${def.storage?.capacity ?? 0} kg`;
     }
-    return view;
+    if (slot === 'rainCollector' && rainCollector) {
+      view.status = `${formatWater(rainCollector.water)} / ${def.collector?.capacity ?? 0} bottles of water`;
+    }
+    return [view];
   });
 }
 
@@ -102,6 +113,7 @@ export function getLocationView(state: GameState): LocationView {
       quantity: g.quantity,
       expiresIn: groundItemExpiresAt(g) - state.time,
       health: g.health,
+      lit: g.lit,
     })),
   };
 }

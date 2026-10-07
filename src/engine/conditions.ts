@@ -1,4 +1,4 @@
-import { ENVIRONMENT_RULES } from './rules';
+import { ENVIRONMENT_RULES, SLEEP_RULES } from './rules';
 import { days, hours } from './time';
 import type { AttributeId, BodyCondition, BodyConditionId, BodyPartId, PlayerState, TimedCondition, TimedConditionId } from './types';
 
@@ -181,13 +181,12 @@ export interface TimedConditionDef {
   endMessage: string;
 }
 
-const EXPOSURE_PENALTY = -ENVIRONMENT_RULES.exposurePenalty;
-const EXPOSURE_MODIFIERS: AttributeModifiers = {
-  strength: EXPOSURE_PENALTY,
-  endurance: EXPOSURE_PENALTY,
-  perception: EXPOSURE_PENALTY,
-  agility: EXPOSURE_PENALTY,
-};
+/** The same change in percent to every attribute. */
+function allAttributes(percent: number): AttributeModifiers {
+  return { strength: percent, endurance: percent, perception: percent, agility: percent };
+}
+
+const EXPOSURE_MODIFIERS = allAttributes(-ENVIRONMENT_RULES.exposurePenalty);
 
 export const TIMED_CONDITIONS: Record<TimedConditionId, TimedConditionDef> = {
   poisoned: {
@@ -231,6 +230,34 @@ export const TIMED_CONDITIONS: Record<TimedConditionId, TimedConditionDef> = {
     description: 'Too long in the bitter cold. It wears off once you warm up.',
     fixedModifiers: EXPOSURE_MODIFIERS,
     endMessage: 'The warmth comes back into your limbs.',
+  },
+  awfulSleep: {
+    id: 'awfulSleep',
+    name: 'Awful Sleep',
+    description: 'A night on the bare ground. Every part of you aches. A sleeping mat would help.',
+    fixedModifiers: allAttributes(SLEEP_RULES.conditionPercent.awfulSleep),
+    endMessage: 'The aches of that awful night have faded.',
+  },
+  badSleep: {
+    id: 'badSleep',
+    name: 'Bad Sleep',
+    description: 'The sleeping mat beat the bare ground, but not by much. A roof over it would help.',
+    fixedModifiers: allAttributes(SLEEP_RULES.conditionPercent.badSleep),
+    endMessage: 'You have shaken off the bad night.',
+  },
+  goodSleep: {
+    id: 'goodSleep',
+    name: 'Good Sleep',
+    description: 'A good night in the hut. You feel rested and strong.',
+    fixedModifiers: allAttributes(SLEEP_RULES.conditionPercent.goodSleep),
+    endMessage: 'The freshness of a good night has worn off.',
+  },
+  perfectSleep: {
+    id: 'perfectSleep',
+    name: 'Perfect Sleep',
+    description: 'The best night since the wreck, in a house of your own. You feel ready for anything.',
+    fixedModifiers: allAttributes(SLEEP_RULES.conditionPercent.perfectSleep),
+    endMessage: 'The glow of a perfect night has worn off.',
   },
 };
 

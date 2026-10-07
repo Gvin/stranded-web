@@ -401,6 +401,10 @@ p {
   font-weight: 600;
 }
 
+.health__flame {
+  color: var(--hunger);
+}
+
 .health {
   display: inline-flex;
   align-items: center;
@@ -834,6 +838,7 @@ p {
 
 .slot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-height: 38px;
@@ -847,9 +852,16 @@ p {
 }
 
 .slot__item {
-  flex: 1;
+  flex: 1 1 120px;
   flex-wrap: wrap;
   min-width: 0;
+}
+
+/* The buttons move under the item when the row is too narrow for both (e.g. a held torch with Put away and Put out). */
+.slot__actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .slot .action {

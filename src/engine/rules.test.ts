@@ -4,6 +4,7 @@ import { getCharacterSheet } from './character';
 import { applyBodyCondition } from './conditions';
 import { findAction, performAction } from './game';
 import { checkChance } from './rules';
+import { advanceTime } from './simulation';
 import { createTestGame, giveItem } from './testUtils';
 import { hours } from './time';
 import type { GameState } from './types';
@@ -93,6 +94,41 @@ describe('items', () => {
     expect(findAction(state, 'drop:stone:one')?.minutes).toBe(0);
     expect(next.time).toBe(state.time);
     expect(next.locations.beach?.groundItems).toHaveLength(1);
+  });
+
+  it('says when something left on the ground is gone, in plain words', () => {
+    // Arrange
+    const state = createTestGame('beach');
+    giveItem(state, 'leaves', 3);
+
+    // Act
+    const one = performAction(state, 'drop:leaves:one');
+    advanceTime(one, hours(1), 'awake');
+    const rest = performAction(one, 'drop:leaves:all');
+    advanceTime(rest, hours(25), 'awake');
+
+    // Assert
+    expect(rest.log.map((e) => e.text)).toContain('The leaf you left here is gone.');
+    expect(rest.log.map((e) => e.text)).toContain('The 2 leaves you left here are gone.');
+  });
+
+  it('names dropped items in plain words, one or many', () => {
+    // Arrange
+    const state = createTestGame('beach');
+    giveItem(state, 'stick', 4);
+    giveItem(state, 'axe');
+
+    // Act
+    const one = performAction(state, 'drop:stick:one');
+    const all = performAction(one, 'drop:stick:all');
+    const axe = performAction(all, 'drop:axe:one');
+
+    // Assert
+    expect([one, all, axe].map((s) => s.log.at(-1)?.text)).toEqual([
+      'You drop a stick on the ground.',
+      'You drop 3 sticks on the ground.',
+      'You drop an axe on the ground.',
+    ]);
   });
 
   it('starts the game wearing clothes that can be taken off and worn again', () => {
@@ -251,7 +287,7 @@ describe('round of refinements', () => {
     const state = createTestGame('camp');
 
     // Act
-    const workbench = findAction(state, 'build:workbench');
+    const workbench = findAction(state, 'build:basicWorkbench');
 
     // Assert
     expect(workbench?.requirements.map((r) => r.describe())).toEqual(['A working arm', '2× Log', '4× Stick', '2× Rope', 'Something sharp']);
@@ -271,7 +307,7 @@ describe('round of refinements', () => {
     expect(next.player.inventory).toEqual([{ itemId: 'axe', quantity: 1 }]);
   });
 
-  it('relights a cold campfire without a bow', () => {
+  it('lights a fire by friction without a bow, using up one of the two sticks', () => {
     // Arrange
     const state = createTestGame('camp');
     state.locations.camp = {
@@ -280,15 +316,18 @@ describe('round of refinements', () => {
       groundItems: [],
       stock: {},
       finds: {},
-      buildings: { campfire: { builtAt: 0, litUntil: 0 } },
+      buildings: { fire: { id: 'campfire', builtAt: 0, fuel: 5, lit: false } },
     };
+    state.player.stats.energy = 50;
     giveItem(state, 'stick', 2);
-    giveItem(state, 'grass');
 
     // Act
-    const next = performAction(state, 'campfire:relight');
+    const next = performAction(state, 'fire:light:friction');
 
     // Assert
-    expect(next.locations.camp?.buildings.campfire?.litUntil).toBe(15 + 180);
+    expect(next.locations.camp?.buildings.fire?.lit).toBe(true);
+    expect(next.time).toBe(30);
+    expect(next.player.stats.energy).toBe(45);
+    expect(next.player.inventory).toEqual([{ itemId: 'stick', quantity: 1 }]);
   });
 });

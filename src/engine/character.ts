@@ -19,9 +19,11 @@ import {
   maxStatsFor,
   MIN_EFFECTIVE_ATTRIBUTE,
   NUTRITION_RULES,
+  SLEEP_RULES,
   SURVIVAL_RULES,
   xpToNextPoint,
 } from './rules';
+import { isSleepy } from './sleep';
 import {
   ATTRIBUTE_IDS,
   BODY_PART_IDS,
@@ -33,7 +35,7 @@ import {
   type TimedConditionId,
 } from './types';
 
-export type PlayerConditionId = TimedConditionId | 'starving' | 'thirsty' | 'malnutrition';
+export type PlayerConditionId = TimedConditionId | 'starving' | 'thirsty' | 'malnutrition' | 'sleepy';
 
 export interface ActiveCondition {
   id: PlayerConditionId;
@@ -182,6 +184,21 @@ function malnutritionCondition(player: PlayerState): ActiveCondition | undefined
   };
 }
 
+/** Sleepy after too many hours without sleep; it ends with the next sleep. */
+function sleepyCondition(state: GameState): ActiveCondition | undefined {
+  if (!isSleepy(state)) {
+    return undefined;
+  }
+  const penalty = -SLEEP_RULES.sleepyPenalty;
+  return {
+    id: 'sleepy',
+    name: 'Sleepy',
+    description: `You have not slept for ${SLEEP_RULES.sleepyAfterHours} hours and can barely keep your eyes open. Sleep, at any energy.`,
+    modifiers: { strength: penalty, endurance: penalty, perception: penalty, agility: penalty },
+    healthPerHour: 0,
+  };
+}
+
 /** Player-wide conditions: stored timed ones with severities plus the ones derived from hunger, thirst and energy. */
 function playerConditions(state: GameState, max: Record<StatId, number>): ActiveCondition[] {
   const { player } = state;
@@ -215,8 +232,8 @@ function playerConditions(state: GameState, max: Record<StatId, number>): Active
  */
 export function getCharacterSheet(state: GameState): CharacterSheet {
   const { player } = state;
-  const malnutrition = malnutritionCondition(player);
-  const fixed = [...player.conditions.filter(isFixedCondition).map(timedCondition), ...(malnutrition ? [malnutrition] : [])];
+  const derivedFixed = [malnutritionCondition(player), sleepyCondition(state)].filter((c): c is ActiveCondition => c !== undefined);
+  const fixed = [...player.conditions.filter(isFixedCondition).map(timedCondition), ...derivedFixed];
   const stored = [...storedModifiers(player), ...fixed.map((c) => ({ source: c.name, modifiers: c.modifiers }))];
   const preliminary = buildAttributes(player, stored);
   const preliminaryMax = maxStatsFor(effectiveValues(preliminary));

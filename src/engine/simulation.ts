@@ -1,14 +1,16 @@
 import { getItemDef } from '../data/items';
 import { type ActiveCondition, getCharacterSheet } from './character';
 import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, TIMED_CONDITIONS, timedConditionSeverity } from './conditions';
-import { appendLog, formatAmount } from './context';
+import { appendLog, itemAmount, theItem } from './context';
 import type { TimeMode } from './definitions';
 import { getBodyTemperature, temperatureId, updateEnvironment } from './environment';
+import { burnFires, burnTorches } from './fire';
 import { ENVIRONMENT_RULES, ITEM_WEAR_PER_DAY, SURVIVAL_RULES } from './rules';
 import { changeStat } from './stats';
 import { MINUTES_PER_DAY } from './time';
-import { BODY_PART_IDS, EQUIP_SLOTS, type GameState, STAT_IDS } from './types';
-import { getLocationState, removeExpiredGroundItems } from './world';
+import { sleepAt } from './sleep';
+import { BODY_PART_IDS, type GameState, STAT_IDS } from './types';
+import { removeExpiredGroundItems } from './world';
 
 interface HealthDrain {
   perHour: number;
@@ -30,6 +32,7 @@ const CONDITION_ONSET: Record<string, string> = {
   wet: 'The rain soaks you to the skin. You are wet.',
   overheated: 'The heat is too much for you. You are overheated.',
   freezing: 'You cannot stop shivering. You are freezing.',
+  sleepy: 'Your eyelids are heavy. You are sleepy and need to sleep.',
 };
 
 const SEVERITY_RANK = { light: 1, medium: 2, heavy: 3 } as const;
@@ -66,10 +69,6 @@ export function clampStats(state: GameState): void {
   for (const id of STAT_IDS) {
     state.player.stats[id] = Math.min(max[id], Math.max(0, state.player.stats[id]));
   }
-}
-
-function isSheltered(state: GameState): boolean {
-  return getLocationState(state, state.player.locationId).buildings.hut !== undefined;
 }
 
 function collectHealthDrains(state: GameState, conditions: ActiveCondition[]): HealthDrain[] {
@@ -133,10 +132,10 @@ function healConditions(state: GameState, minutes: number, environmentTemperatur
   });
 }
 
-/** Worn items lose health; one that reaches 0 falls apart and is gone. */
+/** Worn clothes lose health; one that reaches 0 falls apart and is gone. Items held in hand do not wear out this way. */
 function wearOutEquipment(state: GameState, minutes: number): void {
   const { equipment } = state.player;
-  for (const slot of EQUIP_SLOTS) {
+  for (const slot of ['head', 'body'] as const) {
     const item = equipment[slot];
     if (item?.health === undefined) {
       continue;
@@ -168,15 +167,13 @@ function tick(state: GameState, minutes: number, mode: TimeMode): void {
   const wellFed =
     stats.hunger <= sheet.max.hunger * SURVIVAL_RULES.healingMaxFraction &&
     stats.thirst <= sheet.max.thirst * SURVIVAL_RULES.healingMaxFraction;
-  const regen = drains.length === 0 && wellFed ? SURVIVAL_RULES.healthRegenPerHour[mode] : 0;
+  const sleep = mode === 'sleeping' ? sleepAt(state) : undefined;
+  const healthPerHour = sleep ? sleep.healthPerHour : SURVIVAL_RULES.healthRegenPerHour[mode === 'resting' ? 'resting' : 'awake'];
+  const regen = drains.length === 0 && wellFed ? healthPerHour : 0;
   const pending = drains.filter((d) => !d.alreadyApplied).reduce((sum, d) => sum + d.perHour, 0);
   stats.health += (regen + pending) * elapsedHours;
-
-  let energyRegen = SURVIVAL_RULES.energyRegenPerHour[mode];
-  if (mode === 'sleeping' && isSheltered(state)) {
-    energyRegen += SURVIVAL_RULES.shelteredSleepEnergyBonusPerHour;
-  }
-  stats.energy += energyRegen * elapsedHours;
+  stats.energy +=
+    (sleep ? sleep.energyPerHour : SURVIVAL_RULES.energyRegenPerHour[mode === 'resting' ? 'resting' : 'awake']) * elapsedHours;
 
   state.time += minutes;
   clampStats(state);
@@ -188,6 +185,8 @@ function tick(state: GameState, minutes: number, mode: TimeMode): void {
   }
   healConditions(state, minutes, temperature.environment);
   wearOutEquipment(state, minutes);
+  burnFires(state, minutes);
+  burnTorches(state, minutes);
   updateEnvironment(state, minutes, temperature.value);
 }
 
@@ -200,10 +199,10 @@ export function advanceTime(state: GameState, minutes: number, mode: TimeMode): 
     remaining -= step;
   }
   for (const item of removeExpiredGroundItems(state)) {
-    appendLog(state, `The ${formatAmount(item.itemId, item.quantity).toLowerCase()} you left here ${verbForDecay(item.itemId)}.`, 'info');
+    const one = item.quantity === 1;
+    const rotted = getItemDef(item.itemId).category === 'food';
+    const verb = rotted ? (one ? 'has rotted away' : 'have rotted away') : one ? 'is gone' : 'are gone';
+    const what = one ? theItem(item.itemId) : `the ${itemAmount(item.itemId, item.quantity)}`;
+    appendLog(state, `${what.charAt(0).toUpperCase()}${what.slice(1)} you left here ${verb}.`, 'info');
   }
-}
-
-function verbForDecay(itemId: string): string {
-  return getItemDef(itemId).category === 'food' ? 'has rotted away' : 'is gone';
 }

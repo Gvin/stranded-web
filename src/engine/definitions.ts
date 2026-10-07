@@ -1,7 +1,7 @@
 import type { Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { IconName } from '../icons/gameIcons';
-import type { AttributeId, BuildingId, GameState, NutrientId, SkillId, TimedConditionId, WeatherId } from './types';
+import type { AttributeId, BuildingId, BuildingSlot, GameState, NutrientId, SkillId, TimedConditionId, WeatherId } from './types';
 
 // Static content definitions (items, locations, recipes, buildings). They are code, not save data, but renaming or
 // removing an item, location or object id breaks saves that refer to it and needs a save migration.
@@ -38,19 +38,25 @@ export interface Requirement {
 interface ItemDefBase {
   id: string;
   name: string;
+  /** One item in a sentence, with its article: "a stick", "an axe", "a bunch of grass". */
+  singular: string;
+  /** Several items in a sentence, after a number: "sticks", "bunches of grass". */
+  plural: string;
   description: string;
   /** Weight in kg of a single unit. */
   weight: number;
   /** Game minutes an item lies on the ground before it disappears. */
   groundLifetime: number;
   types?: readonly ResourceType[];
-  /** Game minutes one unit keeps a campfire burning; required for items of the fuel type. */
-  fuelMinutes?: number;
+  /** Fuel one unit adds to a fire (a Campfire burns 1 an hour); required for items of the fuel type. */
+  fuel?: number;
   icon: IconName;
   /** Small badge drawn over the icon, e.g. to tell cooked food from raw food with a similar icon. */
   iconBadge?: 'cooked';
   /** Full health of an item that wears out while worn; such items never stack. */
   maxHealth?: number;
+  /** Can be lit, and then burns down wherever it is (a torch; see TORCH_BURN_PER_HOUR). */
+  lightable?: boolean;
 }
 
 export interface ResourceDef extends ItemDefBase {
@@ -188,7 +194,7 @@ export interface LocationDef extends LocationInfo {
   actions?: ActionDef[];
   /** Named stocks the location's own actions can use. */
   stocks?: Record<string, StockDef>;
-  /** Buildings that can be built here, in the order they are offered. */
+  /** Buildings that can be built here; a level is offered once the level before it stands. */
   buildings?: readonly BuildingId[];
   /** Name, type and description that replace the defaults once something is built here. */
   whenBuilt?: LocationInfo;
@@ -204,9 +210,24 @@ export interface RouteDef {
   requiresFlag?: string;
 }
 
+/** How well the player sleeps in a location: per hour asleep, and the condition they wake up with. */
+export interface SleepDef {
+  energyPerHour: number;
+  healthPerHour: number;
+  condition?: TimedConditionId;
+  /** Where the player sleeps, for the Sleep action: "on your sleeping mat". */
+  where: string;
+  /** Logged on waking up. */
+  message: string;
+}
+
 /** Something the player can build at the locations that list it. */
 export interface BuildingDef {
   id: BuildingId;
+  /** The slot it stands in; one building per slot and location. */
+  slot: BuildingSlot;
+  /** 1 for the first building of its slot; each higher level is built on top of the one below and replaces it. */
+  level: number;
   name: string;
   description: string;
   icon: IconName;
@@ -221,8 +242,15 @@ export interface BuildingDef {
   trains?: AttributeXp;
   /** Gives its location a roof: shelter from heat and rain. */
   roof?: boolean;
-  /** Warms its location while it is lit (a campfire). */
-  heating?: boolean;
+  /** How well the player sleeps where it stands. */
+  sleep?: SleepDef;
+  /**
+   * A fire: holds up to `capacity` fuel and burns `burnPerHour` of it while lit, warming its location. Rain puts it
+   * out, roof or not, unless it is `rainproof`.
+   */
+  fire?: { capacity: number; burnPerHour: number; rainproof?: boolean };
+  /** Storage that keeps items safe, holding up to `capacity` kg. */
+  storage?: { capacity: number };
   /** Collects rainwater, whatever roof the location has: holds `capacity` bottles, filling at `bottlesPerHour` times the rainfall. */
   collector?: { capacity: number; bottlesPerHour: number };
 }
@@ -237,7 +265,7 @@ export interface WeatherDef {
   chance: number;
   /** Shortest and longest duration in hours. */
   hours: readonly [number, number];
-  /** How hard it rains (1 = steady rain): it makes the player wet, puts out campfires where there is no roof, and fills rain collectors. */
+  /** How hard it rains (1 = steady rain): it makes the player wet, puts out fires and torches, and fills rain collectors. */
   rainfall?: number;
   /** The sea is too rough to dive. */
   storm?: boolean;
@@ -253,11 +281,10 @@ export interface RecipeDef {
   ingredients: readonly Ingredient[];
   /** Tools that are needed but not consumed. */
   tools?: readonly Requirement[];
-  /** Buildings or location objects that must be present where the recipe is made (a campfire must be lit). */
+  /** Building slots (e.g. "workbench"; a "fire" must be lit) or location objects that must be present where the recipe is made. */
   stations?: readonly string[];
   result: { itemId: string; quantity: number };
   /** Logged when the recipe is completed. */
   message: string;
   visibleIf?: (state: GameState) => boolean;
-  trains?: AttributeXp;
 }

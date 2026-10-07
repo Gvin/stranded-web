@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getActions } from '../engine/actions';
 import { createNewGame, findAction, performAction } from '../engine/game';
+import { hours } from '../engine/time';
 import type { GameState } from '../engine/types';
 import { MIGRATIONS, runMigrations } from './migrations';
 import { deserializeGame, serializeGame } from './saveFile';
@@ -188,7 +189,10 @@ describe('migration from save format 1', () => {
     expect(state.player.body.torso).toEqual([{ id: 'bandaged', remaining: (500 + 2160 - 600) * 2 }]);
     expect(state.player.body.leftLeg).toEqual([{ id: 'fractured' }, { id: 'bleeding', remaining: 200 }]);
     expect(state.player.conditions).toEqual([{ id: 'poisoned', remaining: 300 }]);
-    expect(state.locations.camp?.buildings).toEqual({ campfire: { builtAt: 0, litUntil: 700 }, hut: { builtAt: 0 } });
+    expect(state.locations.camp?.buildings).toEqual({
+      house: { id: 'hut', builtAt: 0 },
+      fire: { id: 'campfire', builtAt: 0, fuel: (700 - 600) / 60, lit: true },
+    });
     expect(state.locations.beach?.groundItems).toEqual([{ id: 9, itemId: 'grass', quantity: 4, droppedAt: 100 }]);
     expect(state.locations.beach?.finds).toEqual({ 'wreckage:cloth': 5 });
   });
@@ -338,7 +342,7 @@ describe('migration from save format 6', () => {
     // Assert
     expect(result).toMatchObject({ status: 'ok', migratedFrom: 6 });
     const migrated = (result as { state: GameState }).state;
-    expect(migrated).toEqual(state);
+    expect(migrated.locations.camp?.constructions).toEqual({ hut: { stepsDone: 3 } });
     expect(findAction({ ...migrated, player: { ...migrated.player, locationId: 'camp' } }, 'build:hut')?.label).toBe(
       'Continue building (step 4 of 10)',
     );
@@ -359,5 +363,83 @@ describe('migration from save format 7', () => {
     const skills = (result as { state: GameState }).state.player.skills;
     expect(Object.values(skills)).toEqual(Array.from({ length: 5 }, () => ({ level: 0, points: 0 })));
     expect(Object.keys(skills).sort()).toEqual(['building', 'crafting', 'farming', 'fighting', 'foraging']);
+  });
+});
+
+describe('migration from save format 8', () => {
+  /** A new game in save format 8 (game 0.11.0) at the given time: buildings by id, and no time the player woke up. */
+  function format8Game(time: number, camp: { buildings: Record<string, unknown>; constructions: Record<string, unknown> }): string {
+    const state = createNewGame(10) as unknown as { time: number; player: Record<string, unknown>; locations: Record<string, unknown> };
+    state.time = time;
+    delete state.player.awakeSince;
+    state.locations.camp = { visited: true, groundItems: [], stock: {}, finds: {}, ...camp };
+    return JSON.stringify({ saveVersion: 8, gameVersion: '0.11.0', savedAt: '', state });
+  }
+
+  it('moves every building into its slot, turns the burn time left into fuel and starts counting the hours awake', () => {
+    // Arrange
+    const time = hours(30);
+    const json = format8Game(time, {
+      buildings: {
+        campfire: { builtAt: 0, litUntil: time + 90 },
+        hut: { builtAt: 60 },
+        storage: { builtAt: 120, items: [{ itemId: 'stick', quantity: 3 }] },
+        workbench: { builtAt: 180 },
+        rainCollector: { builtAt: 240, water: 1.5 },
+      },
+      constructions: {},
+    });
+
+    // Act
+    const result = deserializeGame(json);
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 8 });
+    const migrated = (result as { state: GameState }).state;
+    expect(migrated.locations.camp?.buildings).toEqual({
+      house: { id: 'hut', builtAt: 60 },
+      fire: { id: 'campfire', builtAt: 0, fuel: 1.5, lit: true },
+      storage: { id: 'smallStorage', builtAt: 120, items: [{ itemId: 'stick', quantity: 3 }] },
+      workbench: { id: 'basicWorkbench', builtAt: 180 },
+      rainCollector: { id: 'rainCollector', builtAt: 240, water: 1.5 },
+    });
+    expect(migrated.player.awakeSince).toBe(time);
+    expect(findAction({ ...migrated, player: { ...migrated.player, locationId: 'camp' } }, 'build:house')).toBeDefined();
+  });
+
+  it('keeps unfinished buildings under their new ids, giving an unfinished hut its shelter, and caps a long fire at 5 fuel', () => {
+    // Arrange
+    const json = format8Game(hours(2), {
+      buildings: { campfire: { builtAt: 0, litUntil: hours(14) } },
+      constructions: { hut: { stepsDone: 4 }, workbench: { stepsDone: 1 }, storage: { stepsDone: 2 } },
+    });
+
+    // Act
+    const migrated = (deserializeGame(json) as { state: GameState }).state;
+    const atCamp = { ...migrated, player: { ...migrated.player, locationId: 'camp' } };
+
+    // Assert
+    expect(migrated.locations.camp?.buildings).toEqual({
+      house: { id: 'shelter', builtAt: hours(2) },
+      fire: { id: 'campfire', builtAt: 0, fuel: 5, lit: true },
+    });
+    expect(migrated.locations.camp?.constructions).toEqual({
+      hut: { stepsDone: 4 },
+      basicWorkbench: { stepsDone: 1 },
+      smallStorage: { stepsDone: 2 },
+    });
+    expect(findAction(atCamp, 'build:hut')?.label).toBe('Continue building (step 5 of 10)');
+    expect(findAction(atCamp, 'build:basicWorkbench')?.label).toBe('Continue building (step 2 of 5)');
+  });
+
+  it('leaves a burnt-out campfire cold and empty', () => {
+    // Arrange
+    const json = format8Game(hours(5), { buildings: { campfire: { builtAt: 0, litUntil: hours(3) } }, constructions: {} });
+
+    // Act
+    const migrated = (deserializeGame(json) as { state: GameState }).state;
+
+    // Assert
+    expect(migrated.locations.camp?.buildings.fire).toEqual({ id: 'campfire', builtAt: 0, fuel: 0, lit: false });
   });
 });

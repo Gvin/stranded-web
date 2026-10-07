@@ -60,7 +60,7 @@ export interface ActionContext {
   damage(amount: number, deathCause: string): void;
   countItem(itemId: string): number;
   /** Adds items to the bag; whatever does not fit is left on the ground. Items that wear out come at full health unless given. */
-  addItem(itemId: string, quantity?: number, options?: { silent?: boolean; health?: number }): void;
+  addItem(itemId: string, quantity?: number, options?: { silent?: boolean; health?: number; lit?: boolean }): void;
   /** Adds several items at once, like `addItem`, with a single line for everything left on the ground. */
   addItems(items: readonly { itemId: string; quantity: number }[]): void;
   removeItem(itemId: string, quantity?: number): boolean;
@@ -96,25 +96,46 @@ export function formatAmount(itemId: string, quantity: number, health?: number):
 }
 
 /** Puts what fits of the items into the bag, saying so unless silent, leaves the rest on the ground and returns how many were left. */
-function putInBag(state: GameState, itemId: string, quantity: number, options?: { silent?: boolean; health?: number }): number {
+function putInBag(
+  state: GameState,
+  itemId: string,
+  quantity: number,
+  options?: { silent?: boolean; health?: number; lit?: boolean },
+): number {
   const def = getItemDef(itemId);
   const sheet = getCharacterSheet(state);
   const free = Math.max(0, sheet.carryCapacity - sheet.carriedWeight);
   const fits = def.weight > 0 ? Math.min(quantity, Math.floor(free / def.weight + 1e-9)) : quantity;
-  addToInventory(state.player, itemId, fits, options?.health);
+  addToInventory(state.player, itemId, fits, options?.health, options?.lit);
   if (fits > 0 && !options?.silent) {
     appendLog(state, `+ ${formatAmount(itemId, fits)}`, 'good');
   }
   if (fits < quantity) {
-    dropOnGround(state, state.player.locationId, itemId, quantity - fits, options?.health);
+    dropOnGround(state, state.player.locationId, itemId, quantity - fits, options?.health, options?.lit);
   }
   return Math.max(0, quantity - fits);
 }
 
-/** One log line for everything that did not fit into the bag, e.g. "You leave 4× Log, 10× Stick and Resin on the ground." */
+/** "a, b and c". */
+export function listText(parts: readonly string[]): string {
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : (parts[0] ?? '');
+}
+
+/** One log line for everything that did not fit into the bag, e.g. "You leave 4 logs, 10 sticks and a lump of resin on the ground." */
 function logLeftOnGround(state: GameState, amounts: readonly string[]): void {
-  const list = amounts.length > 1 ? `${amounts.slice(0, -1).join(', ')} and ${amounts[amounts.length - 1]}` : (amounts[0] ?? '');
-  appendLog(state, `You can't carry any more. You leave ${list} on the ground.`, 'bad');
+  appendLog(state, `You can't carry any more. You leave ${listText(amounts)} on the ground.`, 'bad');
+}
+
+/** An amount of an item in a sentence: "a stick", "3 sticks", "a torch (80/100)". */
+export function itemAmount(itemId: string, quantity: number, health?: number): string {
+  const { singular, plural, maxHealth } = getItemDef(itemId);
+  const text = quantity === 1 ? singular : `${quantity} ${plural}`;
+  return health !== undefined && maxHealth !== undefined ? `${text} (${formatHealth(health)}/${maxHealth})` : text;
+}
+
+/** A single item named as one the player knows: "the leaf", "the bunch of grass". */
+export function theItem(itemId: string): string {
+  return getItemDef(itemId).singular.replace(/^(a|an) /, 'the ');
 }
 
 /** Health for display; rounds up, so an item that is still there never reads 0. */
@@ -212,7 +233,7 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
     addItem: (itemId, quantity = 1, options) => {
       const left = putInBag(state, itemId, quantity, options);
       if (left > 0) {
-        logLeftOnGround(state, [formatAmount(itemId, left)]);
+        logLeftOnGround(state, [itemAmount(itemId, left)]);
       }
     },
     addItems: (items) => {
@@ -220,7 +241,7 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
       if (left.length > 0) {
         logLeftOnGround(
           state,
-          left.map((i) => formatAmount(i.itemId, i.left)),
+          left.map((i) => itemAmount(i.itemId, i.left)),
         );
       }
     },

@@ -1,9 +1,11 @@
 import type { LocationDef } from '../../engine/definitions';
 import { type FindDef, findGains, rollFinds } from '../../engine/outcomes';
+import { SHELTER_BUILDINGS } from './shared';
 
 const STONE_FINDS: FindDef[] = [
   { itemId: 'stone', chance: 1, quantity: [1, 3], fixedChance: true },
   { itemId: 'flint', chance: 0.35 },
+  { itemId: 'clay', chance: 0.05 },
 ];
 
 /** The rocky interior of the island: stone, pebbles and flint, and little else. */
@@ -15,6 +17,7 @@ export const rocks: LocationDef = {
     'Beyond the forest the ground rises into a broken, rocky landscape: grey boulders, slopes of loose scree and ' +
     'patches of gravel baking in the sun. Little grows here, but there is stone in plenty.',
   objects: [],
+  buildings: SHELTER_BUILDINGS,
   actions: [
     {
       id: 'stones',

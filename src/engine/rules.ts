@@ -79,6 +79,16 @@ export const SKILL_RULES = {
 
 /** Health a worn item loses per day of wearing. */
 export const ITEM_WEAR_PER_DAY = 1;
+/** Health a lit torch loses per hour, wherever it is. */
+export const TORCH_BURN_PER_HOUR = 2;
+/** Health a pair of flints loses each time it lights a fire. */
+export const FLINTS_WEAR_PER_USE = 1;
+/** The ways to light a fire: time, energy, and the sticks each needs and uses up (a lit torch is instant). */
+export const FIRE_LIGHTING = {
+  bowDrill: { minutes: 15, energy: 3, sticksNeeded: 1, sticksUsed: 1 },
+  flints: { minutes: 10, energy: 1 },
+  friction: { minutes: 30, energy: 5, sticksNeeded: 2, sticksUsed: 1 },
+} as const;
 /** Items at or below this fraction of their full health show a warning. */
 export const ITEM_WORN_OUT_WARNING = 0.1;
 
@@ -181,13 +191,13 @@ export const SURVIVAL_RULES = {
   overflowDamage: { thirst: 1.25, hunger: 1.5, energy: 1 },
   /** Natural healing only happens while both hunger and thirst are at or below this fraction. */
   healingMaxFraction: 0.5,
-  healthRegenPerHour: { awake: 0.5, resting: 1.5, sleeping: 2.5 },
-  energyRegenPerHour: { awake: 0, resting: 8, sleeping: 11 },
-  shelteredSleepEnergyBonusPerHour: 3,
+  /** While sleeping, health and energy come back by where the player sleeps (see SLEEP_RULES). */
+  healthRegenPerHour: { awake: 0.5, resting: 0.5 },
+  energyRegenPerHour: { awake: 0, resting: 5 },
   /** Below this energy fraction the player becomes dizzy from exhaustion. */
   exhaustionFraction: 0.1,
   exhaustionDizziness: 'medium' as Severity,
-  /** Sleeping is only possible while energy is below this value. */
+  /** Sleeping is only possible while energy is below this value, or while the player is Sleepy. */
   sleepBelowEnergy: 50,
   /** "Sleep till morning" wakes the player at this hour and is offered only when that is at most this many hours away. */
   wakeUpHour: 6,
@@ -195,4 +205,14 @@ export const SURVIVAL_RULES = {
   /** Simulation step in game minutes. */
   tickMinutes: 10,
   maxLogEntries: 200,
+} as const;
+
+/** Sleep; how well the player sleeps is set by the buildings' `sleep` and SLEEP_IN_THE_OPEN in src/data/buildings.ts. */
+export const SLEEP_RULES = {
+  /** How long the condition a sleep leaves lasts, from waking up, and how it changes every attribute, in percent. */
+  conditionHours: 20,
+  conditionPercent: { awfulSleep: -20, badSleep: -10, goodSleep: 10, perfectSleep: 20 },
+  /** Hours awake after which the player is Sleepy, and Sleepy's penalty to every attribute in percent. */
+  sleepyAfterHours: 20,
+  sleepyPenalty: 20,
 } as const;

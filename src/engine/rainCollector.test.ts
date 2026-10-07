@@ -21,7 +21,7 @@ function campWithCollector(water: number, weather: WeatherId = 'cloudy', time = 
     groundItems: [],
     stock: {},
     finds: {},
-    buildings: { rainCollector: { builtAt: 0, water } },
+    buildings: { rainCollector: { id: 'rainCollector', builtAt: 0, water } },
   };
   return state;
 }
@@ -36,11 +36,25 @@ describe('building steps', () => {
   it('take 15 minutes and 2 energy each, with more steps for the bigger buildings', () => {
     // Act
     const steps = Object.fromEntries(Object.values(BUILDINGS).map((b) => [b.id, b.steps]));
-    const hut = findAction(createTestGame('camp'), 'build:hut');
+    const mat = findAction(createTestGame('camp'), 'build:sleepingMat');
 
     // Assert
-    expect(steps).toEqual({ campfire: 2, workbench: 5, storage: 5, hut: 10, rainCollector: 5 });
-    expect(hut).toMatchObject({ minutes: 15, energy: 2 });
+    expect(steps).toEqual({
+      sleepingMat: 2,
+      shelter: 6,
+      hut: 10,
+      house: 20,
+      campfire: 2,
+      fireplace: 6,
+      furnace: 12,
+      basicWorkbench: 5,
+      workbench: 8,
+      smallStorage: 5,
+      mediumStorage: 8,
+      bigStorage: 12,
+      rainCollector: 5,
+    });
+    expect(mat).toMatchObject({ minutes: 15, energy: 2 });
   });
 });
 
@@ -66,7 +80,7 @@ describe('small rain collector', () => {
     // Assert
     expect(blocked(withoutTools, 'build:rainCollector')).toBe('Requires: Hammer, Axe');
     expect(built.time).toBe(5 * 15);
-    expect(built.locations.camp?.buildings.rainCollector).toEqual({ builtAt: 75, water: 0 });
+    expect(built.locations.camp?.buildings.rainCollector).toEqual({ id: 'rainCollector', builtAt: 75, water: 0 });
     expect(built.player.inventory.map((s) => s.itemId).sort()).toEqual(['axe', 'hammer']);
   });
 
@@ -93,7 +107,7 @@ describe('small rain collector', () => {
     const underRoof = campWithCollector(0, 'rainy');
     underRoof.locations.camp = {
       ...(underRoof.locations.camp as GameState['locations'][string]),
-      buildings: { rainCollector: { builtAt: 0, water: 0 }, hut: { builtAt: 0 } },
+      buildings: { rainCollector: { id: 'rainCollector', builtAt: 0, water: 0 }, house: { id: 'hut', builtAt: 0 } },
     };
 
     // Act
@@ -169,11 +183,14 @@ describe('resin', () => {
     const sticks = findAction(forest, 'obj:location:sticks')?.gains?.find((g) => g.itemId === 'resin');
     const chop = findAction(forest, 'obj:location:chop')?.gains?.find((g) => g.itemId === 'resin');
     const chopped = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((seed) => performAction({ ...forest, rng: seed }, 'obj:location:chop'));
+    // why: a felled tree gives more than the player can carry, so the resin may end up on the ground.
+    const gotResin = (s: GameState) =>
+      s.player.inventory.some((i) => i.itemId === 'resin') || (s.locations.forest?.groundItems ?? []).some((g) => g.itemId === 'resin');
 
     // Assert
     expect(sticks?.chance).toBe(0.05);
     expect(chop?.chance).toBe(0.3);
-    expect(chopped.some((s) => s.player.inventory.some((i) => i.itemId === 'resin'))).toBe(true);
-    expect(chopped.some((s) => !s.player.inventory.some((i) => i.itemId === 'resin'))).toBe(true);
+    expect(chopped.some(gotResin)).toBe(true);
+    expect(chopped.some((s) => !gotResin(s))).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import type { CharacterSheet } from '../../engine/character';
+import type { ActiveCondition, CharacterSheet } from '../../engine/character';
 import { BODY_CONDITIONS, BODY_PARTS, bodyConditionHealsIn, bodyConditionSeverity } from '../../engine/conditions';
 import { getBodyTemperature, getWeather, temperatureId } from '../../engine/environment';
 import {
@@ -62,6 +62,12 @@ function TemperatureSection({ state }: { state: GameState }) {
   );
 }
 
+/** A condition that only helps, like a good night's sleep. */
+function isGood(condition: ActiveCondition): boolean {
+  const changes = Object.values(condition.modifiers);
+  return changes.length > 0 && changes.every((percent) => (percent ?? 0) > 0) && condition.healthPerHour >= 0;
+}
+
 function formatPercent(percent: number): string {
   return `${percent > 0 ? '+' : percent < 0 ? '−' : ''}${Math.abs(percent)}%`;
 }
@@ -80,7 +86,7 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
             {sheet.conditions.map((condition) => (
               <li key={condition.id} className="card condition">
                 <div className="condition__heading">
-                  <span className="chip chip--bad">{condition.name}</span>
+                  <span className={`chip ${isGood(condition) ? 'chip--ok' : 'chip--bad'}`}>{condition.name}</span>
                   {condition.endsIn !== undefined && <span className="muted small">gone in {formatDuration(condition.endsIn)}</span>}
                 </div>
                 <p className="small">{condition.description}</p>

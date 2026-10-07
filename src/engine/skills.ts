@@ -16,9 +16,9 @@ export function timeFactor(level: number): number {
   return Math.max(0, 1 - SKILL_RULES.timeReductionPerLevel * level);
 }
 
-/** Time a building step or a recipe takes at a Building or Crafting level, at least a minute. */
+/** Time a building step or a recipe takes at a Building or Crafting level: at least a minute, unless it is instant. */
 export function skilledMinutes(minutes: number, level: number): number {
-  return Math.max(1, Math.round(minutes * timeFactor(level)));
+  return minutes <= 0 ? 0 : Math.max(1, Math.round(minutes * timeFactor(level)));
 }
 
 /** Multiplier for find chances at a Foraging level (1.1 at level 1). */

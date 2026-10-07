@@ -2,7 +2,7 @@ import { BUILDINGS } from '../data/buildings';
 import { getItemDef } from '../data/items';
 import { getLocationDef, LOCATIONS } from '../data/locations';
 import type { LocationInfo, ObjectDef, StockDef } from './definitions';
-import { BUILDING_IDS, type BuildingId, type GameState, type GroundItem, type LocationState } from './types';
+import { BUILDING_SLOTS, type BuildingSlot, type GameState, type GroundItem, type LocationState } from './types';
 
 export function createLocationState(): LocationState {
   return { visited: false, groundItems: [], stock: {}, finds: {}, buildings: {}, constructions: {} };
@@ -68,8 +68,11 @@ export function takeStock(state: GameState, locationId: string, object: ObjectDe
   return taken;
 }
 
-/** Leaves items on the ground; items that wear out lie there one by one, keeping their health (full when not given). */
-export function dropOnGround(state: GameState, locationId: string, itemId: string, quantity: number, health?: number): void {
+/**
+ * Leaves items on the ground; items that wear out lie there one by one, keeping their health (full when not given) and,
+ * for a torch, whether it burns.
+ */
+export function dropOnGround(state: GameState, locationId: string, itemId: string, quantity: number, health?: number, lit?: boolean): void {
   if (quantity <= 0) {
     return;
   }
@@ -77,7 +80,8 @@ export function dropOnGround(state: GameState, locationId: string, itemId: strin
   const { maxHealth } = getItemDef(itemId);
   if (maxHealth !== undefined) {
     for (let i = 0; i < quantity; i++) {
-      location.groundItems.push({ id: state.nextId++, itemId, quantity: 1, droppedAt: state.time, health: health ?? maxHealth });
+      const item: GroundItem = { id: state.nextId++, itemId, quantity: 1, droppedAt: state.time, health: health ?? maxHealth };
+      location.groundItems.push(lit ? { ...item, lit } : item);
     }
     return;
   }
@@ -111,7 +115,7 @@ export function removeExpiredGroundItems(state: GameState): GroundItem[] {
 
 /** Whether the player has built, or started building, anything at the location. */
 export function hasBuildings(location: LocationState): boolean {
-  return BUILDING_IDS.some((id) => location.buildings[id] !== undefined || location.constructions[id] !== undefined);
+  return BUILDING_SLOTS.some((slot) => location.buildings[slot] !== undefined) || Object.keys(location.constructions).length > 0;
 }
 
 /** Name, type and description of a location as the player currently knows it. */
@@ -121,29 +125,42 @@ export function getLocationInfo(state: GameState, locationId: string): LocationI
   return { name: info.name, type: info.type, description: info.description };
 }
 
-export function isCampfireLit(location: LocationState, time: number): boolean {
-  const campfire = location.buildings.campfire;
-  return campfire !== undefined && campfire.litUntil > time;
+export function isFireLit(location: LocationState): boolean {
+  return location.buildings.fire?.lit === true;
 }
 
-function isBuildingId(id: string): id is BuildingId {
-  return (BUILDING_IDS as readonly string[]).includes(id);
+/** The building that gives the location a roof, if any. */
+export function roofAt(state: GameState, locationId: string): string | undefined {
+  const house = getLocationState(state, locationId).buildings.house;
+  return house && BUILDINGS[house.id].roof ? BUILDINGS[house.id].name : undefined;
 }
 
-/** Whether a crafting station (a building, or an object of the location) is present where the player is. */
+function isBuildingSlot(id: string): id is BuildingSlot {
+  return (BUILDING_SLOTS as readonly string[]).includes(id);
+}
+
+/** Whether a crafting station (a building slot, any level, or an object of the location) is present where the player is. */
 export function isStationPresent(state: GameState, id: string): boolean {
   const locationId = state.player.locationId;
   const location = getLocationState(state, locationId);
-  if (isBuildingId(id)) {
-    return id === 'campfire' ? isCampfireLit(location, state.time) : location.buildings[id] !== undefined;
+  if (isBuildingSlot(id)) {
+    return id === 'fire' ? isFireLit(location) : location.buildings[id] !== undefined;
   }
   const object = getLocationDef(locationId).objects.find((o) => o.id === id);
   return object !== undefined && (object.visibleIf?.(state) ?? true);
 }
 
+const STATION_NAMES: Record<BuildingSlot, string> = {
+  house: 'A shelter',
+  fire: 'A lit fire',
+  workbench: 'A workbench',
+  storage: 'A storage',
+  rainCollector: 'A rain collector',
+};
+
 export function stationName(id: string): string {
-  if (isBuildingId(id)) {
-    return id === 'campfire' ? 'A lit campfire' : BUILDINGS[id].name;
+  if (isBuildingSlot(id)) {
+    return STATION_NAMES[id];
   }
   const object = LOCATIONS.flatMap((l) => l.objects).find((o) => o.id === id);
   return object?.name ?? id;

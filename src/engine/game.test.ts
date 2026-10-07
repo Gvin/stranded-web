@@ -3,6 +3,7 @@ import { getActions, getBlockedReason } from './actions';
 import { applyBodyCondition } from './conditions';
 import { findAction, performAction } from './game';
 import { createTestGame, giveItem } from './testUtils';
+import type { GameState } from './types';
 import { getLocationView } from './views';
 
 const blockedReason = (state: ReturnType<typeof createTestGame>, actionId: string) => {
@@ -273,7 +274,7 @@ describe('crafting', () => {
       groundItems: [],
       stock: {},
       finds: {},
-      buildings: { workbench: { builtAt: 0 } },
+      buildings: { workbench: { id: 'basicWorkbench', builtAt: 0 } },
     };
 
     // Act
@@ -281,7 +282,7 @@ describe('crafting', () => {
     const next = performAction(withWorkbench, 'craft:hammer');
 
     // Assert
-    expect(reason).toBe('Requires: Workbench nearby');
+    expect(reason).toBe('Requires: A workbench nearby');
     expect(next.player.inventory).toEqual([{ itemId: 'hammer', quantity: 1 }]);
   });
 
@@ -301,9 +302,8 @@ describe('crafting', () => {
 describe('buildings', () => {
   const campWithMaterials = () => {
     const state = createTestGame('camp');
-    giveItem(state, 'stick', 4);
-    giveItem(state, 'grass');
-    giveItem(state, 'stone', 3);
+    giveItem(state, 'stick', 5);
+    giveItem(state, 'grass', 3);
     return state;
   };
 
@@ -322,7 +322,7 @@ describe('buildings', () => {
     expect(getLocationView(next).type).toBe('camp');
   });
 
-  it('builds in steps, using up the materials with the first one', () => {
+  it('builds in steps, using up the materials with the first one, and a new campfire is full of fuel but unlit', () => {
     // Arrange
     const state = campWithMaterials();
 
@@ -334,14 +334,14 @@ describe('buildings', () => {
     expect(findAction(state, 'build:campfire')).toMatchObject({ label: 'Start building', minutes: 15, energy: 2 });
     expect(firstStep.player.inventory).toEqual([]);
     expect(firstStep.locations.camp?.constructions).toMatchObject({ campfire: { stepsDone: 1 } });
-    expect(firstStep.locations.camp?.buildings.campfire).toBeUndefined();
+    expect(firstStep.locations.camp?.buildings.fire).toBeUndefined();
     expect(findAction(firstStep, 'build:campfire')).toMatchObject({
       label: 'Continue building (step 2 of 2)',
       requirements: [expect.anything()],
     });
     expect(getLocationView(firstStep).objects.map((o) => o.name)).toEqual(['Campfire (unfinished)']);
     expect(finished.locations.camp?.constructions).toEqual({});
-    expect(finished.locations.camp?.buildings.campfire).toEqual({ builtAt: 30, litUntil: 210 });
+    expect(finished.locations.camp?.buildings.fire).toEqual({ id: 'campfire', builtAt: 30, fuel: 5, lit: false });
   });
 
   it('needs no bow for a campfire', () => {
@@ -355,40 +355,48 @@ describe('buildings', () => {
     expect(reason).toBeUndefined();
   });
 
-  it('offers buildings only at the clearing and never as crafting recipes', () => {
+  it('offers the first level of every slot at the clearing, only a sleeping mat elsewhere, and never as crafting recipes', () => {
     // Arrange
     const camp = campWithMaterials();
     const beach = campWithMaterials();
     beach.player.locationId = 'beach';
 
     // Act
-    const atCamp = getActions(camp)
-      .filter((a) => a.category === 'build')
-      .map((a) => a.id);
-    const atBeach = getActions(beach).filter((a) => a.category === 'build');
+    const buildIds = (state: GameState) =>
+      getActions(state)
+        .filter((a) => a.category === 'build')
+        .map((a) => a.id);
     const crafting = getActions(camp)
       .filter((a) => a.category === 'craft')
       .map((a) => a.id);
 
     // Assert
-    expect(atCamp).toEqual(['build:campfire', 'build:workbench', 'build:storage', 'build:hut', 'build:rainCollector']);
-    expect(atBeach).toEqual([]);
+    expect(buildIds(camp)).toEqual([
+      'build:sleepingMat',
+      'build:campfire',
+      'build:basicWorkbench',
+      'build:smallStorage',
+      'build:rainCollector',
+    ]);
+    expect(buildIds(beach)).toEqual(['build:sleepingMat']);
     expect(crafting.some((id) => id.includes('campfire') || id.includes('hut'))).toBe(false);
   });
 
-  it('stops offering a building once it stands', () => {
+  it('offers the next level once a building stands', () => {
     // Arrange
     const state = campWithMaterials();
 
     // Act
     const next = performAction(performAction(state, 'build:campfire'), 'build:campfire');
+    const ids = getActions(next).map((a) => a.id);
 
     // Assert
-    expect(getActions(next).some((a) => a.id === 'build:campfire')).toBe(false);
+    expect(ids).not.toContain('build:campfire');
+    expect(ids).toContain('build:fireplace');
     expect(next.player.craftedRecipes).toEqual([]);
   });
 
-  it('feeds the campfire with any fuel item for its burn time', () => {
+  it('adds fuel to the fire without taking time, as long as it fits', () => {
     // Arrange
     const state = createTestGame('camp');
     state.locations.camp = {
@@ -397,20 +405,24 @@ describe('buildings', () => {
       groundItems: [],
       stock: {},
       finds: {},
-      buildings: { campfire: { builtAt: 0, litUntil: 60 } },
+      buildings: { fire: { id: 'campfire', builtAt: 0, fuel: 2.5, lit: false } },
     };
     giveItem(state, 'log');
+    giveItem(state, 'stick');
     giveItem(state, 'stone');
 
     // Act
     const fuelIds = getActions(state)
       .filter((a) => a.group === 'fuel')
       .map((a) => a.id);
-    const next = performAction(state, 'campfire:fuel:log');
+    const next = performAction(state, 'fire:fuel:stick');
 
     // Assert
-    expect(fuelIds).toEqual(['campfire:fuel:log']);
-    expect(next.locations.camp?.buildings.campfire?.litUntil).toBe(60 + 240);
+    expect(fuelIds).toEqual(['fire:fuel:stick', 'fire:fuel:log']);
+    expect(blockedReason(state, 'fire:fuel:log')).toBe('There is no room for it in the fire');
+    expect(next.time).toBe(0);
+    expect(next.locations.camp?.buildings.fire?.fuel).toBe(3.5);
+    expect(next.log.at(-1)?.text).toBe('You put a stick on the fire.');
   });
 
   it('keeps items in storage and gives them back', () => {
@@ -422,7 +434,7 @@ describe('buildings', () => {
       groundItems: [],
       stock: {},
       finds: {},
-      buildings: { storage: { builtAt: 0, items: [] } },
+      buildings: { storage: { id: 'smallStorage', builtAt: 0, items: [] } },
     };
     giveItem(state, 'raw-fish', 2);
 
@@ -432,23 +444,8 @@ describe('buildings', () => {
 
     // Assert
     expect(stored.locations.camp?.buildings.storage?.items).toEqual([{ itemId: 'raw-fish', quantity: 2 }]);
+    expect(stored.log.at(-1)?.text).toBe('You put 2 raw fish into storage.');
     expect(later.player.inventory).toEqual([{ itemId: 'raw-fish', quantity: 1 }]);
     expect(later.locations.camp?.buildings.storage?.items).toEqual([{ itemId: 'raw-fish', quantity: 1 }]);
-  });
-
-  it('makes sleep in a hut more restful', () => {
-    // Arrange
-    const outside = createTestGame('camp');
-    outside.player.stats.energy = 10;
-    const inside = structuredClone(outside);
-    inside.locations.camp = { visited: true, constructions: {}, groundItems: [], stock: {}, finds: {}, buildings: { hut: { builtAt: 0 } } };
-
-    // Act
-    const sleptOutside = performAction(outside, 'sleep');
-    const sleptInside = performAction(inside, 'sleep');
-
-    // Assert
-    expect(sleptOutside.player.stats.energy).toBeCloseTo(98);
-    expect(sleptInside.player.stats.energy).toBe(100);
   });
 });
