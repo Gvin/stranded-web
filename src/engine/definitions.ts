@@ -61,8 +61,14 @@ interface ItemDefBase {
 
 export interface ResourceDef extends ItemDefBase {
   category: 'resource';
-  /** Makes the item an arrow for the bow: better accuracy and a lower chance to lose it per shot. */
-  arrow?: { accuracy: number; lossChance: number };
+  /** Makes the item an arrow, equipped in the arrow slot: what it adds to ranged damage and accuracy, and its chance to be lost per shot. */
+  arrow?: WeaponStats & { lossChance: number };
+}
+
+/** Damage and accuracy (a fraction, 0.1 = 10%) a weapon gives or adds. */
+export interface WeaponStats {
+  damage: number;
+  accuracy: number;
 }
 
 export interface FoodRisk {
@@ -105,10 +111,12 @@ export interface EquipmentDef extends ItemDefBase {
   category: 'equipment';
   slot: 'hand' | 'head' | 'body';
   clothing?: ClothingEffects;
-  /** Bonus added to fighting and hunting power while held. */
-  combat?: number;
-  /** Only works as a weapon with arrows in the bag (the best arrow adds its accuracy). */
-  needsArrows?: boolean;
+  /** Added to melee damage and accuracy while held in the weapon hand. */
+  melee?: WeaponStats;
+  /** Base ranged damage and accuracy while held in the weapon hand, shooting the arrows in the arrow slot. */
+  ranged?: WeaponStats;
+  /** Takes both hands: it is kept in the right hand, the left one cannot hold anything else, and it needs both arms. */
+  twoHanded?: boolean;
 }
 
 export type ItemDef = ResourceDef | FoodDef | EquipmentDef;

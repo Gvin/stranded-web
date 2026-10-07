@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getBlockedReason } from './actions';
-import { createActionContext } from './context';
 import { findAction, performAction } from './game';
-import { bestWeapon } from './inventory';
-import { fireArrow } from './outcomes';
 import { createTestGame, giveItem } from './testUtils';
 import type { GameState } from './types';
 
@@ -97,43 +94,6 @@ describe('arrows', () => {
 
     // Assert
     expect(state.player.inventory).toEqual([{ itemId: 'stone-arrow', quantity: 1 }]);
-  });
-
-  it('shoot the best arrow first and lose it now and then', () => {
-    // Arrange
-    const states = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => {
-      const state = createTestGame('beach', seed);
-      giveItem(state, 'bad-arrow', 3);
-      giveItem(state, 'stone-arrow', 3);
-      return state;
-    });
-
-    // Act
-    const accuracies = states.map((state) => fireArrow(createActionContext(state)));
-
-    // Assert
-    expect(accuracies.every((a) => a === 10)).toBe(true);
-    expect(states.every((s) => count(s, 'bad-arrow') === 3)).toBe(true);
-    expect(states.some((s) => count(s, 'stone-arrow') === 2)).toBe(true);
-    expect(states.some((s) => count(s, 'stone-arrow') === 3)).toBe(true);
-  });
-
-  it('make the bow a weapon, the better the arrow the stronger', () => {
-    // Arrange
-    const state = createTestGame('forest');
-    state.player.equipment.leftHand = { itemId: 'bow' };
-    const withoutArrows = bestWeapon(state.player);
-    giveItem(state, 'bad-arrow');
-    const withBadArrow = bestWeapon(state.player)?.bonus;
-    giveItem(state, 'stone-arrow');
-
-    // Act
-    const withStoneArrow = bestWeapon(state.player)?.bonus;
-
-    // Assert
-    expect(withoutArrows).toBeUndefined();
-    expect(withBadArrow).toBe(12);
-    expect(withStoneArrow).toBe(22);
   });
 });
 

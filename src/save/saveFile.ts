@@ -33,11 +33,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Item ids the state refers to, so saves pointing at removed content are rejected instead of crashing later. */
 function referencedItemIds(value: Record<string, unknown>): unknown[] {
-  const player = value.player as { inventory: { itemId?: unknown }[]; equipment: Record<string, { itemId?: unknown } | undefined> };
+  const player = value.player as {
+    inventory: { itemId?: unknown }[];
+    equipment: Record<string, { itemId?: unknown } | undefined>;
+    arrows?: { itemId?: unknown };
+  };
   const locations = Object.values(value.locations as Record<string, { groundItems?: { itemId?: unknown }[]; buildings?: unknown }>);
   return [
     ...player.inventory.map((s) => s.itemId),
     ...Object.values(player.equipment).map((item) => item?.itemId),
+    ...(player.arrows ? [player.arrows.itemId] : []),
     ...locations.flatMap((l) => (l.groundItems ?? []).map((g) => g.itemId)),
     ...locations.flatMap((l) =>
       ((l.buildings as { storage?: { items?: { itemId?: unknown }[] } })?.storage?.items ?? []).map((s) => s.itemId),
@@ -62,6 +67,7 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     Array.isArray(player.inventory) &&
     isRecord(player.equipment) &&
     Object.values(player.equipment).every(isRecord) &&
+    (player.arrows === undefined || (isRecord(player.arrows) && typeof player.arrows.quantity === 'number')) &&
     isRecord(player.exposure) &&
     isRecord(value.environment) &&
     typeof value.environment.weather === 'string' &&

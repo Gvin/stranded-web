@@ -2,7 +2,7 @@ import { getItemDef } from '../data/items';
 import { hasWorkingArm } from './conditions';
 import type { Ingredient, Requirement, ResourceType } from './definitions';
 import { hasFlame, hasLitTorch } from './fire';
-import { bestArrow, countItem, countType, hasType, holdingItem, holdingType, possesses } from './inventory';
+import { countItem, countType, hasType, holdingItem, holdingType, possesses } from './inventory';
 import { isStationPresent, stationName } from './world';
 
 // Reusable requirement factories for content. Descriptions are computed lazily, so they can be
@@ -78,14 +78,6 @@ export function ingredient(needed: Ingredient): Requirement {
   return {
     describe: () => `${needed.quantity > 1 ? `${needed.quantity}× ` : ''}${typeLabel(needed.type)}`,
     test: (state) => countType(state.player, needed.type) >= needed.quantity,
-  };
-}
-
-/** An arrow in the bag, for shooting with the bow. */
-export function arrow(): Requirement {
-  return {
-    describe: () => 'An arrow',
-    test: (state) => bestArrow(state.player) !== undefined,
   };
 }
 

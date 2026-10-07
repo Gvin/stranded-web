@@ -4,7 +4,7 @@ Last updated: 2026-10-07
 
 ## Overview
 
-Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), and the attributes refactoring in 0.12.2; the README describes how they work. Next come weapon stats, fighting and hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
+Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, and weapon stats in 0.13.0 (save format 11); the README describes how they work. Next come fighting and hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
 
 Every section below is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
 
@@ -17,40 +17,11 @@ Rules every feature follows, taken from how the engine works today:
 - Every new item, building, animal and plant gets a game-icons.net icon.
 - Every new action shows its time, energy, requirements and possible gains in the popup, like the existing ones.
 
-## Weapon stats
-
-> **Suggestion, not decided.** Everything in this section, including every new item, action, building, object and recipe, waits for your approval.
-
-The single `combat` bonus on held items becomes a weapon profile: damage, accuracy, speed, hands and the kind of wound it makes. Fighting and hunting read these stats, and fighting with any weapon trains the Fighting skill.
-
-| Weapon     | Damage         | Accuracy       | Speed  | Hands | Wounds                                      |
-| ---------- | -------------- | -------------- | ------ | ----- | ------------------------------------------- |
-| Bare hands | 2              | +0%            | fast   |       | bruises (Injured)                           |
-| Knife      | 5              | +10%           | fast   | 1     | Bleeding                                    |
-| Hammer     | 7              | +0%            | normal | 1     | can Fracture                                |
-| Axe        | 9              | −5%            | slow   | 1     | Bleeding                                    |
-| Spear      | 8              | +5%            | normal | 2     | Bleeding; strikes first (reach)             |
-| Bow        | from the arrow | from the arrow | slow   | 2     | Bleeding; shoots before melee, needs arrows |
-
-Arrows get a damage value next to their accuracy and loss chance (bad 4, wooden 6, stone tip 9). Numbers are starting values based on today's `combat` values.
-
-- **Damage** is scaled by strength in percent; **accuracy** adds to the hit chance, which agility also raises.
-- **Speed** decides who acts first in a fighting round: fast before normal before slow.
-- **Two-handed** weapons (spear, bow) need both arms working and take both hand slots.
-- With two one-handed weapons held, the better one attacks.
-- The **wound kind** decides what a hit does to an animal, and the same table is used when animals hit you (claws: Bleeding, bites: Injured, charges: Fracture).
-
-**Engine and UI**
-
-- `EquipmentDef.combat` becomes `weapon?: { damage, accuracy, speed, hands, wound }`, and `bestWeapon` ranks by expected damage.
-- The Bag shows "Damage 5 · Accuracy +10% · Fast" on weapons; the Body tab shows the weapon you would fight with.
-- Save change: none for the stats. Two-handed holding changes how `equipment` is filled, which needs a small migration for saves holding a spear or bow in one hand.
-
 ## Fighting
 
 > **Suggestion, not decided.** Everything in this section, including every new item, action, building, object and recipe, waits for your approval.
 
-Today a fight is one dice roll (`fight` in `src/engine/outcomes.ts`). It becomes an encounter of short rounds, where each round you choose what to do, and wounds land on real body parts. Encounters start when you hunt, or when an animal attacks you while travelling or gathering (an event, see Events System).
+There are no fights in the game today. Fighting becomes an encounter of short rounds, where each round you choose what to do, and wounds land on real body parts. Encounters start when you hunt, or when an animal attacks you while travelling or gathering (an event, see Events System).
 
 **Actions in a round** (about 1 minute and 2 energy each)
 
@@ -61,9 +32,9 @@ Today a fight is one dice roll (`fight` in `src/engine/outcomes.ts`). It becomes
 
 **How a round resolves**
 
-1. The faster side acts first: weapon speed and agility against the animal's speed.
-2. Hit chance = 50% + weapon accuracy + a Fighting skill bonus + agility difference, kept between 5% and 95%.
-3. A hit deals the weapon's damage, scaled by strength and the Fighting skill, to the animal's health.
+1. The faster side acts first: agility against the animal's speed.
+2. You hit with the chance of your melee or ranged accuracy (see Fighting stats in the README).
+3. A hit takes your melee or ranged damage from the animal's health.
 4. An animal hit picks a body part (arms and legs most often), loses one point of damage per Armor point worn (already in the engine: `hit` in `src/engine/outcomes.ts`), then applies its wound kind and health loss through the existing `injure` helper.
 5. The encounter ends when the animal dies, the animal runs off at low health, you flee, or you die.
 
@@ -159,11 +130,10 @@ Decided: one central system for game events, the things that happen to the playe
 
 ## Roadmap
 
-Three releases take the game from 0.12.2 (save format 10) to 0.15.0 (save format 13), all made of the suggestions above.
+Two releases take the game from 0.13.0 (save format 11) to 0.15.0 (save format 13), all made of the suggestions above.
 
 | Release            | Game version | Save format | Contents                                                                                                   |
 | ------------------ | ------------ | ----------- | ---------------------------------------------------------------------------------------------------------- |
-| Weapon stats       | 0.13.0       | 11          | Weapon profiles, two-handed weapons                                                                        |
 | Fighting + hunting | 0.14.0       | 12          | Fight encounters, tracking and stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests |
 | Farming            | 0.15.0       | 13          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                  |
 
@@ -171,7 +141,6 @@ Fighting gives the existing Armor and the Fighting skill their use, and farming 
 
 **Why this order**
 
-- Weapon stats come before fighting, which reads them.
 - Hunting reuses the fight encounter.
 - Farming comes last: it leans on rain, the Farming skill and the nutrition groups.
 
@@ -184,7 +153,7 @@ Fighting gives the existing Armor and the Fighting skill their use, and farming 
 ## Open questions
 
 - [ ] Events System: when are events checked (after actions, on the way, while resting or sleeping), and which of the removed hazards come back?
-- [ ] Is it right that the spear and the bow take both hands?
+- [ ] Should the spear take both hands, like the bow?
 - [ ] Leather from hunting: straight from the kill, or hides that are made into leather?
 - [ ] Can animals come to the camp (a boar raiding the garden), or do fights only happen away from it?
 - [ ] Should planting need a tool, such as a digging stick?

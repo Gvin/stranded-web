@@ -1,6 +1,6 @@
 import { getItemDef, ITEM_ORDER } from '../data/items';
 import { canHoldWith } from './conditions';
-import type { ClothingEffects, EquipmentDef, Ingredient, ItemDef, ResourceDef, ResourceType } from './definitions';
+import type { ClothingEffects, EquipmentDef, Ingredient, ItemDef, ResourceType } from './definitions';
 import { EQUIP_SLOTS, type EquipSlot, HAND_SLOTS, type HandSlot, type InventoryStack, type PlayerState } from './types';
 
 export const HAND_ARM: Record<HandSlot, 'leftArm' | 'rightArm'> = { leftHand: 'leftArm', rightHand: 'rightArm' };
@@ -240,44 +240,21 @@ export function stackWeight(stacks: readonly InventoryStack[]): number {
   return stacks.reduce((sum, s) => sum + getItemDef(s.itemId).weight * s.quantity, 0);
 }
 
-/** Total carried weight in kg, including held and worn items. */
+/** Total carried weight in kg, including held and worn items and the arrows in the arrow slot. */
 export function carriedWeight(player: PlayerState): number {
-  return stackWeight(player.inventory) + EQUIP_SLOTS.reduce((sum, slot) => sum + (getEquipped(player, slot)?.weight ?? 0), 0);
+  const equipped = EQUIP_SLOTS.reduce((sum, slot) => sum + (getEquipped(player, slot)?.weight ?? 0), 0);
+  return stackWeight(player.inventory) + equipped + stackWeight(player.arrows ? [player.arrows] : []);
 }
 
-/** Best weapon bonus among the items held in hands. */
-export function combatBonus(player: PlayerState): number {
-  return bestWeapon(player)?.bonus ?? 0;
-}
-
-/** The most accurate arrow in the bag, if any. */
-export function bestArrow(player: PlayerState): ResourceDef | undefined {
-  return player.inventory
-    .map((s) => getItemDef(s.itemId))
-    .filter((def): def is ResourceDef => def.category === 'resource' && def.arrow !== undefined)
-    .sort((a, b) => (b.arrow?.accuracy ?? 0) - (a.arrow?.accuracy ?? 0))[0];
-}
-
-/** Accuracy bonus of the arrow the bow would shoot next (0 without arrows). */
-export function arrowAccuracy(player: PlayerState): number {
-  return bestArrow(player)?.arrow?.accuracy ?? 0;
-}
-
-/** The held item that gives the best fighting bonus; a bow only counts with arrows in the bag. */
-export function bestWeapon(player: PlayerState): { def: EquipmentDef; bonus: number } | undefined {
-  const arrow = bestArrow(player);
-  let best: { def: EquipmentDef; bonus: number } | undefined;
-  for (const slot of HAND_SLOTS) {
-    const def = getEquipped(player, slot);
-    if (!def?.combat || (def.needsArrows && !arrow)) {
-      continue;
-    }
-    const bonus = def.combat + (def.needsArrows ? (arrow?.arrow?.accuracy ?? 0) : 0);
-    if (!best || bonus > best.bonus) {
-      best = { def, bonus };
-    }
+/** Puts the arrows of the arrow slot back into the bag and returns them. */
+export function unequipArrows(player: PlayerState): InventoryStack | undefined {
+  const arrows = player.arrows;
+  if (!arrows) {
+    return undefined;
   }
-  return best;
+  delete player.arrows;
+  addToInventory(player, arrows.itemId, arrows.quantity);
+  return arrows;
 }
 
 /** Moves the item in the slot back into the bag, keeping its health and flame, and returns its id. */
@@ -291,11 +268,23 @@ export function unequip(player: PlayerState, slot: EquipSlot): string | undefine
   return item.itemId;
 }
 
-/** Puts items held by arms that can no longer hold anything back into the bag. */
+/** Whether both arms can hold, as an item that takes both hands needs. */
+export function canHoldWithBoth(player: PlayerState): boolean {
+  return canHoldWith(player, 'leftArm') && canHoldWith(player, 'rightArm');
+}
+
+/** The item held in the other hand that takes both hands, keeping this hand from holding anything else. */
+export function lockedBy(player: PlayerState, slot: HandSlot): EquipmentDef | undefined {
+  const other = getEquipped(player, slot === 'leftHand' ? 'rightHand' : 'leftHand');
+  return other?.twoHanded ? other : undefined;
+}
+
+/** Puts items held by arms that can no longer hold anything back into the bag; an item held in both hands needs both arms. */
 export function releaseBlockedHands(player: PlayerState): string[] {
   const released: string[] = [];
   for (const slot of HAND_SLOTS) {
-    if (player.equipment[slot] && !canHoldWith(player, HAND_ARM[slot])) {
+    const def = getEquipped(player, slot);
+    if (def && !(def.twoHanded ? canHoldWithBoth(player) : canHoldWith(player, HAND_ARM[slot]))) {
       released.push(unequip(player, slot) as string);
     }
   }

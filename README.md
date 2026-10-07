@@ -29,11 +29,12 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   building step trains a little Strength; crafting trains no attributes, only the Crafting skill.
   - 20 is the basic value: above it an attribute helps the actions it affects, below it penalizes them (`ATTRIBUTE_RULES` in
     `src/engine/rules.ts`).
-  - Strength: max health (80 + Strength), carry capacity (10 + Strength / 2 kg), tearing down vines, fighting.
+  - Strength: max health (80 + Strength), carry capacity (10 + Strength / 2 kg), tearing down vines, melee damage.
   - Endurance: max energy, thirst and hunger (80 + Endurance each).
   - Perception: multiplies the chance of every foraging find (not the amounts) by 1 at 20, rising evenly to 2 at 100;
     find chances stay capped at 95%.
-  - Agility: travel time (×√(20 / Agility), between ×0.5 and ×3), climbing for coconuts, diving at the reef, fighting.
+  - Agility: travel time (×√(20 / Agility), between ×0.5 and ×3), climbing for coconuts, diving at the reef, melee and
+    ranged accuracy.
   - Tearing down vines (Strength), climbing for coconuts and diving at the reef (Agility) succeed 30% of the time at 20,
     half a percent more for every point above (70% at 100) and less below (25% at 10).
   - Picking berries: every berry picked has a 10% chance to be a bitter one, whatever the Perception.
@@ -47,7 +48,9 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
     tideline, diving at the reef, picking berries and mushrooms, cutting and tearing down vines, gathering grass, sticks,
     stones and pebbles, chopping wood). Each level adds 10% to every find chance (20% becomes 22% at level 1) and 5% to the
     gathered items, a fraction becoming one more item by chance, never more than is left.
-  - Fighting and Farming have no effect yet.
+  - Fighting: +2% accuracy per level, and +1 damage from level 4, +2 from 7, +3 at 10, in melee and with the bow. Nothing
+    trains it yet, as there are no fights.
+  - Farming has no effect yet.
 - **Modifiers** — all bonuses and penalties to attributes are percentages. They add up and are shown per source in the Body tab.
 - **Body parts** — head, torso, two arms, two legs. Conditions: Injured, Bleeding, Fractured, Burnt, Missing, Bandaged and Splinted
   (a set fracture). Bandaged replaces Injured, Burnt and Bleeding; Splinted replaces Fractured. A fractured, splinted or missing arm
@@ -112,13 +115,13 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 - **Body tab indicators** — a red dot while wounds need treatment, and a "!" badge when a new condition appears on the body or
   one of its parts, until you open the Body tab.
 - **Items** — resources, food and equipment, each with an icon. Equipment is worn on the head or body (you start in your
-  Clothes) or held in a hand: Knife, Hammer, Spear and Bow work as tools and weapons when held, and a Torch carries fire. Messages
+  Clothes) or held in a hand: Knife, Hammer, Axe, Spear and Bow work as tools and weapons when held, and a Torch carries fire and works as a weapon too. The Bow takes both hands: holding it puts away what the other hand held, that hand stays empty ("taken by the bow") while it is held, it cannot be held with a fractured, splinted or missing arm, and it goes into the bag when either arm breaks. Messages
   name items in plain words ("a stick", "3 sticks", "an axe"). Every resource has crafting
   **types** (e.g. Vine is `fuel, rope`, Flint is `stone, sharp, knife`). A whole coconut has to be opened before it can be eaten;
   an opened coconut leaves a shell behind 30% of the time. What a food or drink does (hunger, thirst, energy, food group, risks
   and leftovers) stays unknown until you have eaten or drunk it once.
 - **Clothing** — worn items can have Warmth, Shade, Waterproof (no Wet in the rain) and Armor (each point stops one point of
-  damage from every hit in a fight). Clothing wears out: each piece has health, never stacks, and loses 1 health
+  damage from every hit, once there are fights). Clothing wears out: each piece has health, never stacks, and loses 1 health
   per 24 hours worn (kept as a fraction). At 10% health a warning shows next to it; at 0 it is destroyed and a popup says so.
   Crafted clothing starts at full health.
 
@@ -136,10 +139,30 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 
   Leather has no source yet, so the leather items and the raincoat cannot be made yet.
 
-- **Arrows** — the bow needs arrows to shoot. The best arrow in the bag is used automatically: bad
-  wooden arrows add no accuracy and are lost half the time, wooden arrows add 5 and are lost 30% of the time, stone tip arrows add
-  10 and are lost 20% of the time. With arrows, the bow is also the best weapon. No location offers shooting or hunting yet —
-  hunting will come as its own feature; the engine already supports it (`fight` and `fireArrow` in `src/engine/outcomes.ts`).
+- **Fighting stats** — shown in the Fighting section of the Bag tab, with a "?" that shows how each one adds up. There are no
+  fights yet; these are the stats they will use (`FIGHTING_RULES` in `src/engine/rules.ts`, `src/engine/fighting.ts`).
+  - The **weapon hand** is the right hand, or the left one when the right arm cannot hold anything; it is marked "weapon" in
+    "Worn and held". Only the item in it counts; clothes add nothing.
+  - **Melee**: accuracy = (50% + the weapon's bonus + the Fighting skill's) × the Agility factor (0.75 at 0, 1 at 20, 2 at 100),
+    at most 95%. Damage = 1 + the weapon's bonus + the Fighting skill's + the Strength bonus: −1 below 10, 0 from 10 to 39,
+    +1 from 40, +2 from 60, +3 from 80, +4 at 100.
+
+    | Weapon | Damage | Accuracy |
+    | ------ | ------ | -------- |
+    | Knife  | +1     | +10%     |
+    | Hammer | +2     | −10%     |
+    | Axe    | +3     | −5%      |
+    | Spear  | +3     | +5%      |
+    | Torch  | +1     | +10%     |
+
+  - **Ranged**: only while holding the Bow (in both hands) with arrows in the arrow slot. Accuracy = (30% +
+    the arrow's bonus + the Fighting skill's) × the ranged Agility factor (0.5 at 0, rising evenly to 1.5 at 100, so 0.7 at
+    20), at most 95%. Damage = 1 + the arrow's bonus + the Fighting skill's; Strength does not count.
+- **Arrows** — equipped in the arrow slot of "Worn and held": Equip moves all arrows of that kind there, one kind at a time
+  (arrows of another kind go back into the bag), and Put away returns them. Arrows made or found later go into the bag. They
+  weigh the same in the slot. Bad wooden arrows add nothing and are lost half the time, wooden arrows add 15% accuracy and are
+  lost 30% of the time, stone tip arrows add 2 damage and 15% accuracy and are lost 20% of the time (losing arrows comes
+  with fighting).
 - **Crafting** — every recipe costs 1 energy (`CRAFT_ENERGY` in `src/engine/rules.ts`) and trains the Crafting skill, no attributes. Recipes ask for types, so "any rope" accepts a vine or a rope; the cheapest matching items are used first. Some tools
   are needed but not used up (the heavy item that opens a coconut, the knife that whittles arrows). A recipe can also require a
   building or a location object nearby (`stations` in `src/data/recipes.ts`); Hammer and Bow need a workbench of any level. The Craft tab only
@@ -271,6 +294,7 @@ screen instead of being loaded.
 | 8           | 0.11.0       | Skills; unfinished buildings record the materials they used.                                          |
 | 9           | 0.12.0       | Buildings stand in slots with levels; fires hold fuel; lit torches; the time the player last woke up. |
 | 10          | 0.12.1       | The items the player has had and the foods they have tried.                                           |
+| 11          | 0.13.0       | The arrow slot; a held bow takes both hands (kept in the right hand, the left one empty).             |
 
 A migration is needed when you:
 

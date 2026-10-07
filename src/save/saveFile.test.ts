@@ -472,3 +472,58 @@ describe('migration from save format 9', () => {
     expect(player.triedFoods).toEqual([]);
   });
 });
+
+describe('migration from save format 10', () => {
+  it('starts with an empty arrow slot and lets the player fill it', () => {
+    // Arrange
+    const state = createNewGame(12) as unknown as { player: Record<string, unknown> };
+    delete state.player.arrows;
+    state.player.inventory = [{ itemId: 'wooden-arrow', quantity: 4 }];
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 10, gameVersion: '0.12.2', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 10 });
+    const migrated = (result as { state: GameState }).state;
+    expect(migrated.player.arrows).toBeUndefined();
+    expect(performAction(migrated, 'equip-arrows:wooden-arrow').player.arrows).toEqual({ itemId: 'wooden-arrow', quantity: 4 });
+  });
+
+  it('moves a held bow to the right hand with the left one empty, or into the bag when an arm cannot hold it', () => {
+    // Arrange
+    const format10 = (leftArm: { id: string }[]) => {
+      const state = createNewGame(12) as unknown as { player: Record<string, unknown> };
+      state.player.equipment = { leftHand: { itemId: 'bow' }, rightHand: { itemId: 'knife' }, body: { itemId: 'clothes', health: 60 } };
+      state.player.inventory = [{ itemId: 'knife', quantity: 1 }];
+      state.player.body = { ...(state.player.body as object), leftArm, rightArm: [] };
+      return JSON.stringify({ saveVersion: 10, gameVersion: '0.12.2', savedAt: '', state });
+    };
+
+    // Act
+    const load = (leftArm: { id: string }[]) => (deserializeGame(format10(leftArm)) as { state: GameState }).state;
+    const healthy = load([]);
+    const broken = load([{ id: 'fractured' }]);
+
+    // Assert
+    expect(healthy.player.equipment).toEqual({ rightHand: { itemId: 'bow' }, body: { itemId: 'clothes', health: 60 } });
+    expect(healthy.player.inventory).toEqual([{ itemId: 'knife', quantity: 2 }]);
+    expect(broken.player.equipment).toEqual({ body: { itemId: 'clothes', health: 60 } });
+    expect(broken.player.inventory).toEqual([
+      { itemId: 'knife', quantity: 2 },
+      { itemId: 'bow', quantity: 1 },
+    ]);
+  });
+
+  it('rejects a save whose arrow slot holds an unknown item', () => {
+    // Arrange
+    const state = createNewGame(12);
+    state.player.arrows = { itemId: 'no-such-arrow', quantity: 2 };
+
+    // Act
+    const result = deserializeGame(envelope(SAVE_VERSION, state));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'corrupt' });
+  });
+});

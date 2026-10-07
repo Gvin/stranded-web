@@ -271,7 +271,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.05,
     groundLifetime: days(10),
     icon: 'broken-arrow',
-    arrow: { accuracy: 0, lossChance: 0.5 },
+    arrow: { damage: 0, accuracy: 0, lossChance: 0.5 },
   },
   {
     id: 'wooden-arrow',
@@ -283,7 +283,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.05,
     groundLifetime: days(15),
     icon: 'arrow-cluster',
-    arrow: { accuracy: 5, lossChance: 0.3 },
+    arrow: { damage: 0, accuracy: 0.15, lossChance: 0.3 },
   },
   {
     id: 'stone-arrow',
@@ -295,7 +295,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.06,
     groundLifetime: days(30),
     icon: 'broadhead-arrow',
-    arrow: { accuracy: 10, lossChance: 0.2 },
+    arrow: { damage: 2, accuracy: 0.15, lossChance: 0.2 },
   },
 
   // Food
@@ -721,6 +721,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'primitive-torch',
     maxHealth: 100,
     lightable: true,
+    melee: { damage: 1, accuracy: 0.1 },
   },
   {
     id: 'knife',
@@ -734,7 +735,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(90),
     icon: 'bone-knife',
     types: ['knife'],
-    combat: 5,
+    melee: { damage: 1, accuracy: 0.1 },
   },
   {
     id: 'hammer',
@@ -748,7 +749,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(60),
     icon: 'flat-hammer',
     types: ['heavy'],
-    combat: 7,
+    melee: { damage: 2, accuracy: -0.1 },
   },
   {
     id: 'bow',
@@ -761,8 +762,8 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.6,
     groundLifetime: days(15),
     icon: 'bow-string',
-    combat: 12,
-    needsArrows: true,
+    ranged: { damage: 1, accuracy: 0.3 },
+    twoHanded: true,
   },
   {
     id: 'axe',
@@ -775,7 +776,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 1.4,
     groundLifetime: days(60),
     icon: 'stone-axe',
-    combat: 8,
+    melee: { damage: 3, accuracy: -0.05 },
   },
   {
     id: 'spear',
@@ -788,7 +789,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 1.2,
     groundLifetime: days(20),
     icon: 'stone-spear',
-    combat: 10,
+    melee: { damage: 3, accuracy: 0.05 },
   },
 ];
 

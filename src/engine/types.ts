@@ -180,6 +180,8 @@ export interface PlayerState {
   conditions: TimedCondition[];
   inventory: InventoryStack[];
   equipment: Partial<Record<EquipSlot, EquippedItem>>;
+  /** The arrow slot: arrows of one kind, which a held bow shoots. */
+  arrows?: InventoryStack;
   /**
    * Game minutes without a break that the body temperature has been Very Hot or Very Cold, and that the player has
    * been out in the rain with neither a roof nor waterproof clothes.

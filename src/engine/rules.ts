@@ -29,10 +29,10 @@ export const ATTRIBUTE_NAMES: Record<AttributeId, string> = {
 };
 
 export const ATTRIBUTE_HINTS: Record<AttributeId, string> = {
-  strength: 'Max health, carry weight and fighting.',
+  strength: 'Max health, carry weight and melee damage.',
   endurance: 'Max energy, thirst and hunger.',
   perception: 'Finding things when searching or gathering.',
-  agility: 'Travel speed, climbing and fighting.',
+  agility: 'Travel speed, climbing and accuracy.',
 };
 
 export const STAT_NAMES: Record<StatId, string> = {
@@ -173,7 +173,12 @@ export function speedFactor(agility: number): number {
 
 /** Multiplier for the chance of finding things: 1 at 20 perception, rising evenly to 2 at 100 (and below 1 under 20). */
 export function perceptionFactor(perception: number): number {
-  return 1 + ((ATTRIBUTE_RULES.perceptionAtMax - 1) * (perception - BASE_ATTRIBUTE)) / (MAX_ATTRIBUTE - BASE_ATTRIBUTE);
+  return factorFromBase(perception, ATTRIBUTE_RULES.perceptionAtMax);
+}
+
+/** A multiplier of 1 at the basic attribute value, rising evenly to `atMax` at MAX_ATTRIBUTE and falling below the basic value. */
+function factorFromBase(value: number, atMax: number): number {
+  return 1 + ((atMax - 1) * (value - BASE_ATTRIBUTE)) / (MAX_ATTRIBUTE - BASE_ATTRIBUTE);
 }
 
 /** Chance that an action depending on an attribute succeeds: 30% at 20, half a percent more per point above, less below. */
@@ -181,13 +186,48 @@ export function successChance(value: number): number {
   return ATTRIBUTE_RULES.successAtBase + (value - BASE_ATTRIBUTE) * ATTRIBUTE_RULES.successPerPoint;
 }
 
-/** Fighting power from strength, agility and the best held weapon. */
-export function fightPower(strength: number, agility: number, weaponBonus: number): number {
-  return (strength + agility) / 2 + weaponBonus;
+/**
+ * Fighting stats. Melee accuracy is (base + bonuses) × the melee Agility factor, melee damage is base + bonuses + the
+ * Strength bonus. Ranged stats start from the bow's base instead, use their own Agility factor and ignore Strength.
+ * Accuracy bonuses are fractions (0.1 = +10%).
+ */
+export const FIGHTING_RULES = {
+  melee: { accuracy: 0.5, damage: 1 },
+  maxAccuracy: 0.95,
+  /** Agility multiplies melee accuracy by 1 at the basic value, rising evenly to this at MAX_ATTRIBUTE (0.75 at 0). */
+  meleeAgilityAtMax: 2,
+  /** Agility multiplies ranged accuracy along a straight line, from the first value at 0 to the second at MAX_ATTRIBUTE. */
+  rangedAgility: [0.5, 1.5],
+  /** Strength below this takes a point off melee damage; above the basic value, every full step of points adds one. */
+  strengthPenaltyBelow: 10,
+  strengthPerDamage: 20,
+  /** Fighting skill bonuses, for melee and ranged alike: accuracy per level, and damage by level (index). */
+  skillAccuracyPerLevel: 0.02,
+  skillDamage: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
+} as const;
+
+/** Melee accuracy multiplier from Agility: 0.75 at 0, 1 at 20, 2 at 100. */
+export function meleeAccuracyFactor(agility: number): number {
+  return factorFromBase(agility, FIGHTING_RULES.meleeAgilityAtMax);
 }
 
-export function fightWinChance(power: number, difficulty: number): number {
-  return Math.min(0.95, Math.max(0.05, 0.5 + (power - difficulty) / 50));
+/** Ranged accuracy multiplier from Agility: 0.5 at 0, 0.7 at 20, 1.5 at 100. */
+export function rangedAccuracyFactor(agility: number): number {
+  const [atZero, atMax] = FIGHTING_RULES.rangedAgility;
+  return atZero + ((atMax - atZero) * agility) / MAX_ATTRIBUTE;
+}
+
+/** Melee damage Strength adds: −1 below 10, 0 up to 39, then one more for every full 20 points (+1 at 40, +4 at 100). */
+export function strengthDamage(strength: number): number {
+  if (strength < FIGHTING_RULES.strengthPenaltyBelow) {
+    return -1;
+  }
+  return Math.max(0, Math.floor((strength - BASE_ATTRIBUTE) / FIGHTING_RULES.strengthPerDamage));
+}
+
+/** Damage and accuracy the Fighting skill adds at a level (level 10: +3 damage, +20% accuracy). */
+export function fightingSkillBonus(level: number): { damage: number; accuracy: number } {
+  return { damage: FIGHTING_RULES.skillDamage[level] ?? 0, accuracy: FIGHTING_RULES.skillAccuracyPerLevel * level };
 }
 
 export const SURVIVAL_RULES = {

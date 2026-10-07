@@ -857,6 +857,38 @@ p {
   min-width: 0;
 }
 
+/* Marks the weapon hand under its name. */
+.slot__tag {
+  display: block;
+  color: var(--sea);
+  font-size: 0.75rem;
+}
+
+.fighting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fighting__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.fighting__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.fighting__value {
+  font-variant-numeric: tabular-nums;
+}
+
 /* The buttons move under the item when the row is too narrow for both (e.g. a held torch with Put away and Put out). */
 .slot__actions {
   display: flex;

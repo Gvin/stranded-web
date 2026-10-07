@@ -15,6 +15,7 @@ import type {
   LocationDef,
   ObjectDef,
   Requirement,
+  ResourceDef,
   TimeMode,
 } from './definitions';
 import { type Gain, resolveGains } from './gains';
@@ -25,6 +26,7 @@ import {
   addToStacks,
   allocateByIngredient,
   allocateIngredients,
+  canHoldWithBoth,
   countItem,
   describeClothing,
   entryKey,
@@ -33,9 +35,11 @@ import {
   HAND_ARM,
   isHandSlot,
   itemsOfType,
+  lockedBy,
   stackWeight,
   takeFromEntry,
   unequip,
+  unequipArrows,
 } from './inventory';
 import { emptyFoodGroups, feedFoodGroup, foodGroupList } from './nutrition';
 import { carried, flame, ingredient, litTorch, station, workingArm } from './requirements';
@@ -67,6 +71,7 @@ import {
   type InventoryStack,
   type LocationBuildings,
   type LocationState,
+  type PlayerState,
   type SkillId,
 } from './types';
 import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, roofAt } from './world';
@@ -774,42 +779,93 @@ function eatAction(state: GameState, def: FoodDef): GameAction {
   };
 }
 
+/** The slots an item can go into; an item that takes both hands is kept in the right hand. */
 function slotsFor(def: EquipmentDef): EquipSlot[] {
+  if (def.twoHanded) {
+    return ['rightHand'];
+  }
   return def.slot === 'hand' ? [...HAND_SLOTS] : [def.slot];
+}
+
+/** Why an item cannot go into a hand right now: an arm that cannot hold, or another item that takes both hands. */
+function handBlock(player: PlayerState, def: EquipmentDef, slot: HandSlot): string | undefined {
+  if (def.twoHanded) {
+    return canHoldWithBoth(player) ? undefined : 'It needs both arms, and one of them cannot hold anything';
+  }
+  if (!canHoldWith(player, HAND_ARM[slot])) {
+    return `Your ${bodyPartName(HAND_ARM[slot])} cannot hold anything`;
+  }
+  const locking = lockedBy(player, slot);
+  return locking ? `The ${locking.name.toLowerCase()} takes both hands` : undefined;
 }
 
 /** Equips the bag entry with the given key (see `entryKey`) into a slot. */
 function equipAction(def: EquipmentDef, slot: EquipSlot, key: string): GameAction {
   const name = def.name.toLowerCase();
   const hand = isHandSlot(slot);
+  const both = def.twoHanded === true;
   const wearing = def.maxHealth === undefined || hand ? '' : ` Worn, it loses ${ITEM_WEAR_PER_DAY} health a day and falls apart at 0.`;
+  const weapon =
+    'Only the item in the weapon hand counts as a weapon: the right hand, or the left one when the right arm cannot hold anything.';
   return {
     id: `equip:${key}:${slot}`,
-    label: hand ? `Hold in ${SLOT_LABELS[slot]}` : 'Wear',
+    label: both ? 'Hold in both hands' : hand ? `Hold in ${SLOT_LABELS[slot]}` : 'Wear',
     category: 'item',
-    details: hand
-      ? 'Held items work as tools and weapons. A fractured, splinted or missing arm cannot hold anything.'
-      : `Wear it on your ${SLOT_LABELS[slot]}.${wearing}`,
+    details: both
+      ? 'It takes both hands: whatever the other hand holds goes into your bag, and it stays empty. A fractured, splinted or ' +
+        'missing arm cannot hold it.'
+      : hand
+        ? `Held items work as tools. ${weapon} A fractured, splinted or missing arm cannot hold anything.`
+        : `Wear it on your ${SLOT_LABELS[slot]}.${wearing}`,
     gains: describeClothing(def.clothing).map((effect) => ({ label: `${effect.name}: ${effect.hint}` })),
     minutes: 1,
     energy: 0,
     timeMode: 'awake',
     requirements: [],
     targetId: key,
-    block: (s) =>
-      isHandSlot(slot) && !canHoldWith(s.player, HAND_ARM[slot]) ? `Your ${bodyPartName(HAND_ARM[slot])} cannot hold anything` : undefined,
+    block: (s) => (isHandSlot(slot) ? handBlock(s.player, def, slot) : undefined),
     run: (ctx) => {
       const player = ctx.state.player;
       const item = takeFromEntry(player.inventory, key, 1);
       if (!item) {
         return;
       }
-      const previous = unequip(player, slot);
+      const previous = [unequip(player, slot), both ? unequip(player, 'leftHand') : undefined].filter((id) => id !== undefined);
       const { quantity: _quantity, ...held } = item;
       void _quantity;
       player.equipment[slot] = held;
-      const swap = previous ? ` and put away the ${getItemDef(previous).name.toLowerCase()}` : '';
-      ctx.log(hand ? `You take the ${name} in your ${SLOT_LABELS[slot]}${swap}.` : `You put on the ${name}${swap}.`);
+      const swap =
+        previous.length > 0 ? ` and put away ${previous.map((id) => `the ${getItemDef(id).name.toLowerCase()}`).join(' and ')}` : '';
+      const where = both ? 'both hands' : `your ${SLOT_LABELS[slot]}`;
+      ctx.log(hand ? `You take the ${name} in ${where}${swap}.` : `You put on the ${name}${swap}.`);
+    },
+  };
+}
+
+/** Puts every arrow of a bag entry into the arrow slot; arrows of another kind there go back into the bag. */
+function equipArrowsAction(def: ResourceDef, key: string): GameAction {
+  return {
+    id: `equip-arrows:${key}`,
+    label: 'Equip',
+    category: 'item',
+    details:
+      'Puts all these arrows into the arrow slot, where a bow in the weapon hand shoots them from. Other arrows there go back into your bag.',
+    minutes: 1,
+    energy: 0,
+    timeMode: 'awake',
+    requirements: [],
+    targetId: key,
+    run: (ctx) => {
+      const player = ctx.state.player;
+      const taken = takeFromEntry(player.inventory, key, findEntry(player.inventory, key)?.quantity ?? 0);
+      if (!taken) {
+        return;
+      }
+      const kept = player.arrows?.itemId === def.id ? player.arrows.quantity : 0;
+      const previous = kept > 0 ? undefined : unequipArrows(player);
+      player.arrows = { itemId: def.id, quantity: kept + taken.quantity };
+      const swap = previous ? ` and put ${itemAmount(previous.itemId, previous.quantity)} back in your bag` : '';
+      ctx.log(`You put ${itemAmount(def.id, taken.quantity)} in the arrow slot${swap}.`);
     },
   };
 }
@@ -886,6 +942,24 @@ function inventoryActions(state: GameState): GameAction[] {
       });
     }
   }
+  const arrows = player.arrows;
+  if (arrows) {
+    actions.push({
+      id: 'unequip:arrows',
+      label: 'Put away',
+      category: 'item',
+      details: 'Puts the arrows into your bag.',
+      minutes: 1,
+      energy: 0,
+      timeMode: 'awake',
+      requirements: [],
+      targetId: 'arrows',
+      run: (ctx) => {
+        unequipArrows(ctx.state.player);
+        ctx.log(`You put ${itemAmount(arrows.itemId, arrows.quantity)} in your bag.`);
+      },
+    });
+  }
   player.inventory.forEach((stack, index) => {
     const def = getItemDef(stack.itemId);
     const key = entryKey(player.inventory, index);
@@ -894,6 +968,9 @@ function inventoryActions(state: GameState): GameAction[] {
     }
     if (def.category === 'equipment') {
       actions.push(...slotsFor(def).map((slot) => equipAction(def, slot, key)));
+    }
+    if (def.category === 'resource' && def.arrow) {
+      actions.push(equipArrowsAction(def, key));
     }
     if (def.lightable) {
       actions.push(...torchActions({ key }, stack.lit === true));

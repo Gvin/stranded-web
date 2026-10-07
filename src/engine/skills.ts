@@ -1,4 +1,4 @@
-import { SKILL_RULES } from './rules';
+import { fightingSkillBonus, SKILL_RULES } from './rules';
 import { type InventoryStack, type PlayerState, SKILL_IDS, type SkillId, type SkillState } from './types';
 
 // Skills: what the castaway learns by doing. Each goes from level 0 to 10 and changes how well related actions go.
@@ -46,7 +46,11 @@ export function refundableUnits(used: readonly (readonly InventoryStack[])[]): s
 
 /** One line on what a skill does at a level, for the Body tab. */
 export function describeSkill(id: SkillId, level: number): string {
-  if (id === 'fighting' || id === 'farming') {
+  if (id === 'fighting') {
+    const bonus = fightingSkillBonus(level);
+    return `Damage +${bonus.damage} · accuracy +${Math.round(bonus.accuracy * 100)}%, in melee and with the bow`;
+  }
+  if (id === 'farming') {
     return 'No effect yet.';
   }
   if (id === 'foraging') {

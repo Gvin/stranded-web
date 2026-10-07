@@ -1,14 +1,16 @@
 import { BUILDINGS } from '../../data/buildings';
 import { getItemDef } from '../../data/items';
 import type { CharacterSheet } from '../../engine/character';
-import type { ItemCategory, ItemDef } from '../../engine/definitions';
-import { describeClothing, entryKey, stackWeight } from '../../engine/inventory';
-import { NUTRIENT_NAMES } from '../../engine/rules';
+import type { ItemCategory, ItemDef, WeaponStats } from '../../engine/definitions';
+import { type FightingStat, getFightingStats, type StatPart } from '../../engine/fighting';
+import { describeClothing, entryKey, isHandSlot, lockedBy, stackWeight } from '../../engine/inventory';
+import { FIGHTING_RULES, NUTRIENT_NAMES } from '../../engine/rules';
 import { EQUIP_SLOTS, type EquipSlot, type GameState } from '../../engine/types';
 import { getLocationState } from '../../engine/world';
 import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
 import { ItemIcon } from '../components/Icon';
+import { InfoTip } from '../components/InfoTip';
 import { ItemHealth } from '../components/ItemHealth';
 
 interface InventoryPanelProps {
@@ -24,6 +26,18 @@ const GROUPS: { category: ItemCategory; title: string }[] = [
   { category: 'equipment', title: 'Equipment' },
   { category: 'resource', title: 'Resources' },
 ];
+
+const signed = (value: number) => `${value < 0 ? '−' : '+'}${Math.abs(value)}`;
+const percent = (fraction: number) => Math.round(fraction * 100);
+
+/** What a weapon adds, e.g. "+1 damage, +10% accuracy"; parts that add nothing are left out. */
+function weaponBonus(stats: WeaponStats): string {
+  const parts = [
+    stats.damage ? `${signed(stats.damage)} damage` : '',
+    stats.accuracy ? `${signed(percent(stats.accuracy))}% accuracy` : '',
+  ];
+  return parts.filter(Boolean).join(', ');
+}
 
 /** A short line of what an item is good for; a food shows what it does only once the player has tried it. */
 function itemStats(def: ItemDef, tried: boolean): string {
@@ -42,13 +56,54 @@ function itemStats(def: ItemDef, tried: boolean): string {
     }
   }
   if (def.category === 'equipment') {
-    if (def.combat) {
-      parts.push(`+${def.combat} fighting`);
+    if (def.melee) {
+      parts.push(weaponBonus(def.melee));
+    }
+    if (def.ranged) {
+      parts.push(`ranged: ${def.ranged.damage} damage, ${percent(def.ranged.accuracy)}% accuracy`);
+    }
+    if (def.twoHanded) {
+      parts.push('both hands');
     }
     parts.push(...describeClothing(def.clothing).map((effect) => effect.name));
   }
+  if (def.category === 'resource' && def.arrow && weaponBonus(def.arrow)) {
+    parts.push(`ranged: ${weaponBonus(def.arrow)}`);
+  }
   parts.push(`${def.weight} kg`);
   return parts.join(' · ');
+}
+
+/** How a fighting stat adds up, e.g. "Accuracy: 50% base, +10% knife, × 1.00 for Agility 20 = 60%. Damage: 1 base, +1 knife = 2." */
+function statTip(stat: FightingStat, agility: number): string {
+  const list = (parts: readonly StatPart[], unit: string, scale: number) =>
+    parts
+      .map((p, index) => {
+        const value = Math.round(p.value * scale);
+        return `${index === 0 ? value : signed(value)}${unit} ${p.source.toLowerCase()}`;
+      })
+      .join(', ');
+  const capped = stat.accuracy >= FIGHTING_RULES.maxAccuracy ? ` (at most ${percent(FIGHTING_RULES.maxAccuracy)}%)` : '';
+  // why: non-breaking spaces keep "× 0.70" and "= 32%" together when the tip wraps.
+  const nbsp = ' ';
+  return (
+    `Accuracy: ${list(stat.accuracyParts, '%', 100)}, ×${nbsp}${stat.agilityFactor.toFixed(2)} for Agility ${Math.round(agility)}${nbsp}=${nbsp}` +
+    `${percent(stat.accuracy)}%${capped}. Damage: ${list(stat.damageParts, '', 1)}${nbsp}=${nbsp}${stat.damage}.`
+  );
+}
+
+function FightingRow({ name, stat, agility }: { name: string; stat: FightingStat; agility: number }) {
+  return (
+    <li className="fighting__row">
+      <span className="fighting__name">
+        {name}
+        <InfoTip label={`${name} fighting`} text={statTip(stat, agility)} />
+      </span>
+      <span className="fighting__value">
+        Accuracy <strong>{percent(stat.accuracy)}%</strong> · Damage <strong>{stat.damage}</strong>
+      </span>
+    </li>
+  );
 }
 
 function TypeChips({ def }: { def: ItemDef }) {
@@ -72,6 +127,8 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
     actions.filter((a) => a.action.category === category && a.action.targetId === itemId && (!prefix || a.action.id.startsWith(prefix)));
   const load = sheet.carryCapacity > 0 ? sheet.carriedWeight / sheet.carryCapacity : 1;
   const storage = getLocationState(state, player.locationId).buildings.storage;
+  const fighting = getFightingStats(state, sheet);
+  const agility = sheet.attributes.agility.effective;
 
   return (
     <div className="panel">
@@ -93,12 +150,16 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
         <ul className="card slots">
           {EQUIP_SLOTS.map((slot) => {
             const item = player.equipment[slot];
+            const locking = isHandSlot(slot) && !item ? lockedBy(player, slot) : undefined;
             return (
               <li key={slot} className="slot">
-                <span className="slot__name">{SLOT_NAMES[slot]}</span>
+                <span className="slot__name">
+                  {SLOT_NAMES[slot]}
+                  {slot === fighting.weaponHand && <span className="slot__tag">weapon</span>}
+                </span>
                 <span className={item ? 'slot__item' : 'slot__item muted'}>
                   {item && <ItemIcon itemId={item.itemId} size={22} />}
-                  {item ? getItemDef(item.itemId).name : 'empty'}
+                  {item ? getItemDef(item.itemId).name : locking ? `taken by the ${locking.name.toLowerCase()}` : 'empty'}
                   {item && <ItemHealth itemId={item.itemId} health={item.health} lit={item.lit} />}
                 </span>
                 <span className="slot__actions">
@@ -109,6 +170,35 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
               </li>
             );
           })}
+          <li className="slot">
+            <span className="slot__name">Arrows</span>
+            <span className={player.arrows ? 'slot__item' : 'slot__item muted'}>
+              {player.arrows && <ItemIcon itemId={player.arrows.itemId} size={22} />}
+              {player.arrows ? getItemDef(player.arrows.itemId).name : 'empty'}
+              {player.arrows && <span className="muted">×{player.arrows.quantity}</span>}
+            </span>
+            <span className="slot__actions">
+              {byTarget('item', 'arrows').map((a) => (
+                <ActionButton key={a.action.id} view={a} onPerform={onPerform} compact />
+              ))}
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="section-title">Fighting</h2>
+        <ul className="card fighting">
+          <FightingRow name="Melee" stat={fighting.melee} agility={agility} />
+          {fighting.ranged &&
+            ('blocked' in fighting.ranged ? (
+              <li className="fighting__row">
+                <span className="fighting__name">Ranged</span>
+                <span className="muted small">{fighting.ranged.blocked}</span>
+              </li>
+            ) : (
+              <FightingRow name="Ranged" stat={fighting.ranged} agility={agility} />
+            ))}
         </ul>
       </section>
 
