@@ -7,7 +7,7 @@ import { nextRandom, pickRandom, randomInt, rollChance } from './random';
 import {
   ATTRIBUTE_NAMES,
   MAX_ATTRIBUTE,
-  perceptionFactor,
+  perceptionChance,
   SKILL_NAMES,
   SKILL_RULES,
   successChance,
@@ -33,7 +33,8 @@ import {
 /** API available to content code while an action resolves. All changes go to the state being built. */
 export interface ActionContext {
   readonly state: GameState;
-  log(text: string, tone?: LogTone): void;
+  /** Adds a log line; an alert also shows in a popup. */
+  log(text: string, tone?: LogTone, options?: { alert?: boolean }): void;
   random(): number;
   chance(probability: number): boolean;
   randomInt(min: number, max: number): number;
@@ -199,7 +200,7 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
 
   const ctx: ActionContext = {
     state,
-    log: (text, tone) => appendLog(state, text, tone),
+    log: (text, tone, options) => appendLog(state, text, tone, options),
     random: () => nextRandom(state),
     chance: (probability) => rollChance(state, probability),
     randomInt: (min, max) => randomInt(state, min, max),
@@ -211,7 +212,7 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
       if (options?.perception === false) {
         return Math.min(1, baseChance * foraging);
       }
-      return Math.min(0.95, baseChance * perceptionFactor(ctx.attribute('perception')) * foraging);
+      return perceptionChance(baseChance * foraging, ctx.attribute('perception'));
     },
     gathered: (quantity) => {
       const exact = quantity * gatheredFactor(skillLevel(state.player, 'foraging'));

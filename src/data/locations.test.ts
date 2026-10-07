@@ -127,7 +127,7 @@ describe('beach', () => {
 });
 
 describe('forest', () => {
-  it('offers berries, vines and mushrooms plus grass, sticks and wood', () => {
+  it('offers berries, vines and mushrooms plus grass, sticks, wood and tracking', () => {
     // Arrange
     const state = createTestGame('forest');
 
@@ -137,7 +137,7 @@ describe('forest', () => {
 
     // Assert
     expect(objects).toEqual(['berry-bushes', 'vines', 'mushrooms']);
-    expect(own).toEqual(['obj:location:grass', 'obj:location:sticks', 'obj:location:chop']);
+    expect(own).toEqual(['obj:location:grass', 'obj:location:sticks', 'obj:location:chop', 'obj:location:track']);
   });
 
   it('never runs out of grass', () => {

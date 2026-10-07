@@ -25,7 +25,7 @@ describe('attributes', () => {
 
   it('let Perception multiply find chances by 1 at 20, evenly up to 2 at 100, and below 1 under 20', () => {
     // Act
-    const factors = [0, 20, 60, 100].map(perceptionFactor);
+    const factors = [0, 20, 60, 100].map((perception) => perceptionFactor(perception));
 
     // Assert
     expect(factors).toEqual([0.75, 1, 1.5, 2]);

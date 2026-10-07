@@ -19,6 +19,8 @@ export const ATTRIBUTE_RULES = {
   successPerPoint: 0.005,
   /** Perception multiplies find chances by 1 at the basic value, rising evenly to this at MAX_ATTRIBUTE. */
   perceptionAtMax: 2,
+  /** A chance Perception improves never goes above this. */
+  maxPerceptionChance: 0.95,
 } as const;
 
 export const ATTRIBUTE_NAMES: Record<AttributeId, string> = {
@@ -171,9 +173,17 @@ export function speedFactor(agility: number): number {
   return Math.min(3, Math.max(0.5, Math.sqrt(BASE_ATTRIBUTE / agility)));
 }
 
-/** Multiplier for the chance of finding things: 1 at 20 perception, rising evenly to 2 at 100 (and below 1 under 20). */
-export function perceptionFactor(perception: number): number {
-  return factorFromBase(perception, ATTRIBUTE_RULES.perceptionAtMax);
+/**
+ * Multiplier for the chance of finding things: 1 at 20 perception, rising evenly to `atMax` at 100 (2 unless an action
+ * gives its own), and below 1 under 20.
+ */
+export function perceptionFactor(perception: number, atMax: number = ATTRIBUTE_RULES.perceptionAtMax): number {
+  return factorFromBase(perception, atMax);
+}
+
+/** A chance improved by Perception (see `perceptionFactor`), at most 95%. */
+export function perceptionChance(baseChance: number, perception: number, atMax?: number): number {
+  return Math.min(ATTRIBUTE_RULES.maxPerceptionChance, baseChance * perceptionFactor(perception, atMax));
 }
 
 /** A multiplier of 1 at the basic attribute value, rising evenly to `atMax` at MAX_ATTRIBUTE and falling below the basic value. */

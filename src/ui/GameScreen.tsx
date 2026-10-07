@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getActions } from '../engine/actions';
 import { type CharacterSheet, getCharacterSheet } from '../engine/character';
 import { BODY_CONDITIONS } from '../engine/conditions';
-import type { GameState } from '../engine/types';
+import type { GameState, LogEntry, LogTone } from '../engine/types';
 import { BODY_PART_IDS } from '../engine/types';
 import { type ActionView, toActionView } from './actionView';
 import type { IconName } from '../icons/gameIcons';
@@ -47,18 +47,28 @@ function conditionKeys(state: GameState, sheet: CharacterSheet): string[] {
   return [...parts, ...sheet.conditions.map((c) => `player:${c.id}`)];
 }
 
-/** Texts of log entries marked as alerts that arrived since the game screen opened, until the player closes the popup. */
-function useLogAlerts(state: GameState): { texts: string[]; dismiss(): void } {
-  const [texts, setTexts] = useState<string[]>([]);
+/** Popup titles of alerts by their tone: bad alerts are items falling apart, good ones are finds. */
+const ALERT_TITLES: Partial<Record<LogTone, string>> = { bad: 'Worn out', good: 'Found' };
+
+/** The title for alerts shown together; alerts of different tones get a neutral one. */
+function alertTitle(entries: readonly LogEntry[]): string {
+  const tones = new Set(entries.map((entry) => entry.tone));
+  const [tone] = tones;
+  return (tones.size === 1 && tone && ALERT_TITLES[tone]) || 'Notice';
+}
+
+/** Log entries marked as alerts that arrived since the game screen opened, until the player closes the popup. */
+function useLogAlerts(state: GameState): { entries: LogEntry[]; dismiss(): void } {
+  const [entries, setEntries] = useState<LogEntry[]>([]);
   const seenLogId = useRef(state.log.at(-1)?.id ?? 0);
   useEffect(() => {
-    const fresh = state.log.filter((entry) => entry.alert && entry.id > seenLogId.current).map((entry) => entry.text);
+    const fresh = state.log.filter((entry) => entry.alert && entry.id > seenLogId.current);
     seenLogId.current = state.log.at(-1)?.id ?? seenLogId.current;
     if (fresh.length > 0) {
-      setTexts((current) => [...current, ...fresh]);
+      setEntries((current) => [...current, ...fresh]);
     }
   }, [state.log]);
-  return { texts, dismiss: () => setTexts([]) };
+  return { entries, dismiss: () => setEntries([]) };
 }
 
 /** Recipes the player can make right now but has never made. */
@@ -160,10 +170,10 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
       )}
       {state.status === 'dead' && <DeathScreen state={state} onNewGame={onNewGame} />}
       {menuOpen && <MenuDialog onClose={() => setMenuOpen(false)} onNewGame={onNewGame} />}
-      {alerts.texts.length > 0 && state.status === 'alive' && (
-        <Modal title="Worn out" onClose={alerts.dismiss}>
-          {alerts.texts.map((text, index) => (
-            <p key={index}>{text}</p>
+      {alerts.entries.length > 0 && state.status === 'alive' && (
+        <Modal title={alertTitle(alerts.entries)} onClose={alerts.dismiss}>
+          {alerts.entries.map((entry) => (
+            <p key={entry.id}>{entry.text}</p>
           ))}
           <div className="button-row">
             <button type="button" className="button button--primary" onClick={alerts.dismiss}>

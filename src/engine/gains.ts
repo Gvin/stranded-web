@@ -1,7 +1,7 @@
 import { getItemDef } from '../data/items';
 import { getCharacterSheet } from './character';
 import type { GainDef } from './definitions';
-import { perceptionFactor, successChance } from './rules';
+import { perceptionChance, successChance } from './rules';
 import { findChanceFactor, skillLevel } from './skills';
 import type { AttributeId, GameState } from './types';
 
@@ -36,7 +36,7 @@ export function resolveGains(state: GameState, defs: readonly GainDef[]): Gain[]
     }
     let chance = def.chance === undefined || def.chance >= 1 ? undefined : def.chance;
     if (chance !== undefined && def.perception) {
-      chance = Math.min(0.95, chance * perceptionFactor(perception) * (def.find ? foraging : 1));
+      chance = perceptionChance(chance * (def.find ? foraging : 1), perception);
     } else if (chance !== undefined && def.find) {
       chance = chance * foraging >= 1 ? undefined : chance * foraging;
     }
@@ -45,6 +45,11 @@ export function resolveGains(state: GameState, defs: readonly GainDef[]): Gain[]
     }
     return { label: `${getItemDef(def.itemId).name}${quantityLabel(def.quantity)}`, itemId: def.itemId, chance };
   });
+}
+
+/** A base chance improved by the current Perception (see `perceptionChance`), for gains that are not items. */
+export function perceptionGainChance(state: GameState, baseChance: number, atMax?: number): number {
+  return perceptionChance(baseChance, getCharacterSheet(state).attributes.perception.effective, atMax);
 }
 
 /** Chance right now that an action depending on the attribute succeeds, for its gains. */

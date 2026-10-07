@@ -1,5 +1,6 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
-import { successGainChance } from '../../engine/gains';
+import { perceptionGainChance, successGainChance } from '../../engine/gains';
+import { perceptionChance } from '../../engine/rules';
 import { type FindDef, findGains, rollFinds } from '../../engine/outcomes';
 import { carried, holding } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
@@ -17,6 +18,10 @@ const CHOPPED_LEAVES = [20, 30] as const;
 
 /** Chance that a picked berry is a bitter one. */
 const BITTER_BERRY_CHANCE = 0.1;
+
+/** Chance to find a fresh trail when tracking animals at 20 Perception; Perception multiplies it up to 3 times at 100 (90%). */
+const TRACKING_CHANCE = 0.3;
+const TRACKING_PERCEPTION_AT_MAX = 3;
 
 /** Found together with sticks, and moss also while picking berries. */
 const LEAVES: FindDef = { itemId: 'leaves', chance: 0.3, quantity: [2, 4] };
@@ -199,6 +204,26 @@ export const forest: LocationDef = {
         ).map(([itemId, [min, max]]) => ({ itemId, quantity: ctx.gathered(ctx.randomInt(min, max)) }));
         const resin = ctx.chance(ctx.findChance(RESIN_WHEN_CHOPPING)) ? 1 : 0;
         ctx.addItems([...items, { itemId: 'resin', quantity: resin }]);
+      },
+    },
+    {
+      id: 'track',
+      label: 'Track animals',
+      description: 'Search the undergrowth for fresh tracks and follow them.',
+      details:
+        `You find a fresh trail ${TRACKING_CHANCE * 100}% of the time at 20 Perception, rising to ` +
+        `${Math.round(TRACKING_CHANCE * TRACKING_PERCEPTION_AT_MAX * 100)}% at 100.`,
+      gains: (state) => [
+        { text: 'A fresh animal trail', chance: perceptionGainChance(state, TRACKING_CHANCE, TRACKING_PERCEPTION_AT_MAX) },
+      ],
+      minutes: hours(3),
+      energy: 10,
+      run: (ctx) => {
+        if (ctx.chance(perceptionChance(TRACKING_CHANCE, ctx.attribute('perception'), TRACKING_PERCEPTION_AT_MAX))) {
+          ctx.log('You find a fresh animal trail.', 'good', { alert: true });
+        } else {
+          ctx.log('You search the undergrowth for hours, but find no fresh tracks.');
+        }
       },
     },
   ],

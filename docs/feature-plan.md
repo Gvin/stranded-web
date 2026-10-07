@@ -4,7 +4,7 @@ Last updated: 2026-10-07
 
 ## Overview
 
-Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, and weapon stats in 0.13.0 (save format 11); the README describes how they work. Next come fighting and hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
+Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11) and tracking animals in 0.14.0; the README describes how they work. Next come the rest of hunting, then fighting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
 
 Every section below is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
 
@@ -16,6 +16,43 @@ Rules every feature follows, taken from how the engine works today:
 - Every change to the persisted state bumps `SAVE_VERSION`, with a migration step in `src/save/steps/` and a test loading the old format.
 - Every new item, building, animal and plant gets a game-icons.net icon.
 - Every new action shows its time, energy, requirements and possible gains in the popup, like the existing ones.
+
+## Hunting
+
+Decided: hunting comes before fighting, as it is where fights come from. Its first step, Track animals in the forest, shipped in game 0.14.0 (see the README); a found trail only shows a popup so far.
+
+> **Suggestion, not decided.** The rest of this section, apart from the parts marked as decided, including every new item, action, building, object and recipe, waits for your approval.
+
+Hunting is its own activity, as decided when the forest boars were removed: track an animal, stalk it, then shoot or fight it. It becomes the main source of meat, hides, feathers and bones, and so feeds the Meat nutrition group and leather gear.
+
+**Leather** (decided): leather, which already exists as a resource and is needed for the leather tunic, hat, jacket, the small rain collector and the makeshift raincoat, gets its source from hunting.
+
+**The hunt**
+
+1. **Track animals** (in the game, forest only): a found trail tells which animal made it.
+2. **Stalk**: each try brings you closer. Agility against the animal's wariness; a failure scares it off, or makes an aggressive animal charge.
+3. **Strike**: shoot from a distance with the bow, or close in. Either way it becomes an encounter (see Fighting) that starts at the current distance.
+4. **Butcher** a large kill with something sharp (about 30 minutes). Small kills go straight into the bag.
+
+| Animal       | Where        | Active        | Health | Danger                               | Loot                       |
+| ------------ | ------------ | ------------- | ------ | ------------------------------------ | -------------------------- |
+| Seabird      | Beach, Rocks | day           | 5      | flies off                            | feathers ×2–4, raw meat    |
+| Coconut crab | Beach        | night         | 12     | pinches (Injured)                    | raw crab ×2                |
+| Goat         | Rocks        | day           | 25     | flees; butts when cornered (Injured) | raw meat ×3, hide, bone    |
+| Wild boar    | Forest       | dawn, evening | 40     | charges (Fracture, Bleeding)         | raw meat ×4, hide ×2, bone |
+
+**Other ways to get meat**
+
+- **Snare** (stick ×2, rope): set in the forest, checked hours later; may catch a small animal.
+- **Spear fishing** at the sea while holding a spear; gives raw fish.
+- **Look for nests** at the rocks; gives bird eggs, which have no source today.
+
+**Engine and UI**
+
+- Each location keeps an animal population as a named stock that regrows slowly, so over-hunting empties an area for a few days.
+- New resources: hide, bone (for later recipes such as bone-tipped arrows and a needle).
+- A found trail is stored in the state, so a hunt survives a reload.
+- Save change: the found trail, with a version bump as the save rule requires; animal stocks reuse the existing stock map.
 
 ## Fighting
 
@@ -45,41 +82,6 @@ There are no fights in the game today. Fighting becomes an encounter of short ro
 - The Explore tab turns into an encounter card: the animal's icon, a health bar, the distance, and large action buttons for phones.
 - Each round is logged in one line ("You hit the boar with the spear. It gores your left leg: Bleeding.").
 - Save change: the optional `encounter` field, with a version bump as the save rule requires.
-
-## Hunting
-
-> **Suggestion, not decided.** Everything in this section, including every new item, action, building, object and recipe, waits for your approval.
-
-Hunting is its own activity, as decided when the forest boars were removed: track an animal, stalk it, then shoot or fight it. It becomes the main source of meat, hides, feathers and bones, and so feeds the Meat nutrition group and leather gear.
-
-**Leather** (decided): leather, which already exists as a resource and is needed for the leather tunic, hat, jacket, the small rain collector and the makeshift raincoat, gets its source from hunting.
-
-**The hunt**
-
-1. **Look for tracks**, a location action (about 30 minutes). Perception decides whether you find a trail, and of which animal.
-2. **Stalk**: each try brings you closer. Agility against the animal's wariness; a failure scares it off, or makes an aggressive animal charge.
-3. **Strike**: shoot from a distance with the bow, or close in. Either way it becomes an encounter (see Fighting) that starts at the current distance.
-4. **Butcher** a large kill with something sharp (about 30 minutes). Small kills go straight into the bag.
-
-| Animal       | Where        | Active        | Health | Danger                               | Loot                       |
-| ------------ | ------------ | ------------- | ------ | ------------------------------------ | -------------------------- |
-| Seabird      | Beach, Rocks | day           | 5      | flies off                            | feathers ×2–4, raw meat    |
-| Coconut crab | Beach        | night         | 12     | pinches (Injured)                    | raw crab ×2                |
-| Goat         | Rocks        | day           | 25     | flees; butts when cornered (Injured) | raw meat ×3, hide, bone    |
-| Wild boar    | Forest       | dawn, evening | 40     | charges (Fracture, Bleeding)         | raw meat ×4, hide ×2, bone |
-
-**Other ways to get meat**
-
-- **Snare** (stick ×2, rope): set in the forest, checked hours later; may catch a small animal.
-- **Spear fishing** at the sea while holding a spear; gives raw fish.
-- **Look for nests** at the rocks; gives bird eggs, which have no source today.
-
-**Engine and UI**
-
-- Each location keeps an animal population as a named stock that regrows slowly, so over-hunting empties an area for a few days.
-- New resources: hide, bone (for later recipes such as bone-tipped arrows and a needle).
-- A found trail is stored with the encounter, so a hunt survives a reload.
-- Save change: covered by the `encounter` field from Fighting; animal stocks reuse the existing stock map.
 
 ## Farming
 
@@ -130,18 +132,19 @@ Decided: one central system for game events, the things that happen to the playe
 
 ## Roadmap
 
-Two releases take the game from 0.13.0 (save format 11) to 0.15.0 (save format 13), all made of the suggestions above.
+Three releases take the game from 0.14.0 (save format 11) to 0.17.0 (save format 14), all made of the suggestions above.
 
-| Release            | Game version | Save format | Contents                                                                                                   |
-| ------------------ | ------------ | ----------- | ---------------------------------------------------------------------------------------------------------- |
-| Fighting + hunting | 0.14.0       | 12          | Fight encounters, tracking and stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests |
-| Farming            | 0.15.0       | 13          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                  |
+| Release  | Game version | Save format | Contents                                                                                                 |
+| -------- | ------------ | ----------- | -------------------------------------------------------------------------------------------------------- |
+| Hunting  | 0.15.0       | 12          | Trails that lead to animals, stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests |
+| Fighting | 0.16.0       | 13          | Fight encounters                                                                                         |
+| Farming  | 0.17.0       | 14          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                |
 
 Fighting gives the existing Armor and the Fighting skill their use, and farming relies on the existing rain to water the garden.
 
 **Why this order**
 
-- Hunting reuses the fight encounter.
+- Hunting comes before fighting: it is where fights come from, and fighting then turns its strike into an encounter.
 - Farming comes last: it leans on rain, the Farming skill and the nutrition groups.
 
 **Testing each release**
@@ -152,6 +155,7 @@ Fighting gives the existing Armor and the Fighting skill their use, and farming 
 
 ## Open questions
 
+- [ ] Hunting before fighting: until fights exist, how should a hunt end? Recommendation: let the Hunting release give meat only where no fight is needed (snares, nests, spear fishing), and have trails lead to a strike once Fighting is in.
 - [ ] Events System: when are events checked (after actions, on the way, while resting or sleeping), and which of the removed hazards come back?
 - [ ] Should the spear take both hands, like the bow?
 - [ ] Leather from hunting: straight from the kill, or hides that are made into leather?
