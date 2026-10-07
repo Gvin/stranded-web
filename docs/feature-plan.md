@@ -4,9 +4,9 @@ Last updated: 2026-10-07
 
 ## Overview
 
-Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), and building upgrades in 0.12.0 (save format 9); the README describes how they work. Next comes the attributes refactoring, whose changes are still to be designed (the Roadmap below follows once they are), then weapon stats, fighting and hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
+Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), and the attributes refactoring in 0.12.2; the README describes how they work. Next come weapon stats, fighting and hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
 
-The Attributes Refactoring section only describes how the game works today, so far. Everything after it is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
+Every section below is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
 
 Rules every feature follows, taken from how the engine works today:
 
@@ -16,107 +16,6 @@ Rules every feature follows, taken from how the engine works today:
 - Every change to the persisted state bumps `SAVE_VERSION`, with a migration step in `src/save/steps/` and a test loading the old format.
 - Every new item, building, animal and plant gets a game-icons.net icon.
 - Every new action shows its time, energy, requirements and possible gains in the popup, like the existing ones.
-
-## Attributes Refactoring
-
-Partly decided. First what changes, then how attributes work today, as the starting point.
-
-### Decided changes
-
-- **20 is the basic value** of every attribute. Above 20 an attribute helps the actions it affects; below 20 it penalizes them.
-- **Success chances**: three actions that roll an attribute check today get a success chance of 30% + (attribute − 20) / 2 instead. That is 30% at 20, 40% at 40, 70% at 100 and 25% at 10. At the start of a game this makes them harder than today (30% instead of 50–55%), on purpose:
-  - Tear down vines: Strength (today 55% at 20).
-  - Climb for coconuts: Agility (today 55% at 20).
-  - Dive at the reef: Agility (today 50% at 20).
-- **Perception** multiplies the base chance of every foraging find by 1 at 20, rising evenly to 2 at 100: 1 + (Perception − 20) / 80, so 1.5 at 60. The amounts found stay the same, and find chances stay capped at 95%. Today the multiplier is 0.5 + Perception / 40, which reaches 3 at 100.
-- **Pick berries**: the check that leaves bitter berries on the bush goes away. A picked berry is bitter 10% of the time (today 30%), whatever the Perception: bitter berries are a resource of their own, for uses still to come. Perception still raises the chance of finding moss there, like every foraging find.
-- **Travel time** keeps scaling with Agility as it does today.
-- Not discussed yet, so unchanged: max health and carry capacity (Strength), max thirst, hunger and energy (Endurance), fighting, the modifiers and training.
-
-### How attributes work today
-
-**The four attributes**: Strength, Endurance, Perception and Agility. Each has a base value that starts at 20 and grows to at most 100 (`BASE_ATTRIBUTE` and `MAX_ATTRIBUTE` in `src/engine/rules.ts`). Everything below uses the effective value: the base changed by the modifiers further down, kept between 1 and 100. The player starts with an injured left arm, so their effective Strength is 18.
-
-**What each attribute does** (formulas in `src/engine/rules.ts`; the value in brackets is at 20)
-
-| Attribute  | Affects                                                  | How                                                                      |
-| ---------- | -------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Strength   | Max health                                               | 80 + Strength (100)                                                      |
-| Strength   | Carry capacity                                           | 10 + Strength / 2 kg (20 kg)                                             |
-| Strength   | Tear down vines: whether a vine gives way                | check against 15 (55%)                                                   |
-| Strength   | Fighting power, in the engine only: no action fights yet | (Strength + Agility) / 2 + the weapon's bonus                            |
-| Endurance  | Max thirst, max hunger and max energy                    | 80 + Endurance each (100)                                                |
-| Perception | The chance of every foraging find (not the amounts)      | × (0.5 + Perception / 40), at most 95% (×1 at 20, ×1.5 at 40, ×3 at 100) |
-| Perception | Pick berries: leaving the bitter berries on the bush     | check against 25 (45%)                                                   |
-| Agility    | Travel time between locations                            | × √(20 / Agility), between ×0.5 and ×3 (×1 at 20, ×0.5 at 80)            |
-| Agility    | Climb for coconuts: whether you reach the top            | check against 15 (55%)                                                   |
-| Agility    | Dive at the reef: whether the current lets you reach it  | check against 20 (50%)                                                   |
-| Agility    | Fighting power, in the engine only                       | see Strength                                                             |
-
-- A **check** succeeds with 50% + (attribute − difficulty)%, between 5% and 95%.
-- **Foraging finds** that Perception improves:
-  - Search the wreckage, Look for fallen coconuts and Comb the tideline.
-  - Dive at the reef (mussels, fish and rope, once the Agility check lets you reach the reef).
-  - Gather stones (flint and clay; the stones themselves always come).
-  - Gather sticks (resin, leaves and moss), Pick berries (moss) and Chop wood (resin).
-- Fixed amounts (sticks, grass, pebbles, mushrooms, logs) do not depend on any attribute.
-- The engine can also scale an action's time by an attribute (`speedAttribute`), but no action uses it; only travel scales with Agility.
-- The Body tab shows a short hint per attribute: "Max health, carry weight and fighting.", "Max energy, thirst and hunger.", "Finding things when searching or gathering." and "Travel speed, climbing and fighting."
-
-**Modifiers**: percentages that add up, with all penalties together never lowering an attribute by more than 90%. They are listed per source in the Body tab.
-
-| Source                                     | Strength            | Endurance           | Perception          | Agility             |
-| ------------------------------------------ | ------------------- | ------------------- | ------------------- | ------------------- |
-| Injured or Burnt arm                       | −10% (bandaged −4%) |                     |                     |                     |
-| Injured or Burnt leg                       |                     |                     |                     | −10% (bandaged −4%) |
-| Injured or Burnt torso                     | −10% (bandaged −4%) | −10% (bandaged −4%) |                     |                     |
-| Injured or Burnt head                      |                     | −10% (bandaged −4%) | −10% (bandaged −4%) |                     |
-| Fractured arm / leg                        | −20%                |                     |                     | −25%                |
-| Splinted arm / leg                         | −8%                 |                     |                     | −10%                |
-| Missing arm / leg                          | −30%                |                     |                     | −40%                |
-| Dizzy light / medium / heavy               |                     |                     | −10/−20/−35%        | −10/−20/−35%        |
-| Thirsty or Starving light / medium / heavy | −10/−20/−35%        |                     | −10/−20/−35%        | −10/−20/−35%        |
-| Overheated, Freezing                       | −20%                | −20%                | −20%                | −20%                |
-| Malnutrition                               | −15%                | −15%                | −15%                | −15%                |
-| Sleepy                                     | −20%                | −20%                | −20%                | −20%                |
-| Awful / Bad / Good / Perfect Sleep         | −20/−10/+10/+20%    | −20/−10/+10/+20%    | −20/−10/+10/+20%    | −20/−10/+10/+20%    |
-
-- Exhaustion (energy below 10% of its maximum) makes you Dizzy (medium).
-- Thirsty and Starving begin when their bar is over 50% full, medium over 75%, heavy over 90%.
-- Bleeding, Poisoned and Wet change no attribute.
-- Max thirst, hunger and energy leave out Thirsty, Starving and Dizzy, so those conditions never shrink the bars that cause them. Max health and carry capacity count every modifier.
-
-**How attributes are trained**
-
-- An action lists training points for some attributes. Each time it is performed, those points are added, whether it succeeds or not.
-- A base point costs 10 + the current base in points: 30 at 20, 60 at 50, 109 at 99. Each new point is logged, and training stops at 100.
-- Only the base grows; modifiers have nothing to do with training.
-
-| Action                   | Time, energy             | Strength | Endurance | Perception | Agility |
-| ------------------------ | ------------------------ | -------- | --------- | ---------- | ------- |
-| Search the wreckage      | 30 min, 5                |          |           | 2          |         |
-| Climb for coconuts       | 30 min, 10               | 1        |           |            | 2       |
-| Look for fallen coconuts | 20 min, 2                |          |           | 1          |         |
-| Comb the tideline        | 20 min, 3                |          |           | 1          |         |
-| Dive at the reef         | 45 min, 12               |          | 2         |            | 1       |
-| Pick berries             | 20 min, 2                |          |           | 1          |         |
-| Cut vines                | 15 min, 3                | 1        |           |            |         |
-| Tear down vines          | 30 min, 6                | 2        |           |            |         |
-| Chop wood                | 2 h, 25                  | 3        | 2         |            |         |
-| Gather stones            | 15 min, 4                | 2        |           | 1          |         |
-| Travel (every journey)   | by the route and Agility |          | 1         |            | 1       |
-| Cook (every item)        | 15 min, 0                |          |           | 1          |         |
-| Bandage                  | 10 min, 0                |          |           | 1          |         |
-| Splint                   | 20 min, 3                |          | 1         | 1          |         |
-| Every building step      | 15 min, 2                | 1        |           |            |         |
-
-Nothing else trains attributes:
-
-- crafting (any recipe), resting, sleeping, eating and drinking;
-- gathering grass, sticks and pebbles, and picking mushrooms;
-- the spring and the rain collector;
-- feeding, lighting or sitting by the fire, and the torch;
-- equipping, dropping, picking up and storing items.
 
 ## Weapon stats
 
@@ -260,13 +159,13 @@ Decided: one central system for game events, the things that happen to the playe
 
 ## Roadmap
 
-Three releases take the game from 0.12.0 (save format 9) to 0.15.0 (save format 12), all made of the suggestions above.
+Three releases take the game from 0.12.2 (save format 10) to 0.15.0 (save format 13), all made of the suggestions above.
 
 | Release            | Game version | Save format | Contents                                                                                                   |
 | ------------------ | ------------ | ----------- | ---------------------------------------------------------------------------------------------------------- |
-| Weapon stats       | 0.13.0       | 10          | Weapon profiles, two-handed weapons                                                                        |
-| Fighting + hunting | 0.14.0       | 11          | Fight encounters, tracking and stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests |
-| Farming            | 0.15.0       | 12          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                  |
+| Weapon stats       | 0.13.0       | 11          | Weapon profiles, two-handed weapons                                                                        |
+| Fighting + hunting | 0.14.0       | 12          | Fight encounters, tracking and stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests |
+| Farming            | 0.15.0       | 13          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                  |
 
 Fighting gives the existing Armor and the Fighting skill their use, and farming relies on the existing rain to water the garden.
 

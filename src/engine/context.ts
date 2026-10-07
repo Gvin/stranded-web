@@ -2,15 +2,15 @@ import { getItemDef } from '../data/items';
 import { getCharacterSheet } from './character';
 import { applyBodyCondition, BODY_CONDITIONS, bodyPartName, type Severity, stagedDuration, TIMED_CONDITIONS } from './conditions';
 import type { AttributeXp, ObjectDef } from './definitions';
-import { addToInventory, countItem, releaseBlockedHands, removeFromInventory } from './inventory';
+import { addToInventory, countItem, learnItem, releaseBlockedHands, removeFromInventory } from './inventory';
 import { nextRandom, pickRandom, randomInt, rollChance } from './random';
 import {
   ATTRIBUTE_NAMES,
-  checkChance,
   MAX_ATTRIBUTE,
   perceptionFactor,
   SKILL_NAMES,
   SKILL_RULES,
+  successChance,
   SURVIVAL_RULES,
   xpToNextPoint,
 } from './rules';
@@ -40,8 +40,8 @@ export interface ActionContext {
   pick<T>(items: readonly T[]): T;
   /** Current effective attribute value. */
   attribute(id: AttributeId): number;
-  /** Rolls an attribute check against a difficulty. */
-  check(attribute: AttributeId, difficulty: number): boolean;
+  /** Rolls whether an action that depends on the attribute succeeds (see `successChance`). */
+  succeeds(attribute: AttributeId): boolean;
   /**
    * Chance of a find: the base chance scaled by perception (capped at 95%) and by the Foraging skill.
    * Without perception, only the Foraging skill counts (capped at 100%).
@@ -107,6 +107,9 @@ function putInBag(
   const free = Math.max(0, sheet.carryCapacity - sheet.carriedWeight);
   const fits = def.weight > 0 ? Math.min(quantity, Math.floor(free / def.weight + 1e-9)) : quantity;
   addToInventory(state.player, itemId, fits, options?.health, options?.lit);
+  if (quantity > 0) {
+    learnItem(state.player, itemId);
+  }
   if (fits > 0 && !options?.silent) {
     appendLog(state, `+ ${formatAmount(itemId, fits)}`, 'good');
   }
@@ -202,7 +205,7 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
     randomInt: (min, max) => randomInt(state, min, max),
     pick: (items) => pickRandom(state, items),
     attribute: (id) => getCharacterSheet(state).attributes[id].effective,
-    check: (attribute, difficulty) => rollChance(state, checkChance(ctx.attribute(attribute), difficulty)),
+    succeeds: (attribute) => rollChance(state, successChance(ctx.attribute(attribute))),
     findChance: (baseChance, options) => {
       const foraging = findChanceFactor(skillLevel(state.player, 'foraging'));
       if (options?.perception === false) {

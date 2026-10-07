@@ -1322,6 +1322,10 @@ html[data-theme-ready],
   gap: 6px;
 }
 
+.popup__unknown {
+  color: var(--muted);
+}
+
 .popup--tip {
   width: auto;
   max-width: min(280px, calc(100vw - 16px));

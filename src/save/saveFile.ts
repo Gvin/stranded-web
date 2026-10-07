@@ -68,6 +68,8 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     typeof value.environment.until === 'number' &&
     Array.isArray(player.craftedRecipes) &&
     typeof player.awakeSince === 'number' &&
+    Array.isArray(player.knownItems) &&
+    Array.isArray(player.triedFoods) &&
     isRecord(value.locations) &&
     Array.isArray(value.log);
   if (!shapeOk) {

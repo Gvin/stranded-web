@@ -25,9 +25,12 @@ const GROUPS: { category: ItemCategory; title: string }[] = [
   { category: 'resource', title: 'Resources' },
 ];
 
-function itemStats(def: ItemDef): string {
+/** A short line of what an item is good for; a food shows what it does only once the player has tried it. */
+function itemStats(def: ItemDef, tried: boolean): string {
   const parts: string[] = [];
-  if (def.category === 'food') {
+  if (def.category === 'food' && !tried) {
+    parts.push('effects unknown until tried');
+  } else if (def.category === 'food') {
     if (def.nutrition) {
       parts.push(`${def.nutrition > 0 ? '−' : '+'}${Math.abs(def.nutrition)} hunger`);
     }
@@ -135,7 +138,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
                         {stack.quantity > 1 && <span className="muted"> ×{stack.quantity}</span>}
                         <ItemHealth itemId={def.id} health={stack.health} lit={stack.lit} />
                       </span>
-                      <span className="item__stats">{itemStats(def)}</span>
+                      <span className="item__stats">{itemStats(def, player.triedFoods.includes(def.id))}</span>
                     </div>
                     <p className="item__description">{def.description}</p>
                     <TypeChips def={def} />

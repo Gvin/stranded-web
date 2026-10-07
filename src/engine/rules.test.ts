@@ -3,7 +3,7 @@ import { getActions, getBlockedReason } from './actions';
 import { getCharacterSheet } from './character';
 import { applyBodyCondition } from './conditions';
 import { findAction, performAction } from './game';
-import { checkChance } from './rules';
+import { successChance } from './rules';
 import { advanceTime } from './simulation';
 import { createTestGame, giveItem } from './testUtils';
 import { hours } from './time';
@@ -197,7 +197,7 @@ describe('action details', () => {
     const gains = findAction(state, 'obj:palms:climb')?.gains;
 
     // Assert
-    expect(gains).toEqual([{ label: 'Coconut ×1–3', itemId: 'coconut', chance: checkChance(20, 15) }]);
+    expect(gains).toEqual([{ label: 'Coconut ×1–3', itemId: 'coconut', chance: successChance(20) }]);
   });
 
   it('describes what food does to hunger and thirst', () => {

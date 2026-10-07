@@ -90,6 +90,16 @@ export function addToStacks(stacks: InventoryStack[], itemId: string, quantity: 
 
 export function addToInventory(player: PlayerState, itemId: string, quantity: number, health?: number, lit?: boolean): void {
   addToStacks(player.inventory, itemId, quantity, health, lit);
+  if (quantity > 0) {
+    learnItem(player, itemId);
+  }
+}
+
+/** Remembers that the player has had the item, so finds of it are no longer shown as unknown. */
+export function learnItem(player: PlayerState, itemId: string): void {
+  if (!player.knownItems.includes(itemId)) {
+    player.knownItems.push(itemId);
+  }
 }
 
 /** Removes a quantity of an item from a list of stacks, the most worn entries first; false (and nothing removed) when there is not enough. */

@@ -1,6 +1,6 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
 import { isStormy } from '../../engine/environment';
-import { checkGainChance } from '../../engine/gains';
+import { successGainChance } from '../../engine/gains';
 import { type FindDef, findGains, hasLimitedFindsLeft, rollFinds } from '../../engine/outcomes';
 import { unbrokenLimbs } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
@@ -76,7 +76,7 @@ const palms: ObjectDef = {
       label: 'Climb for coconuts',
       description: 'Shimmy up a trunk. Agility helps.',
       details: 'Agility decides whether you make it to the top.',
-      gains: (state) => [{ itemId: 'coconut', quantity: [1, 3], chance: checkGainChance(state, 'agility', 15) }],
+      gains: (state) => [{ itemId: 'coconut', quantity: [1, 3], chance: successGainChance(state, 'agility') }],
       minutes: 30,
       energy: 10,
       usesStock: true,
@@ -84,7 +84,7 @@ const palms: ObjectDef = {
       trains: { agility: 2, strength: 1 },
       skill: 'foraging',
       run: (ctx) => {
-        if (ctx.check('agility', 15)) {
+        if (ctx.succeeds('agility')) {
           const taken = ctx.takeStock(ctx.gathered(ctx.randomInt(1, 3)));
           ctx.log('You shimmy up the trunk and twist the coconuts free.');
           ctx.addItem('coconut', taken);
@@ -161,7 +161,7 @@ const sea: ObjectDef = {
       details: 'Agility decides whether the current lets you reach the reef. You cannot swim with a broken bone.',
       gains: (state) =>
         findGains(state, 'beach', 'reef', REEF_FINDS).map((g) =>
-          'itemId' in g ? { ...g, chance: (g.chance ?? 1) * checkGainChance(state, 'agility', 20) } : g,
+          'itemId' in g ? { ...g, chance: (g.chance ?? 1) * successGainChance(state, 'agility') } : g,
         ),
       minutes: 45,
       energy: 12,
@@ -174,7 +174,7 @@ const sea: ObjectDef = {
       trains: { endurance: 2, agility: 1 },
       skill: 'foraging',
       run: (ctx) => {
-        if (!ctx.check('agility', 20)) {
+        if (!ctx.succeeds('agility')) {
           ctx.log('The current fights you all the way. You come back exhausted and empty-handed.');
           return;
         }

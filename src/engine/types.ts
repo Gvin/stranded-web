@@ -189,6 +189,10 @@ export interface PlayerState {
   craftedRecipes: string[];
   /** Game minute the player last woke up (the start of the game before the first sleep); 20 hours later they are Sleepy. */
   awakeSince: number;
+  /** Ids of every item the player has ever had; possible finds of any other item show as unknown. */
+  knownItems: string[];
+  /** Ids of every food and drink the player has had at least once; only these show what they do. */
+  triedFoods: string[];
 }
 
 export interface LogEntry {

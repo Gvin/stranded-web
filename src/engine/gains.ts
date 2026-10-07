@@ -1,7 +1,7 @@
 import { getItemDef } from '../data/items';
 import { getCharacterSheet } from './character';
 import type { GainDef } from './definitions';
-import { checkChance, perceptionFactor } from './rules';
+import { perceptionFactor, successChance } from './rules';
 import { findChanceFactor, skillLevel } from './skills';
 import type { AttributeId, GameState } from './types';
 
@@ -12,6 +12,8 @@ export interface Gain {
   itemId?: string;
   /** Probability in [0, 1]; undefined when certain. */
   chance?: number;
+  /** A find of an item the player has never had: its chance shows, but not what it is. */
+  unknown?: boolean;
 }
 
 function quantityLabel(quantity: number | readonly [number, number] | undefined): string {
@@ -38,11 +40,14 @@ export function resolveGains(state: GameState, defs: readonly GainDef[]): Gain[]
     } else if (chance !== undefined && def.find) {
       chance = chance * foraging >= 1 ? undefined : chance * foraging;
     }
+    if (def.find && !state.player.knownItems.includes(def.itemId)) {
+      return { label: 'Unknown find', chance, unknown: true };
+    }
     return { label: `${getItemDef(def.itemId).name}${quantityLabel(def.quantity)}`, itemId: def.itemId, chance };
   });
 }
 
-/** Chance to pass an attribute check right now, for gains that depend on one. */
-export function checkGainChance(state: GameState, attribute: AttributeId, difficulty: number): number {
-  return checkChance(getCharacterSheet(state).attributes[attribute].effective, difficulty);
+/** Chance right now that an action depending on the attribute succeeds, for its gains. */
+export function successGainChance(state: GameState, attribute: AttributeId): number {
+  return successChance(getCharacterSheet(state).attributes[attribute].effective);
 }

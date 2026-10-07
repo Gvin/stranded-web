@@ -443,3 +443,32 @@ describe('migration from save format 8', () => {
     expect(migrated.locations.camp?.buildings.fire).toEqual({ id: 'campfire', builtAt: 0, fuel: 0, lit: false });
   });
 });
+
+describe('migration from save format 9', () => {
+  it('lets the player know every item they carry, wear, store, left behind, found or made, and no tried food yet', () => {
+    // Arrange
+    const state = createNewGame(11) as unknown as { player: Record<string, unknown>; locations: Record<string, unknown> };
+    delete state.player.knownItems;
+    delete state.player.triedFoods;
+    state.player.inventory = [{ itemId: 'stick', quantity: 2 }];
+    state.player.craftedRecipes = ['rope'];
+    state.locations.camp = {
+      visited: true,
+      groundItems: [{ id: 50, itemId: 'stone', quantity: 1, droppedAt: 0 }],
+      stock: {},
+      finds: {},
+      constructions: {},
+      buildings: { storage: { id: 'smallStorage', builtAt: 0, items: [{ itemId: 'log', quantity: 1 }] } },
+    };
+    state.locations.beach = { visited: true, groundItems: [], stock: {}, finds: { 'wreckage:knife': 1 }, constructions: {}, buildings: {} };
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 9, gameVersion: '0.12.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 9 });
+    const { player } = (result as { state: GameState }).state;
+    expect([...player.knownItems].sort()).toEqual(['clothes', 'knife', 'log', 'rope', 'stick', 'stone']);
+    expect(player.triedFoods).toEqual([]);
+  });
+});

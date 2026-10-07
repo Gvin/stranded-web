@@ -87,6 +87,7 @@ const GAME_ICONS = [
   'tied-scroll',
   'fire',
   'hazard-sign',
+  'help',
   'thermometer-hot',
   'thermometer-cold',
   'thermometer-scale',

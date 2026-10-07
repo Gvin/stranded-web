@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { formatDuration } from '../../engine/time';
 import type { ActionView } from '../actionView';
-import { ItemIcon } from './Icon';
+import { Icon, ItemIcon } from './Icon';
 import { useAnchoredPosition } from './useAnchoredPosition';
 
 interface ActionPopupProps {
@@ -58,9 +58,16 @@ export function ActionPopup({ id, view, anchor }: ActionPopupProps) {
         <section>
           <h4 className="popup__title">Possible gains</h4>
           <ul className="popup__list">
-            {action.gains.map((gain) => (
-              <li key={gain.label} className="popup__gain">
-                {gain.itemId ? <ItemIcon itemId={gain.itemId} size={16} /> : '•'} {gain.label}
+            {action.gains.map((gain, index) => (
+              <li key={`${index}:${gain.label}`} className="popup__gain">
+                {gain.unknown ? (
+                  <Icon name="help" size={16} className="popup__unknown" />
+                ) : gain.itemId ? (
+                  <ItemIcon itemId={gain.itemId} size={16} />
+                ) : (
+                  '•'
+                )}{' '}
+                {gain.label}
                 {gain.chance !== undefined && <span className="popup__chance"> — {Math.round(gain.chance * 100)}%</span>}
               </li>
             ))}

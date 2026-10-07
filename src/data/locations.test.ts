@@ -221,7 +221,7 @@ describe('leaves, moss and clay', () => {
   it('are easier to spot with good perception, which raises the chances but not the amounts', () => {
     // Arrange
     const sharp = createTestGame('forest');
-    sharp.player.attributes.perception.base = 40;
+    sharp.player.attributes.perception.base = 60;
 
     // Act
     const chances = findAction(sharp, 'obj:location:sticks')

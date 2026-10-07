@@ -1,5 +1,5 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
-import { checkGainChance } from '../../engine/gains';
+import { successGainChance } from '../../engine/gains';
 import { type FindDef, findGains, rollFinds } from '../../engine/outcomes';
 import { carried, holding } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
@@ -15,6 +15,9 @@ const CHOPPED_STICKS = [15, 20] as const;
 const CHOPPED_VINES = [0, 3] as const;
 const CHOPPED_LEAVES = [20, 30] as const;
 
+/** Chance that a picked berry is a bitter one. */
+const BITTER_BERRY_CHANCE = 0.1;
+
 /** Found together with sticks, and moss also while picking berries. */
 const LEAVES: FindDef = { itemId: 'leaves', chance: 0.3, quantity: [2, 4] };
 const MOSS: FindDef = { itemId: 'moss', chance: 0.2, quantity: [1, 2] };
@@ -29,11 +32,11 @@ const berryBushes: ObjectDef = {
     {
       id: 'pick',
       label: 'Pick berries',
-      description: 'A sharp eye helps to tell the good berries from the bad.',
-      details: 'About a third of what you pick may be bitter, poisonous berries; with good perception you leave those on the bush.',
+      description: 'Red berries, and now and then a bitter purple one.',
+      details: `Every berry you pick has a ${BITTER_BERRY_CHANCE * 100}% chance to be a bitter one.`,
       gains: (state) => [
         { itemId: 'wild-berries', quantity: [1, 4] },
-        { itemId: 'bitter-berries', quantity: [1, 4], chance: 1 - checkGainChance(state, 'perception', 25) },
+        { itemId: 'bitter-berries', chance: BITTER_BERRY_CHANCE },
         ...findGains(state, 'forest', 'berry-bushes', [MOSS]),
       ],
       minutes: 20,
@@ -43,15 +46,10 @@ const berryBushes: ObjectDef = {
       skill: 'foraging',
       run: (ctx) => {
         const picked = ctx.takeStock(ctx.gathered(ctx.randomInt(2, 4)));
-        const bitter = Array.from({ length: picked }).filter(() => ctx.chance(0.3)).length;
+        const bitter = Array.from({ length: picked }).filter(() => ctx.chance(BITTER_BERRY_CHANCE)).length;
         ctx.log('You pick berries from the bushes.');
-        if (bitter > 0 && ctx.check('perception', 25)) {
-          ctx.log('You notice some of them smell bitter and leave those on the bush.');
-          ctx.addItem('wild-berries', picked - bitter);
-        } else {
-          ctx.addItem('wild-berries', picked - bitter);
-          ctx.addItem('bitter-berries', bitter);
-        }
+        ctx.addItem('wild-berries', picked - bitter);
+        ctx.addItem('bitter-berries', bitter);
         rollFinds(ctx, 'berry-bushes', [MOSS]);
       },
     },
@@ -83,13 +81,13 @@ const vines: ObjectDef = {
       label: 'Tear down vines',
       description: 'Without a blade, it takes brute strength.',
       details: 'Strength decides whether a vine gives way.',
-      gains: (state) => [{ itemId: 'vine', chance: checkGainChance(state, 'strength', 15) }],
+      gains: (state) => [{ itemId: 'vine', chance: successGainChance(state, 'strength') }],
       minutes: 30,
       energy: 6,
       trains: { strength: 2 },
       skill: 'foraging',
       run: (ctx) => {
-        if (ctx.check('strength', 15)) {
+        if (ctx.succeeds('strength')) {
           ctx.log('You twist and pull until a length of vine snaps free.');
           ctx.addItem('vine', ctx.gathered(1));
         } else {

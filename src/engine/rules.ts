@@ -9,6 +9,18 @@ export const MIN_EFFECTIVE_ATTRIBUTE = 1;
 /** Penalties stack additively but never reduce an attribute by more than this percentage. */
 export const MAX_TOTAL_PENALTY = -90;
 
+/**
+ * How attributes work on actions. BASE_ATTRIBUTE is the basic value: above it an attribute helps, below it penalizes.
+ * An action that depends on an attribute succeeds with `successAtBase` at the basic value and `successPerPoint` more for
+ * every point above it (30% at 20, 70% at 100, 25% at 10).
+ */
+export const ATTRIBUTE_RULES = {
+  successAtBase: 0.3,
+  successPerPoint: 0.005,
+  /** Perception multiplies find chances by 1 at the basic value, rising evenly to this at MAX_ATTRIBUTE. */
+  perceptionAtMax: 2,
+} as const;
+
 export const ATTRIBUTE_NAMES: Record<AttributeId, string> = {
   strength: 'Strength',
   endurance: 'Endurance',
@@ -159,14 +171,14 @@ export function speedFactor(agility: number): number {
   return Math.min(3, Math.max(0.5, Math.sqrt(BASE_ATTRIBUTE / agility)));
 }
 
-/** Multiplier for the chance of finding things: 1 at 20 perception, 3 at 100. */
+/** Multiplier for the chance of finding things: 1 at 20 perception, rising evenly to 2 at 100 (and below 1 under 20). */
 export function perceptionFactor(perception: number): number {
-  return 0.5 + perception / 40;
+  return 1 + ((ATTRIBUTE_RULES.perceptionAtMax - 1) * (perception - BASE_ATTRIBUTE)) / (MAX_ATTRIBUTE - BASE_ATTRIBUTE);
 }
 
-/** Probability to pass a check of an attribute against a difficulty (50% when equal). */
-export function checkChance(value: number, difficulty: number): number {
-  return Math.min(0.95, Math.max(0.05, 0.5 + (value - difficulty) / 100));
+/** Chance that an action depending on an attribute succeeds: 30% at 20, half a percent more per point above, less below. */
+export function successChance(value: number): number {
+  return ATTRIBUTE_RULES.successAtBase + (value - BASE_ATTRIBUTE) * ATTRIBUTE_RULES.successPerPoint;
 }
 
 /** Fighting power from strength, agility and the best held weapon. */

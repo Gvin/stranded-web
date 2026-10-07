@@ -48,6 +48,8 @@ export function createStartingState(seed: number): GameState {
       exposure: { veryHot: 0, veryCold: 0, rain: 0 },
       craftedRecipes: [],
       awakeSince: 0,
+      knownItems: ['clothes'],
+      triedFoods: [],
     },
     locations: {
       [START_LOCATION_ID]: { visited: true, groundItems: [], stock: {}, finds: {}, buildings: {}, constructions: {} },

@@ -697,7 +697,9 @@ function pickupActions(state: GameState): GameAction[] {
   }));
 }
 
-function eatAction(def: FoodDef): GameAction {
+/** Eating or drinking a food; what it does shows only once the player has tried it. */
+function eatAction(state: GameState, def: FoodDef): GameAction {
+  const tried = state.player.triedFoods.includes(def.id);
   const effects = [
     def.nutrition ? `${signed(-def.nutrition)} hunger` : undefined,
     def.hydration ? `${signed(-def.hydration)} thirst` : undefined,
@@ -711,11 +713,13 @@ function eatAction(def: FoodDef): GameAction {
     label: def.verb === 'drink' ? 'Drink' : 'Eat',
     category: 'item',
     description: def.description,
-    details: risks.length > 0 ? `Risky: ${risks.join(', ')}.` : undefined,
-    gains: [
-      ...effects.map((label) => ({ label })),
-      ...(def.byproducts ?? []).map((b) => ({ label: getItemDef(b.itemId).name, itemId: b.itemId, chance: b.chance })),
-    ],
+    details: tried && risks.length > 0 ? `Risky: ${risks.join(', ')}.` : undefined,
+    gains: tried
+      ? [
+          ...effects.map((label) => ({ label })),
+          ...(def.byproducts ?? []).map((b) => ({ label: getItemDef(b.itemId).name, itemId: b.itemId, chance: b.chance })),
+        ]
+      : [{ label: `Unknown until you ${def.verb === 'drink' ? 'drink' : 'eat'} it`, unknown: true }],
     minutes: def.verb === 'drink' ? 2 : 5,
     energy: 0,
     timeMode: 'awake',
@@ -729,6 +733,10 @@ function eatAction(def: FoodDef): GameAction {
     },
     run: (ctx) => {
       ctx.removeItem(def.id);
+      const { triedFoods } = ctx.state.player;
+      if (!triedFoods.includes(def.id)) {
+        triedFoods.push(def.id);
+      }
       const changes = [
         ['hunger', ctx.changeStat('hunger', -def.nutrition)],
         ['thirst', ctx.changeStat('thirst', -def.hydration)],
@@ -882,7 +890,7 @@ function inventoryActions(state: GameState): GameAction[] {
     const def = getItemDef(stack.itemId);
     const key = entryKey(player.inventory, index);
     if (def.category === 'food') {
-      actions.push(eatAction(def));
+      actions.push(eatAction(state, def));
     }
     if (def.category === 'equipment') {
       actions.push(...slotsFor(def).map((slot) => equipAction(def, slot, key)));

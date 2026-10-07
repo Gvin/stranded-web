@@ -27,10 +27,16 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   maximum (also while time passes), is taken from health instead (rates in `overflowDamage` in `src/engine/rules.ts`).
 - **Attributes** — Strength, Endurance, Perception, Agility. They start at 20 (max 100) and slowly improve with use. Every
   building step trains a little Strength; crafting trains no attributes, only the Crafting skill.
-  - Strength: max health, carry weight, fighting.
-  - Endurance: max energy, thirst and hunger.
-  - Perception: chance of finding things.
-  - Agility: travel time, climbing, fighting.
+  - 20 is the basic value: above it an attribute helps the actions it affects, below it penalizes them (`ATTRIBUTE_RULES` in
+    `src/engine/rules.ts`).
+  - Strength: max health (80 + Strength), carry capacity (10 + Strength / 2 kg), tearing down vines, fighting.
+  - Endurance: max energy, thirst and hunger (80 + Endurance each).
+  - Perception: multiplies the chance of every foraging find (not the amounts) by 1 at 20, rising evenly to 2 at 100;
+    find chances stay capped at 95%.
+  - Agility: travel time (×√(20 / Agility), between ×0.5 and ×3), climbing for coconuts, diving at the reef, fighting.
+  - Tearing down vines (Strength), climbing for coconuts and diving at the reef (Agility) succeed 30% of the time at 20,
+    half a percent more for every point above (70% at 100) and less below (25% at 10).
+  - Picking berries: every berry picked has a 10% chance to be a bitter one, whatever the Perception.
 - **Skills** — Fighting, Farming, Building, Foraging and Crafting, each from level 0 to 10 (`SKILL_RULES` in
   `src/engine/rules.ts`, shown in the Body tab, where a "?" next to each skill tells what its level gives). 100 points of practice take a skill to its next level; a new level is logged.
   - Building: 10 points per building step. Crafting: 10 points per craft, however many items it makes. Both take 5% off the
@@ -100,14 +106,17 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   at night, with dusky colours at dawn and in the evening.
 - **Action details** — hovering an action (long-pressing it on a touch screen) shows a popup with a detailed explanation, every
   requirement (met or not) and the possible gains with their current chances. Requirements name what is needed ("Something
-  sharp"), not every item that would do. Climbing a palm needs both arms and both legs unbroken.
+  sharp"), not every item that would do. Climbing a palm needs both arms and both legs unbroken. A possible find of an item
+  you have never had shows as "Unknown find" with a question mark and its chance; once you have had the item, by any means,
+  it shows by name.
 - **Body tab indicators** — a red dot while wounds need treatment, and a "!" badge when a new condition appears on the body or
   one of its parts, until you open the Body tab.
 - **Items** — resources, food and equipment, each with an icon. Equipment is worn on the head or body (you start in your
   Clothes) or held in a hand: Knife, Hammer, Spear and Bow work as tools and weapons when held, and a Torch carries fire. Messages
   name items in plain words ("a stick", "3 sticks", "an axe"). Every resource has crafting
   **types** (e.g. Vine is `fuel, rope`, Flint is `stone, sharp, knife`). A whole coconut has to be opened before it can be eaten;
-  an opened coconut leaves a shell behind 30% of the time.
+  an opened coconut leaves a shell behind 30% of the time. What a food or drink does (hunger, thirst, energy, food group, risks
+  and leftovers) stays unknown until you have eaten or drunk it once.
 - **Clothing** — worn items can have Warmth, Shade, Waterproof (no Wet in the rain) and Armor (each point stops one point of
   damage from every hit in a fight). Clothing wears out: each piece has health, never stacks, and loses 1 health
   per 24 hours worn (kept as a fraction). At 10% health a warning shows next to it; at 0 it is destroyed and a popup says so.
@@ -261,6 +270,7 @@ screen instead of being loaded.
 | 7           | 0.9.0        | Small rain collector with its water; building steps all take 15 minutes (more steps per building).    |
 | 8           | 0.11.0       | Skills; unfinished buildings record the materials they used.                                          |
 | 9           | 0.12.0       | Buildings stand in slots with levels; fires hold fuel; lit torches; the time the player last woke up. |
+| 10          | 0.12.1       | The items the player has had and the foods they have tried.                                           |
 
 A migration is needed when you:
 
