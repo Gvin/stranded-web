@@ -49,8 +49,8 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
     tideline, diving at the reef, picking berries and mushrooms, cutting and tearing down vines, gathering grass, sticks,
     stones and pebbles, chopping wood). Each level adds 10% to every find chance (20% becomes 22% at level 1) and 5% to the
     gathered items, a fraction becoming one more item by chance, never more than is left.
-  - Fighting: +2% accuracy per level, and +1 damage from level 4, +2 from 7, +3 at 10, in melee and with the bow. Nothing
-    trains it yet, as there are no fights.
+  - Fighting: 1 point per attack, shot and Protect in a fight. +2% accuracy per level, and +5 damage from level 4, +10 from 7,
+    +15 at 10, in melee and with the bow; Protect gives +5 Armor, +10 from level 5, +15 at 10.
   - Farming has no effect yet.
 - **Modifiers** — all bonuses and penalties to attributes are percentages. They add up and are shown per source in the Body tab.
 - **Body parts** — head, torso, two arms, two legs. Conditions: Injured, Bleeding, Fractured, Burnt, Missing, Bandaged and Splinted
@@ -122,7 +122,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   an opened coconut leaves a shell behind 30% of the time. What a food or drink does (hunger, thirst, energy, food group, risks
   and leftovers) stays unknown until you have eaten or drunk it once.
 - **Clothing** — worn items can have Warmth, Shade, Waterproof (no Wet in the rain) and Armor (each point stops one point of
-  damage from every hit, once there are fights). Clothing wears out: each piece has health, never stacks, and loses 1 health
+  damage from every hit in a fight). Clothing wears out: each piece has health, never stacks, and loses 1 health
   per 24 hours worn (kept as a fraction). At 10% health a warning shows next to it; at 0 it is destroyed and a popup says so.
   Crafted clothing starts at full health.
 
@@ -132,38 +132,68 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   | Baseball hat       | head | 30/100 | Shade              | the wreckage                       |
   | Makeshift clothes  | body | 60     | Warmth             | cloth ×2, threads, rope            |
   | Makeshift hat      | head | 30     | Shade              | cloth, threads                     |
-  | Rope armor         | body | 100    | Armor 1            | rope ×5, threads                   |
-  | Leather tunic      | body | 100    | Warmth, Armor 1    | Leather ×3, threads, rope          |
-  | Leather hat        | head | 100    | Shade, Armor 1     | Leather ×2, threads                |
-  | Leather jacket     | body | 200    | Warmth, Armor 2    | Leather ×5, threads ×2, rope       |
+  | Rope armor         | body | 100    | Armor 5            | rope ×5, threads                   |
+  | Leather tunic      | body | 100    | Warmth, Armor 5    | Leather ×3, threads, rope          |
+  | Leather hat        | head | 100    | Shade, Armor 5     | Leather ×2, threads                |
+  | Leather jacket     | body | 200    | Warmth, Armor 10   | Leather ×5, threads ×2, rope       |
   | Makeshift raincoat | body | 100    | Warmth, Waterproof | Leather ×3, glue ×2, threads, rope |
 
-  Leather has no source yet, so the leather items and the raincoat cannot be made yet.
+  Leather comes from fights with rabbits, snakes and monkeys.
 
-- **Fighting stats** — shown in the Fighting section of the Bag tab, with a "?" that shows how each one adds up. There are no
-  fights yet; these are the stats they will use (`FIGHTING_RULES` in `src/engine/rules.ts`, `src/engine/fighting.ts`).
+- **Fighting stats** — shown in the Fighting section of the Bag tab, with a "?" that shows how each one adds up; fights use
+  them (`FIGHTING_RULES` in `src/engine/rules.ts`, `src/engine/fighting.ts`).
   - The **weapon hand** is the right hand, or the left one when the right arm cannot hold anything; it is marked "weapon" in
     "Worn and held". Only the item in it counts; clothes add nothing.
   - **Melee**: accuracy = (50% + the weapon's bonus + the Fighting skill's) × the Agility factor (0.75 at 0, 1 at 20, 2 at 100),
-    at most 95%. Damage = 1 + the weapon's bonus + the Fighting skill's + the Strength bonus: −1 below 10, 0 from 10 to 39,
-    +1 from 40, +2 from 60, +3 from 80, +4 at 100.
+    at most 95%. Max damage = 5 + the weapon's bonus + the Fighting skill's + the Strength bonus: −5 below 10, 0 from 10 to 39,
+    +5 from 40, +10 from 60, +15 from 80, +20 at 100.
 
     | Weapon | Damage | Accuracy |
     | ------ | ------ | -------- |
-    | Knife  | +1     | +10%     |
-    | Hammer | +2     | −10%     |
-    | Axe    | +3     | −5%      |
-    | Spear  | +3     | +5%      |
-    | Torch  | +1     | +10%     |
+    | Knife  | +5     | +10%     |
+    | Hammer | +10    | −10%     |
+    | Axe    | +15    | −5%      |
+    | Spear  | +15    | +5%      |
+    | Torch  | +5     | +10%     |
 
   - **Ranged**: only while holding the Bow (in both hands) with arrows in the arrow slot. Accuracy = (30% +
     the arrow's bonus + the Fighting skill's) × the ranged Agility factor (0.5 at 0, rising evenly to 1.5 at 100, so 0.7 at
-    20), at most 95%. Damage = 1 + the arrow's bonus + the Fighting skill's; Strength does not count.
+    20), at most 95%. Max damage = 5 + the arrow's bonus + the Fighting skill's; Strength does not count.
+  - Each hit, yours or an enemy's, does between 70% of its max damage (rounded up) and all of it: 7–10 at 10, 18–25 at 25. The
+    Bag shows the range.
 - **Arrows** — equipped in the arrow slot of "Worn and held": Equip moves all arrows of that kind there, one kind at a time
   (arrows of another kind go back into the bag), and Put away returns them. Arrows made or found later go into the bag. They
-  weigh the same in the slot. Bad wooden arrows add nothing and are lost half the time, wooden arrows add 15% accuracy and are
-  lost 30% of the time, stone tip arrows add 2 damage and 15% accuracy and are lost 20% of the time (losing arrows comes
-  with fighting).
+  weigh the same in the slot. Bad wooden arrows add nothing, wooden arrows add 15% accuracy, stone tip arrows add 10 damage and
+  15% accuracy. Every shot in a fight uses up an arrow, which is always lost.
+- **Fights** — a found trail starts a fight (`src/engine/fight.ts`, `FIGHT_RULES` in `src/engine/rules.ts`, enemies in
+  `src/data/enemies.ts`). The Explore panel turns into the fight: both healths, the battle field and the fight actions.
+  - The field is 12 spaces long. You start 1 space from the left edge and the enemy 1 space from the right; nobody can pass
+    the other, and every move is 1 space.
+  - Each of your actions is a turn, then the enemy acts; when hunting you always act first. Time, thirst, hunger and energy
+    stand still.
+  - Actions: Wait (the enemy acts), Chase, Flee (from the left edge it gets you away), Attack (only next to the enemy, never a
+    flying one), Protect (+5 Armor for the turn, more with the Fighting skill) and Shoot (with the Bow and arrows in the arrow
+    slot, at any distance). In the Bag you can only change weapons and arrows, and it costs a turn.
+  - An enemy sees you at its vision distance or closer, and as soon as you shoot at it; then it keeps reacting for the rest
+    of the fight. Before that, a fleeing or fighting enemy moves a space now and then (10% a turn, either way, never off the
+    field). Once it has seen you: Flee runs away, off the right edge to escape; Stand attacks when you are next to it; Passive
+    does nothing; Fight comes at you and attacks, but runs away at 20% health or below.
+  - An enemy's hit rolls its damage (see Fighting stats), then loses a point per Armor point. It lands on the arms 40% of the time (20% each), the torso 30%, the
+    legs 20% and the head 10%. Each point of damage received gives a 2% chance of a wound (Injured) there; a part keeps one
+    Injured, so a second wound on it is discarded, but an arm or a leg with an unbandaged wound that is wounded again fractures
+    25% of the time. A wound on a bandaged part takes the bandage off.
+  - The fight ends when you kill the enemy (its reward goes into your bag), when it gets away, when you get away, or when you
+    die.
+
+  | Enemy   | Health | Vision | Pattern      | Attack         | Trail chance | Reward                  |
+  | ------- | ------ | ------ | ------------ | -------------- | ------------ | ----------------------- |
+  | Seagull | 10     | 4      | Flee, flying |                | 30%          | Feather ×2–4, Raw meat  |
+  | Rabbit  | 10     | 5      | Flee         |                | 20%          | Raw meat ×2, Leather    |
+  | Kiwi    | 10     | 5      | Flee         |                | 15%          | Feather ×1–2, Raw meat  |
+  | Turtle  | 25     | 3      | Stand        | 10 damage, 40% | 15%          | Raw meat ×2             |
+  | Snake   | 15     | 3      | Stand        | 15 damage, 60% | 12%          | Raw meat, Leather       |
+  | Monkey  | 100    | 7      | Fight        | 25 damage, 70% | 8%           | Raw meat ×4, Leather ×3 |
+
 - **Crafting** — every recipe costs 1 energy (`CRAFT_ENERGY` in `src/engine/rules.ts`) and trains the Crafting skill, no attributes. Recipes ask for types, so "any rope" accepts a vine or a rope; the cheapest matching items are used first. Some tools
   are needed but not used up (the heavy item that opens a coconut, the knife that whittles arrows). A recipe can also require a
   building or a location object nearby (`stations` in `src/data/recipes.ts`); Hammer and Bow need a workbench of any level. The Craft tab only
@@ -219,8 +249,8 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   The **Small rain collector** fills while it rains, whatever roof the camp has: 10 bottles of water per hour of Rainy weather,
   15 per hour of Stormy weather, up to 2 bottles. The camp shows what it holds ("1.5 / 2 bottles of water"). Drink (1 bottle,
   like a Bottle of water) and Fill a bottle (1 bottle, turns an Empty bottle into a Bottle of water) use its water, and so does
-  Wash your face (0.5 bottles; offered only while the island is Very Hot or you are overheated). It needs Leather, which has no
-  source yet, so it cannot be built yet.
+  Wash your face (0.5 bottles; offered only while the island is Very Hot or you are overheated). It needs Leather, which comes
+  from fights.
 
 - **Fire and torches** — a fire burns only while it has fuel and is lit (`fire` in `src/data/buildings.ts`). A new Campfire is
   built full of fuel but unlit; upgrading a fire keeps its fuel (up to what the new level holds) and its flame. **Add to the fire**
@@ -248,13 +278,13 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 - **Island** — the Forest connects to all the other places. Locations can have objects with actions, and actions of their own
   (listed under "Around you").
 
-  | Location        | What is there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-  | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-  | Beach (start)   | Wreckage (gone for good once everything is found, including a worn baseball hat), coconut palms (a coconut grows every 3 days, one falls every 6 days), the sea (comb the tideline — a few finds at a time, renewed every 8 hours — dive at the reef except in storms, drink seawater)                                                                                                                                                                                                                 |
-  | Forest          | Berry bushes, vines, mushrooms (one regrows every 3 days); gather grass (unlimited), gather sticks (30 lying around, 10 more every day; sometimes resin, leaves, moss), chop wood (needs an axe; 2 h: 8–10 logs, 15–20 sticks, up to 3 vines, 20–30 leaves, sometimes resin; what you cannot carry is left on the ground); track animals (3 h, 10 energy: a fresh animal trail 30% of the time at 20 Perception and 90% at 100, with no Foraging bonus, shown in a popup; nothing follows a trail yet) |
-  | Spring          | The pool: clean water, wash your face                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-  | Rocks           | The rocky interior: gather stones (sometimes flint or clay) and pebbles, both unlimited                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | Clearing / Camp | Building site: every building, with all its levels                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+  | Location        | What is there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+  | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | Beach (start)   | Wreckage (gone for good once everything is found, including a worn baseball hat), coconut palms (a coconut grows every 3 days, one falls every 6 days), the sea (comb the tideline — a few finds at a time, renewed every 8 hours — dive at the reef except in storms, drink seawater)                                                                                                                                                                                                                                         |
+  | Forest          | Berry bushes, vines, mushrooms (one regrows every 3 days); gather grass (unlimited), gather sticks (30 lying around, 10 more every day; sometimes resin, leaves, moss), chop wood (needs an axe; 2 h: 8–10 logs, 15–20 sticks, up to 3 vines, 20–30 leaves, sometimes resin; what you cannot carry is left on the ground); track animals (3 h, 10 energy: a fresh animal trail 30% of the time at 20 Perception and 90% at 100, with no Foraging bonus; a trail starts a fight with the animal; trains Perception by 3 points) |
+  | Spring          | The pool: clean water, wash your face                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+  | Rocks           | The rocky interior: gather stones (sometimes flint or clay) and pebbles, both unlimited                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+  | Clearing / Camp | Building site: every building, with all its levels                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 - **Objects** — each location has objects that provide actions. Hidden objects are not listed but still offer actions
   (shown under "Around you").
@@ -296,6 +326,7 @@ screen instead of being loaded.
 | 9           | 0.12.0       | Buildings stand in slots with levels; fires hold fuel; lit torches; the time the player last woke up. |
 | 10          | 0.12.1       | The items the player has had and the foods they have tried.                                           |
 | 11          | 0.13.0       | The arrow slot; a held bow takes both hands (kept in the right hand, the left one empty).             |
+| 12          | 0.15.0       | A fight in progress.                                                                                  |
 
 A migration is needed when you:
 

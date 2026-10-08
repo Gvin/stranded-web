@@ -5,6 +5,7 @@ import { createTestGame, giveItem } from '../engine/testUtils';
 import { BODY_PART_IDS, BUILDING_SLOTS } from '../engine/types';
 import { ICON_BODIES } from '../icons/gameIcons';
 import { BUILDINGS, previousLevel, slotLevels } from './buildings';
+import { ENEMIES } from './enemies';
 import { ITEMS } from './items';
 import { getRoutesFrom, LOCATIONS, ROUTES } from './locations';
 import { RECIPES } from './recipes';
@@ -80,15 +81,26 @@ describe('island content', () => {
     });
   });
 
-  it('has an icon for every item and building', () => {
+  it('has an icon for every item, building and enemy', () => {
     // Act
     const missing = [
       ...Object.values(ITEMS).filter((i) => !ICON_BODIES[i.icon]),
       ...Object.values(BUILDINGS).filter((b) => !ICON_BODIES[b.icon]),
+      ...Object.values(ENEMIES).filter((e) => !ICON_BODIES[e.icon]),
     ].map((d) => d.id);
 
     // Assert
     expect(missing).toEqual([]);
+  });
+
+  it('gives every enemy trail chances that add up to 1, and rewards of existing items', () => {
+    // Act
+    const total = Object.values(ENEMIES).reduce((sum, e) => sum + e.trailChance, 0);
+    const unknown = Object.values(ENEMIES).flatMap((e) => e.rewards.filter((r) => !ITEMS[r.itemId]).map((r) => `${e.id}:${r.itemId}`));
+
+    // Assert
+    expect(total).toBeCloseTo(1, 9);
+    expect(unknown).toEqual([]);
   });
 
   it('builds only from existing items and types', () => {

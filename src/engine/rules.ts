@@ -1,5 +1,5 @@
 import type { Severity } from './conditions';
-import type { AttributeId, NutrientId, SkillId, StatId } from './types';
+import type { AttributeId, BodyPartId, NutrientId, SkillId, StatId } from './types';
 
 // Balance constants and formulas in one place, so the game can be tuned without hunting through the engine.
 
@@ -79,8 +79,8 @@ export const SKILL_RULES = {
   maxLevel: 10,
   /** Practice points from one level to the next. */
   pointsPerLevel: 100,
-  /** Points one action gives the skill it trains (a building step, a craft, a foraging action). */
-  points: { fighting: 0, farming: 0, building: 10, foraging: 2, crafting: 10 } satisfies Record<SkillId, number>,
+  /** Points one action gives the skill it trains (a building step, a craft, a foraging action, an attack, shot or Protect). */
+  points: { fighting: 1, farming: 0, building: 10, foraging: 2, crafting: 10 } satisfies Record<SkillId, number>,
   /** Building steps and recipes take this much less of their time per Building or Crafting level (level 10: half). */
   timeReductionPerLevel: 0.05,
   /** Foraging: find chances grow by this fraction per level, gathered items by this fraction per level. */
@@ -202,18 +202,19 @@ export function successChance(value: number): number {
  * Accuracy bonuses are fractions (0.1 = +10%).
  */
 export const FIGHTING_RULES = {
-  melee: { accuracy: 0.5, damage: 1 },
+  melee: { accuracy: 0.5, damage: 5 },
   maxAccuracy: 0.95,
   /** Agility multiplies melee accuracy by 1 at the basic value, rising evenly to this at MAX_ATTRIBUTE (0.75 at 0). */
   meleeAgilityAtMax: 2,
   /** Agility multiplies ranged accuracy along a straight line, from the first value at 0 to the second at MAX_ATTRIBUTE. */
   rangedAgility: [0.5, 1.5],
-  /** Strength below this takes a point off melee damage; above the basic value, every full step of points adds one. */
+  /** Strength below this takes `strengthDamage` off melee damage; above the basic value, every full step of points adds it. */
   strengthPenaltyBelow: 10,
   strengthPerDamage: 20,
+  strengthDamage: 5,
   /** Fighting skill bonuses, for melee and ranged alike: accuracy per level, and damage by level (index). */
   skillAccuracyPerLevel: 0.02,
-  skillDamage: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
+  skillDamage: [0, 0, 0, 0, 5, 5, 5, 10, 10, 10, 15],
 } as const;
 
 /** Melee accuracy multiplier from Agility: 0.75 at 0, 1 at 20, 2 at 100. */
@@ -227,17 +228,56 @@ export function rangedAccuracyFactor(agility: number): number {
   return atZero + ((atMax - atZero) * agility) / MAX_ATTRIBUTE;
 }
 
-/** Melee damage Strength adds: −1 below 10, 0 up to 39, then one more for every full 20 points (+1 at 40, +4 at 100). */
+/** Melee damage Strength adds: −5 below 10, 0 up to 39, then 5 more for every full 20 points (+5 at 40, +20 at 100). */
 export function strengthDamage(strength: number): number {
   if (strength < FIGHTING_RULES.strengthPenaltyBelow) {
-    return -1;
+    return -FIGHTING_RULES.strengthDamage;
   }
-  return Math.max(0, Math.floor((strength - BASE_ATTRIBUTE) / FIGHTING_RULES.strengthPerDamage));
+  const steps = Math.max(0, Math.floor((strength - BASE_ATTRIBUTE) / FIGHTING_RULES.strengthPerDamage));
+  return steps * FIGHTING_RULES.strengthDamage;
 }
 
-/** Damage and accuracy the Fighting skill adds at a level (level 10: +3 damage, +20% accuracy). */
+/** Damage and accuracy the Fighting skill adds at a level (level 10: +15 damage, +20% accuracy). */
 export function fightingSkillBonus(level: number): { damage: number; accuracy: number } {
   return { damage: FIGHTING_RULES.skillDamage[level] ?? 0, accuracy: FIGHTING_RULES.skillAccuracyPerLevel * level };
+}
+
+/** Fights: turn-based, on a battle field of `fieldSize` spaces (0 is the left edge). Every move is 1 space. */
+export const FIGHT_RULES = {
+  fieldSize: 12,
+  /** The player and the enemy start this many spaces from their edges. */
+  startFromEdge: 1,
+  /** Chance per turn that a Flee or Fight enemy that has not seen the player moves a space, and that the move is toward the player. */
+  wanderChance: 0.1,
+  wanderForwardChance: 0.5,
+  /** A Fight enemy runs away at or below this share of its health. */
+  fleeAtHealth: 0.2,
+  /** Armor that Protect adds for the turn, by Fighting level (index). */
+  protectArmor: [5, 5, 5, 5, 5, 10, 10, 10, 10, 10, 15],
+  /** Chance of a wound (Injured) per point of damage received. */
+  woundChancePerDamage: 0.02,
+  /** Chance that an arm or a leg with an unbandaged wound (Injured) fractures when it is wounded again. */
+  fractureOnSecondWound: 0.25,
+  /** A hit does between this share of its max damage (rounded up) and all of it, before Armor and Protect. */
+  minDamageShare: 0.7,
+  /** How likely each body part is to be hit. */
+  hitParts: { leftArm: 0.2, rightArm: 0.2, torso: 0.3, leftLeg: 0.1, rightLeg: 0.1, head: 0.1 } satisfies Record<BodyPartId, number>,
+} as const;
+
+/** Armor Protect adds for one turn at a Fighting level: +5, +10 from level 5, +15 at 10. */
+export function protectArmor(level: number): number {
+  return FIGHT_RULES.protectArmor[level] ?? FIGHT_RULES.protectArmor[0];
+}
+
+/** Chance that a hit wounds the body part it lands on: 2% per point of damage received. */
+export function woundChance(damage: number): number {
+  return Math.min(1, damage * FIGHT_RULES.woundChancePerDamage);
+}
+
+/** The least damage a hit of the given max damage does: 70% of it, rounded up (7 at 10, 18 at 25). */
+export function minDamage(maxDamage: number): number {
+  // why: 0.7 × 10 comes out as 7.000000000000001, which would round up to 8.
+  return Math.ceil(Math.round(maxDamage * FIGHT_RULES.minDamageShare * 1e6) / 1e6);
 }
 
 export const SURVIVAL_RULES = {

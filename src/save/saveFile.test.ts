@@ -527,3 +527,42 @@ describe('migration from save format 10', () => {
     expect(result).toMatchObject({ status: 'corrupt' });
   });
 });
+
+describe('migration from save format 11', () => {
+  it('loads a game that is not in a fight', () => {
+    // Arrange
+    const state = createNewGame(13) as unknown as Record<string, unknown>;
+    delete state.fight;
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 11, gameVersion: '0.14.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 11 });
+    expect((result as { state: GameState }).state.fight).toBeUndefined();
+  });
+
+  it('keeps a fight in progress through saving and loading', () => {
+    // Arrange
+    const state = createNewGame(13);
+    state.fight = { enemyId: 'monkey', enemyHealth: 12, playerAt: 3, enemyAt: 7, seen: true };
+
+    // Act
+    const result = deserializeGame(serializeGame(state));
+
+    // Assert
+    expect((result as { state: GameState }).state.fight).toEqual(state.fight);
+  });
+
+  it('rejects a save fighting an unknown enemy', () => {
+    // Arrange
+    const state = createNewGame(13) as unknown as Record<string, unknown>;
+    state.fight = { enemyId: 'dragon', enemyHealth: 12, playerAt: 3, enemyAt: 7, seen: true };
+
+    // Act
+    const result = deserializeGame(envelope(SAVE_VERSION, state));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'corrupt' });
+  });
+});

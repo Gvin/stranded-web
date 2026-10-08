@@ -574,11 +574,11 @@ describe('armor', () => {
     const ctx = createActionContext(state);
 
     // Act
-    hit(ctx, 10, 'Hit.');
+    hit(ctx, 40, 'Hit.');
     hit(ctx, 3, 'Hit.');
 
     // Assert
-    expect(state.player.stats.health).toBe(100 - (10 - 3));
+    expect(state.player.stats.health).toBe(100 - (40 - 15));
   });
 });
 

@@ -724,6 +724,52 @@ p {
   color: var(--sand);
 }
 
+/* The fight panel: the enemy's name with its icon, both healths and the battle field. */
+.fight .location__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fight__bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  margin-top: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 3px;
+  margin: 12px 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.field__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--chip-bg);
+}
+
+.field__cell--you {
+  border-color: var(--sea);
+  color: var(--sea);
+}
+
+.field__cell--enemy {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.fight__actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .location__description {
   margin-top: 8px;
   font-family: var(--font-story);

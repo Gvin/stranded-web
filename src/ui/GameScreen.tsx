@@ -15,6 +15,7 @@ import { TopBar } from './components/TopBar';
 import { CharacterPanel } from './panels/CharacterPanel';
 import { CraftPanel } from './panels/CraftPanel';
 import { ExplorePanel } from './panels/ExplorePanel';
+import { FightPanel } from './panels/FightPanel';
 import { InventoryPanel } from './panels/InventoryPanel';
 import { JournalPanel } from './panels/JournalPanel';
 import { DeathScreen } from './screens/DeathScreen';
@@ -47,8 +48,8 @@ function conditionKeys(state: GameState, sheet: CharacterSheet): string[] {
   return [...parts, ...sheet.conditions.map((c) => `player:${c.id}`)];
 }
 
-/** Popup titles of alerts by their tone: bad alerts are items falling apart, good ones are finds. */
-const ALERT_TITLES: Partial<Record<LogTone, string>> = { bad: 'Worn out', good: 'Found' };
+/** Popup titles of alerts by their tone: bad alerts are items falling apart. */
+const ALERT_TITLES: Partial<Record<LogTone, string>> = { bad: 'Worn out' };
 
 /** The title for alerts shown together; alerts of different tones get a neutral one. */
 function alertTitle(entries: readonly LogEntry[]): string {
@@ -88,6 +89,13 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
   const actions = useMemo<ActionView[]>(() => getActions(state).map((action) => toActionView(state, action)), [state]);
   useDayPeriodTheme(state.time, state.environment.weather);
   const alerts = useLogAlerts(state);
+  const fighting = state.fight !== undefined;
+  useEffect(() => {
+    // why: a fight replaces the Explore panel, so a phone switches to it when a fight starts.
+    if (fighting) {
+      setTab('explore');
+    }
+  }, [fighting]);
 
   const tabs = wide ? TABS.filter((t) => t.id !== 'explore') : TABS;
   const activeTab = wide && tab === 'explore' ? 'bag' : tab;
@@ -104,12 +112,31 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
     craft: newCraftableRecipes(state, actions).length > 0 ? 'You can craft something new' : undefined,
   };
 
+  // why: changing weapons in a fight costs a turn; on a phone the fight panel then shows what the enemy did with it.
+  const performInBag = (actionId: string) => {
+    perform(actionId);
+    if (fighting && !wide) {
+      setTab('explore');
+    }
+  };
+
   const panel = (id: TabId) => {
     switch (id) {
       case 'explore':
-        return <ExplorePanel state={state} actions={actions} freshAfterLogId={freshAfterLogId} onPerform={perform} />;
+        return state.fight ? (
+          <FightPanel
+            state={state}
+            fight={state.fight}
+            sheet={sheet}
+            actions={actions}
+            freshAfterLogId={freshAfterLogId}
+            onPerform={perform}
+          />
+        ) : (
+          <ExplorePanel state={state} actions={actions} freshAfterLogId={freshAfterLogId} onPerform={perform} />
+        );
       case 'bag':
-        return <InventoryPanel state={state} sheet={sheet} actions={actions} onPerform={perform} />;
+        return <InventoryPanel state={state} sheet={sheet} actions={actions} onPerform={performInBag} />;
       case 'body':
         return <CharacterPanel state={state} sheet={sheet} actions={actions} onPerform={perform} />;
       case 'craft':

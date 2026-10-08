@@ -1,7 +1,7 @@
 import type { Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { IconName } from '../icons/gameIcons';
-import type { AttributeId, BuildingId, BuildingSlot, GameState, NutrientId, SkillId, TimedConditionId, WeatherId } from './types';
+import type { AttributeId, BuildingId, BuildingSlot, EnemyId, GameState, NutrientId, SkillId, TimedConditionId, WeatherId } from './types';
 
 // Static content definitions (items, locations, recipes, buildings). They are code, not save data, but renaming or
 // removing an item, location or object id breaks saves that refer to it and needs a save migration.
@@ -61,14 +61,41 @@ interface ItemDefBase {
 
 export interface ResourceDef extends ItemDefBase {
   category: 'resource';
-  /** Makes the item an arrow, equipped in the arrow slot: what it adds to ranged damage and accuracy, and its chance to be lost per shot. */
-  arrow?: WeaponStats & { lossChance: number };
+  /** Makes the item an arrow, equipped in the arrow slot: what it adds to ranged damage and accuracy. Every shot uses one up. */
+  arrow?: WeaponStats;
 }
 
 /** Damage and accuracy (a fraction, 0.1 = 10%) a weapon gives or adds. */
 export interface WeaponStats {
   damage: number;
   accuracy: number;
+}
+
+/**
+ * How an enemy behaves once it has seen the player. Flee: runs away. Stand: stays put and attacks when the player is next to
+ * it. Passive: stays put and never attacks. Fight: chases and attacks, but runs away at low health (FIGHT_RULES.fleeAtHealth).
+ */
+export type FightPattern = 'flee' | 'stand' | 'passive' | 'fight';
+
+/** An animal the player can fight. */
+export interface EnemyDef {
+  id: EnemyId;
+  name: string;
+  /** The name in a sentence with its article, e.g. "a rabbit". */
+  singular: string;
+  icon: IconName;
+  health: number;
+  /** It sees the player at this distance or closer. */
+  vision: number;
+  /** Only a ranged attack can hit it. */
+  flying?: boolean;
+  pattern: FightPattern;
+  /** Its attack, for enemies that fight back. */
+  attack?: WeaponStats;
+  /** Chance that a found trail leads to it; the chances of all enemies add up to 1. */
+  trailChance: number;
+  /** What killing it gives. */
+  rewards: readonly { itemId: string; quantity: number | readonly [number, number] }[];
 }
 
 export interface FoodRisk {

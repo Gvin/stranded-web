@@ -20,6 +20,7 @@ import type {
 } from './definitions';
 import { type Gain, resolveGains } from './gains';
 import { canCoolDown, canWarmUp, coolDown, isRaining, warmUp } from './environment';
+import { fightActions, passTurn } from './fight';
 import { fireDef, fireRoom, rainReaches } from './fire';
 import {
   addToInventory,
@@ -76,7 +77,8 @@ import {
 } from './types';
 import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, roofAt } from './world';
 
-export type ActionCategory = 'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'build' | 'body';
+export type ActionCategory =
+  'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'build' | 'body' | 'fight';
 
 /** A concrete action available in the current state, ready to be shown and performed. */
 export interface GameAction {
@@ -138,6 +140,9 @@ export function getActions(state: GameState): GameAction[] {
   if (state.status !== 'alive') {
     return [];
   }
+  if (state.fight) {
+    return [...fightActions(state), ...fightWeaponActions(state)];
+  }
   return [
     ...locationActions(state),
     ...objectActions(state),
@@ -151,6 +156,28 @@ export function getActions(state: GameState): GameAction[] {
     ...buildActions(state),
     ...bodyActions(state),
   ];
+}
+
+/** Changing weapons in a fight: holding or putting away a hand item, and the arrow slot. */
+const WEAPON_CHANGE = /^(equip:.*:(leftHand|rightHand)|unequip:(leftHand|rightHand|arrows)|equip-arrows:.*)$/;
+
+/** While fighting, changing weapons is all the Bag allows: it takes no time, but costs a turn, after which the enemy acts. */
+function fightWeaponActions(state: GameState): GameAction[] {
+  return inventoryActions(state)
+    .filter((action) => WEAPON_CHANGE.test(action.id))
+    .map((action) => ({
+      ...action,
+      minutes: 0,
+      run: (ctx) => {
+        const from = ctx.state.log.length;
+        action.run(ctx);
+        // why: a turn is logged in one line, so what changing weapons said opens the enemy's part of it.
+        passTurn(
+          ctx,
+          ctx.state.log.splice(from).map((entry) => entry.text),
+        );
+      },
+    }));
 }
 
 function scaledMinutes(state: GameState, def: Pick<ActionDef, 'minutes' | 'speedAttribute'>): number {

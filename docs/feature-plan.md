@@ -1,10 +1,10 @@
 # Stranded — feature plan
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 
 ## Overview
 
-Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11) and tracking animals in 0.14.0; the README describes how they work. Next come the rest of hunting, then fighting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
+Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11), tracking animals in 0.14.0, and fighting in 0.15.0 (save format 12, with tracking now training Perception); the README describes how they work. Next come body part health, then the rest of hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
 
 Every section below is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
 
@@ -17,29 +17,47 @@ Rules every feature follows, taken from how the engine works today:
 - Every new item, building, animal and plant gets a game-icons.net icon.
 - Every new action shows its time, energy, requirements and possible gains in the popup, like the existing ones.
 
+## Body part health
+
+Decided: every body part has its own health, and the player's health is the sum of the parts. This replaces today's single health stat. It comes as a separate release.
+
+**Max health**
+
+- The total max health stays 80 + Strength, but uses the Strength before any modifiers: being weaker for a while does not make the body more vulnerable.
+- It is split between the parts: torso 30%, head 10%, each arm 15%, each leg 15% (at Strength 20: torso 30, head 10, arms and legs 15 each).
+- Conditions lower a part's max health, and add up on the same part: Injured by 25% (10% once bandaged), Burnt by 25% like Injured (10% once bandaged), Fractured by 50% (25% once splinted). An injured, fractured limb is at −75% (−35% once bandaged and splinted).
+
+**Damage**
+
+- A fight hit damages the body part it lands on. A hit on a missing limb picks another part.
+- Head hits become 5% of hits (today 10%), and the torso takes the other 5%: arms 40% (20% each), torso 35%, legs 20% (10% each), head 5%.
+- A single hit can't drop a body part with 5 or more health to 0: it leaves it at 1. A part below 5 health can be taken to 0 by a hit.
+- Poison and bleeding damage the torso, scaled to the torso's health (its 30% share): bleeding light / medium / heavy 0.45 / 1.2 / 2.4 per hour (today 1.5 / 4 / 8), poisoned 0.3 / 0.9 / 1.8 per hour (today 1 / 3 / 6).
+- Thirst or hunger pushed past the maximum, and working with no energy left, damage the torso too, also scaled to its 30% share: 0.375 health per point of thirst, 0.45 per point of hunger and 0.3 per missing point of energy (today 1.25 / 1.5 / 1).
+
+**Conditions from a part's health**
+
+- A part becomes Injured when its health drops below 50% of its full max health. Injured never goes away when the part's health comes back: it only heals with time, as today. This replaces the fight wound chance (2% per damage point).
+- An arm or a leg that drops below 25% of its full max health gets Fractured. A fracture never heals by itself either, as today. This replaces the fracture chance on a second wound (25%).
+- An arm or a leg at 0 health is lost (Missing). The torso or the head at 0 health means death.
+
+**Healing**: natural healing (awake, resting and sleeping) is shared evenly between the body parts; the share of a part with no damage is lost. Each part heals at a sixth of today's rate, so a torso at 0 of 30 takes about 360 hours awake to heal, or 60 hours asleep in a house.
+
+> **Suggestion, not decided:** engine and UI.
+
+- Each body part in the state gets its health; the Health bar shows the sum of the parts against the sum of their max health.
+- The Body tab shows a health bar for each part, next to its conditions.
+- Save change: existing games split their current health between the parts by the shares above.
+
 ## Hunting
 
-Decided: hunting comes before fighting, as it is where fights come from. Its first step, Track animals in the forest, shipped in game 0.14.0 (see the README); a found trail only shows a popup so far.
+Decided: hunting is where fights come from. Track animals in the forest shipped in game 0.14.0, and since 0.15.0 a found trail starts a fight (see the README).
 
 > **Suggestion, not decided.** The rest of this section, apart from the parts marked as decided, including every new item, action, building, object and recipe, waits for your approval.
 
-Hunting is its own activity, as decided when the forest boars were removed: track an animal, stalk it, then shoot or fight it. It becomes the main source of meat, hides, feathers and bones, and so feeds the Meat nutrition group and leather gear.
+Hunting is its own activity, as decided when the forest boars were removed: track an animal, then fight it. It becomes the main source of meat, leather and feathers, and so feeds the Meat nutrition group and leather gear.
 
-**Leather** (decided): leather, which already exists as a resource and is needed for the leather tunic, hat, jacket, the small rain collector and the makeshift raincoat, gets its source from hunting.
-
-**The hunt**
-
-1. **Track animals** (in the game, forest only): a found trail tells which animal made it.
-2. **Stalk**: each try brings you closer. Agility against the animal's wariness; a failure scares it off, or makes an aggressive animal charge.
-3. **Strike**: shoot from a distance with the bow, or close in. Either way it becomes an encounter (see Fighting) that starts at the current distance.
-4. **Butcher** a large kill with something sharp (about 30 minutes). Small kills go straight into the bag.
-
-| Animal       | Where        | Active        | Health | Danger                               | Loot                       |
-| ------------ | ------------ | ------------- | ------ | ------------------------------------ | -------------------------- |
-| Seabird      | Beach, Rocks | day           | 5      | flies off                            | feathers ×2–4, raw meat    |
-| Coconut crab | Beach        | night         | 12     | pinches (Injured)                    | raw crab ×2                |
-| Goat         | Rocks        | day           | 25     | flees; butts when cornered (Injured) | raw meat ×3, hide, bone    |
-| Wild boar    | Forest       | dawn, evening | 40     | charges (Fracture, Bleeding)         | raw meat ×4, hide ×2, bone |
+**Leather** (decided): leather, which already exists as a resource and is needed for the leather tunic, hat, jacket, the small rain collector and the makeshift raincoat, comes straight from fights as a reward (in the game since 0.15.0).
 
 **Other ways to get meat**
 
@@ -50,38 +68,7 @@ Hunting is its own activity, as decided when the forest boars were removed: trac
 **Engine and UI**
 
 - Each location keeps an animal population as a named stock that regrows slowly, so over-hunting empties an area for a few days.
-- New resources: hide, bone (for later recipes such as bone-tipped arrows and a needle).
-- A found trail is stored in the state, so a hunt survives a reload.
-- Save change: the found trail, with a version bump as the save rule requires; animal stocks reuse the existing stock map.
-
-## Fighting
-
-> **Suggestion, not decided.** Everything in this section, including every new item, action, building, object and recipe, waits for your approval.
-
-There are no fights in the game today. Fighting becomes an encounter of short rounds, where each round you choose what to do, and wounds land on real body parts. Encounters start when you hunt, or when an animal attacks you while travelling or gathering (an event, see Events System).
-
-**Actions in a round** (about 1 minute and 2 energy each)
-
-- **Attack** with the held weapon (bare hands if nothing).
-- **Shoot** with the bow while the animal is still at a distance; one arrow per shot, which may be lost.
-- **Brace** to raise your defence for the round; a held spear also strikes a charging animal first.
-- **Flee**, an agility check against the animal's speed. Failing gives the animal a free attack; succeeding takes you back along the path you came.
-
-**How a round resolves**
-
-1. The faster side acts first: agility against the animal's speed.
-2. You hit with the chance of your melee or ranged accuracy (see Fighting stats in the README).
-3. A hit takes your melee or ranged damage from the animal's health.
-4. An animal hit picks a body part (arms and legs most often), loses one point of damage per Armor point worn (already in the engine: `hit` in `src/engine/outcomes.ts`), then applies its wound kind and health loss through the existing `injure` helper.
-5. The encounter ends when the animal dies, the animal runs off at low health, you flee, or you die.
-
-**Engine and UI**
-
-- Animals live in `src/data/animals.ts` with health, damage, speed, defence, wound kind, aggression and loot (see Hunting).
-- The state gets an optional `encounter: { animalId, health, distance, round }`; while it is set, only encounter actions and the Bag (equipping or bandaging costs a round) are available.
-- The Explore tab turns into an encounter card: the animal's icon, a health bar, the distance, and large action buttons for phones.
-- Each round is logged in one line ("You hit the boar with the spear. It gores your left leg: Bleeding.").
-- Save change: the optional `encounter` field, with a version bump as the save rule requires.
+- Save change: none; animal stocks reuse the existing stock map.
 
 ## Farming
 
@@ -114,7 +101,7 @@ Days are starting values.
 
 ## Events System
 
-Decided: one central system for game events, the things that happen to the player during actions, travel or rest, instead of each action rolling its own hazards. Its design is still to come. Until then the game has no hazard events: the ones below were removed from the game and are kept here as candidates.
+Decided: one central system for game events, the things that happen to the player during actions, travel or rest, instead of each action rolling its own hazards. Some events start a fight, and in those fights who acts first depends on the event (when hunting, the player always acts first). Its design is still to come. Until then the game has no hazard events: the ones below were removed from the game and are kept here as candidates.
 
 | Event               | When it could happen                                   | What it did before it was removed                              |
 | ------------------- | ------------------------------------------------------ | -------------------------------------------------------------- |
@@ -128,23 +115,24 @@ Decided: one central system for game events, the things that happen to the playe
 
 - Every event is defined in one place (`src/data/events.ts`): when it can happen (an action, a location, travel, the time of day, the weather), its chance and what changes it (attributes, skills, clothing), and its outcome (damage, conditions, items, a log line).
 - The engine checks for events after each action and while time passes, through the seeded RNG, so saves stay reproducible.
-- Later, an event could also start a fight (an animal attacks while you travel).
+- An event that starts a fight could be an animal attacking you while you travel.
 
 ## Roadmap
 
-Three releases take the game from 0.14.0 (save format 11) to 0.17.0 (save format 14), all made of the suggestions above.
+Three releases take the game from 0.15.0 (save format 12) to 0.18.0 (save format 15), made of the sections above.
 
-| Release  | Game version | Save format | Contents                                                                                                 |
-| -------- | ------------ | ----------- | -------------------------------------------------------------------------------------------------------- |
-| Hunting  | 0.15.0       | 12          | Trails that lead to animals, stalking, 4 animals, hides and bones, leather, snares, spear fishing, nests |
-| Fighting | 0.16.0       | 13          | Fight encounters                                                                                         |
-| Farming  | 0.17.0       | 14          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging                |
+| Release          | Game version | Save format | Contents                                                                                    |
+| ---------------- | ------------ | ----------- | ------------------------------------------------------------------------------------------- |
+| Body part health | 0.16.0       | 13          | Health per body part, conditions from it, losing limbs, damage to the torso, shared healing |
+| Hunting          | 0.17.0       | 14          | Animal populations, butchering, snares, spear fishing, nests                                |
+| Farming          | 0.18.0       | 15          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging   |
 
-Fighting gives the existing Armor and the Fighting skill their use, and farming relies on the existing rain to water the garden.
+Farming relies on the existing rain to water the garden.
 
 **Why this order**
 
-- Hunting comes before fighting: it is where fights come from, and fighting then turns its strike into an encounter.
+- Body part health comes first: it changes how fights and survival hurt the player, before more fights come.
+- The rest of hunting follows: more ways to get meat, now that fights give it.
 - Farming comes last: it leans on rain, the Farming skill and the nutrition groups.
 
 **Testing each release**
@@ -155,10 +143,7 @@ Fighting gives the existing Armor and the Fighting skill their use, and farming 
 
 ## Open questions
 
-- [ ] Hunting before fighting: until fights exist, how should a hunt end? Recommendation: let the Hunting release give meat only where no fight is needed (snares, nests, spear fishing), and have trails lead to a strike once Fighting is in.
 - [ ] Events System: when are events checked (after actions, on the way, while resting or sleeping), and which of the removed hazards come back?
 - [ ] Should the spear take both hands, like the bow?
-- [ ] Leather from hunting: straight from the kill, or hides that are made into leather?
 - [ ] Can animals come to the camp (a boar raiding the garden), or do fights only happen away from it?
 - [ ] Should planting need a tool, such as a digging stick?
-- [ ] Fixed time per fight round (about 1 minute), or should encounters stop the clock?

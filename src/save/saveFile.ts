@@ -1,3 +1,4 @@
+import { ENEMIES } from '../data/enemies';
 import { ITEMS } from '../data/items';
 import { isKnownLocation } from '../data/locations';
 import type { GameState } from '../engine/types';
@@ -50,6 +51,19 @@ function referencedItemIds(value: Record<string, unknown>): unknown[] {
   ];
 }
 
+/** A fight in progress against a known enemy, with both on the field. */
+function looksLikeFight(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.enemyId === 'string' &&
+    value.enemyId in ENEMIES &&
+    typeof value.enemyHealth === 'number' &&
+    typeof value.playerAt === 'number' &&
+    typeof value.enemyAt === 'number' &&
+    typeof value.seen === 'boolean'
+  );
+}
+
 /** Structural check, so a broken save is reported instead of crashing the game later. */
 function looksLikeGameState(value: Record<string, unknown>): boolean {
   const player = value.player;
@@ -77,6 +91,7 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     Array.isArray(player.knownItems) &&
     Array.isArray(player.triedFoods) &&
     isRecord(value.locations) &&
+    (value.fight === undefined || looksLikeFight(value.fight)) &&
     Array.isArray(value.log);
   if (!shapeOk) {
     return false;

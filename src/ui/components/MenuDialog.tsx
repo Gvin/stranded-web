@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FIGHT_RULES } from '../../engine/rules';
 import { GAME_VERSION, SAVE_VERSION } from '../../save/version';
 import { Modal } from './Modal';
 
@@ -28,6 +29,10 @@ export function MenuDialog({ onClose, onNewGame }: MenuDialogProps) {
           rain gets you wet. Worn clothes wear out.
         </li>
         <li>A fire burns only while it has fuel. Rain puts out a campfire or fireplace, even under a roof.</li>
+        <li>
+          Tracking animals in the forest leads to fights. A fight goes turn by turn on a field of {FIGHT_RULES.fieldSize} spaces, and time
+          stands still while it lasts.
+        </li>
         <li>Attributes grow slowly as you use them.</li>
         <li>Hover over an action (or long-press it on a touch screen) to see what it needs and what it may give.</li>
       </ul>

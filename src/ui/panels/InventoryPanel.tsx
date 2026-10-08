@@ -2,6 +2,7 @@ import { BUILDINGS } from '../../data/buildings';
 import { getItemDef } from '../../data/items';
 import type { CharacterSheet } from '../../engine/character';
 import type { ItemCategory, ItemDef, WeaponStats } from '../../engine/definitions';
+import { damageRange } from '../../engine/fight';
 import { type FightingStat, getFightingStats, type StatPart } from '../../engine/fighting';
 import { describeClothing, entryKey, isHandSlot, lockedBy, stackWeight } from '../../engine/inventory';
 import { FIGHTING_RULES, NUTRIENT_NAMES } from '../../engine/rules';
@@ -88,7 +89,8 @@ function statTip(stat: FightingStat, agility: number): string {
   const nbsp = ' ';
   return (
     `Accuracy: ${list(stat.accuracyParts, '%', 100)}, ×${nbsp}${stat.agilityFactor.toFixed(2)} for Agility ${Math.round(agility)}${nbsp}=${nbsp}` +
-    `${percent(stat.accuracy)}%${capped}. Damage: ${list(stat.damageParts, '', 1)}${nbsp}=${nbsp}${stat.damage}.`
+    `${percent(stat.accuracy)}%${capped}. Max damage: ${list(stat.damageParts, '', 1)}${nbsp}=${nbsp}${stat.damage}; a hit does ` +
+    `${damageRange(stat.damage)}.`
   );
 }
 
@@ -100,7 +102,7 @@ function FightingRow({ name, stat, agility }: { name: string; stat: FightingStat
         <InfoTip label={`${name} fighting`} text={statTip(stat, agility)} />
       </span>
       <span className="fighting__value">
-        Accuracy <strong>{percent(stat.accuracy)}%</strong> · Damage <strong>{stat.damage}</strong>
+        Accuracy <strong>{percent(stat.accuracy)}%</strong> · Damage <strong>{damageRange(stat.damage)}</strong>
       </span>
     </li>
   );
@@ -132,6 +134,7 @@ export function InventoryPanel({ state, sheet, actions, onPerform }: InventoryPa
 
   return (
     <div className="panel">
+      {state.fight && <p className="card muted">In a fight you can only change weapons, and each change takes a turn.</p>}
       <section className="card">
         <div className="weight">
           <span>Carrying</span>

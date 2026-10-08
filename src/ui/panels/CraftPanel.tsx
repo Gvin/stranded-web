@@ -73,6 +73,14 @@ export function CraftPanel({ state, actions, onPerform }: CraftPanelProps) {
   const known = showKnown ? RECIPES.filter((r) => !canMake(r) && crafted.has(r.id) && craftActions.has(r.id)) : [];
   const shown = [...makeable, ...known];
 
+  if (state.fight) {
+    return (
+      <div className="panel">
+        <p className="card muted">You can't craft during a fight.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="panel">
       <label className="toggle">

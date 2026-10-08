@@ -35,6 +35,20 @@ export interface SkillState {
 export type WeatherId = 'clear' | 'cloudy' | 'windy' | 'rainy' | 'stormy';
 export const WEATHER_IDS: readonly WeatherId[] = ['clear', 'cloudy', 'windy', 'rainy', 'stormy'];
 
+/** Animals the player can fight. */
+export type EnemyId = 'rabbit' | 'seagull' | 'kiwi' | 'turtle' | 'monkey' | 'snake';
+export const ENEMY_IDS: readonly EnemyId[] = ['rabbit', 'seagull', 'kiwi', 'turtle', 'monkey', 'snake'];
+
+/** A fight in progress, on a battle field of FIGHT_RULES.fieldSize spaces (0 is the left edge, where the player starts). */
+export interface FightState {
+  enemyId: EnemyId;
+  enemyHealth: number;
+  playerAt: number;
+  enemyAt: number;
+  /** The enemy has seen the player; it keeps reacting to them for the rest of the fight. */
+  seen: boolean;
+}
+
 export type EquipSlot = 'head' | 'body' | 'leftHand' | 'rightHand';
 export const EQUIP_SLOTS: readonly EquipSlot[] = ['head', 'body', 'leftHand', 'rightHand'];
 export type HandSlot = 'leftHand' | 'rightHand';
@@ -223,6 +237,8 @@ export interface GameState {
   player: PlayerState;
   environment: EnvironmentState;
   locations: Record<string, LocationState>;
+  /** The fight in progress; while it lasts, only fight actions and changing weapons are possible. */
+  fight?: FightState;
   flags: Record<string, boolean>;
   log: LogEntry[];
 }

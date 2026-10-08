@@ -271,7 +271,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.05,
     groundLifetime: days(10),
     icon: 'broken-arrow',
-    arrow: { damage: 0, accuracy: 0, lossChance: 0.5 },
+    arrow: { damage: 0, accuracy: 0 },
   },
   {
     id: 'wooden-arrow',
@@ -283,7 +283,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.05,
     groundLifetime: days(15),
     icon: 'arrow-cluster',
-    arrow: { damage: 0, accuracy: 0.15, lossChance: 0.3 },
+    arrow: { damage: 0, accuracy: 0.15 },
   },
   {
     id: 'stone-arrow',
@@ -295,7 +295,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.06,
     groundLifetime: days(30),
     icon: 'broadhead-arrow',
-    arrow: { damage: 2, accuracy: 0.15, lossChance: 0.2 },
+    arrow: { damage: 10, accuracy: 0.15 },
   },
 
   // Food
@@ -649,7 +649,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'belt-armor',
     maxHealth: 100,
-    clothing: { armor: 1 },
+    clothing: { armor: 5 },
   },
   {
     id: 'leather-tunic',
@@ -663,7 +663,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'leather-vest',
     maxHealth: 100,
-    clothing: { warmth: true, armor: 1 },
+    clothing: { warmth: true, armor: 5 },
   },
   {
     id: 'leather-jacket',
@@ -677,7 +677,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'leather-armor',
     maxHealth: 200,
-    clothing: { warmth: true, armor: 2 },
+    clothing: { warmth: true, armor: 10 },
   },
   {
     id: 'leather-hat',
@@ -691,7 +691,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'outback-hat',
     maxHealth: 100,
-    clothing: { shade: true, armor: 1 },
+    clothing: { shade: true, armor: 5 },
   },
   {
     id: 'makeshift-raincoat',
@@ -721,7 +721,7 @@ const ITEM_LIST: ItemDef[] = [
     icon: 'primitive-torch',
     maxHealth: 100,
     lightable: true,
-    melee: { damage: 1, accuracy: 0.1 },
+    melee: { damage: 5, accuracy: 0.1 },
   },
   {
     id: 'knife',
@@ -735,7 +735,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(90),
     icon: 'bone-knife',
     types: ['knife'],
-    melee: { damage: 1, accuracy: 0.1 },
+    melee: { damage: 5, accuracy: 0.1 },
   },
   {
     id: 'hammer',
@@ -749,7 +749,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(60),
     icon: 'flat-hammer',
     types: ['heavy'],
-    melee: { damage: 2, accuracy: -0.1 },
+    melee: { damage: 10, accuracy: -0.1 },
   },
   {
     id: 'bow',
@@ -762,7 +762,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 0.6,
     groundLifetime: days(15),
     icon: 'bow-string',
-    ranged: { damage: 1, accuracy: 0.3 },
+    ranged: { damage: 5, accuracy: 0.3 },
     twoHanded: true,
   },
   {
@@ -776,7 +776,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 1.4,
     groundLifetime: days(60),
     icon: 'stone-axe',
-    melee: { damage: 3, accuracy: -0.05 },
+    melee: { damage: 15, accuracy: -0.05 },
   },
   {
     id: 'spear',
@@ -789,7 +789,7 @@ const ITEM_LIST: ItemDef[] = [
     weight: 1.2,
     groundLifetime: days(20),
     icon: 'stone-spear',
-    melee: { damage: 3, accuracy: 0.05 },
+    melee: { damage: 15, accuracy: 0.05 },
   },
 ];
 

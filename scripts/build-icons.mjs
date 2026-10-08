@@ -79,7 +79,15 @@ const GAME_ICONS = [
   'table',
   'chest',
   'barn',
+  // Animals
+  'rabbit',
+  'seagull',
+  'kiwi-bird',
+  'turtle',
+  'monkey',
+  'snake',
   // Interface
+  'person',
   'compass',
   'knapsack',
   'heart-beats',

@@ -32,7 +32,7 @@ function withArrows(state: GameState, itemId: string): GameState {
 }
 
 describe('melee stats', () => {
-  it('start at 50% accuracy and 1 damage with bare hands', () => {
+  it('start at 50% accuracy and 5 damage with bare hands', () => {
     // Arrange
     const state = createTestGame('beach');
 
@@ -41,7 +41,7 @@ describe('melee stats', () => {
 
     // Assert
     expect(stats.weaponHand).toBe('rightHand');
-    expect(rounded(stats.melee)).toEqual({ accuracy: 0.5, damage: 1 });
+    expect(rounded(stats.melee)).toEqual({ accuracy: 0.5, damage: 5 });
     expect(stats.ranged).toBeUndefined();
   });
 
@@ -51,12 +51,12 @@ describe('melee stats', () => {
 
     // Assert
     expect(stats).toEqual([
-      { accuracy: 0.6, damage: 2 },
-      { accuracy: 0.4, damage: 3 },
-      { accuracy: 0.45, damage: 4 },
-      { accuracy: 0.55, damage: 4 },
-      { accuracy: 0.6, damage: 2 },
-      { accuracy: 0.5, damage: 1 },
+      { accuracy: 0.6, damage: 10 },
+      { accuracy: 0.4, damage: 15 },
+      { accuracy: 0.45, damage: 20 },
+      { accuracy: 0.55, damage: 20 },
+      { accuracy: 0.6, damage: 10 },
+      { accuracy: 0.5, damage: 5 },
     ]);
   });
 
@@ -72,17 +72,17 @@ describe('melee stats', () => {
     // Assert
     expect(stats.map((s) => s.weaponHand)).toEqual(['rightHand', 'leftHand']);
     expect(stats.map((s) => rounded(s.melee))).toEqual([
-      { accuracy: 0.5, damage: 1 },
-      { accuracy: 0.6, damage: 2 },
+      { accuracy: 0.5, damage: 5 },
+      { accuracy: 0.6, damage: 10 },
     ]);
   });
 
-  it('take a point of damage below 10 Strength and add one for every full 20 points above 20', () => {
+  it('take 5 damage off below 10 Strength and add 5 for every full 20 points above 20', () => {
     // Act
     const bonuses = [1, 9, 9.9, 10, 20, 39, 40, 59, 60, 80, 100].map(strengthDamage);
 
     // Assert
-    expect(bonuses).toEqual([-1, -1, -1, 0, 0, 0, 1, 1, 2, 3, 4]);
+    expect(bonuses).toEqual([-5, -5, -5, 0, 0, 0, 5, 5, 10, 15, 20]);
   });
 
   it('use an Agility factor of 0.75 at 0, 1 at 20 and 2 at 100, while ranged runs straight from 0.5 to 1.5', () => {
@@ -111,7 +111,7 @@ describe('melee stats', () => {
     expect(accuracies[1]).toBe(0.95);
   });
 
-  it('add the Fighting skill: +1 damage at level 4, +2 at 7, +3 and +20% accuracy at 10', () => {
+  it('add the Fighting skill: +5 damage at level 4, +10 at 7, +15 and +20% accuracy at 10', () => {
     // Arrange
     const states = [4, 7, 10].map((level) => {
       const state = createTestGame('beach');
@@ -124,11 +124,11 @@ describe('melee stats', () => {
 
     // Assert
     expect(stats).toEqual([
-      { accuracy: 0.58, damage: 2 },
-      { accuracy: 0.64, damage: 3 },
-      { accuracy: 0.7, damage: 4 },
+      { accuracy: 0.58, damage: 10 },
+      { accuracy: 0.64, damage: 15 },
+      { accuracy: 0.7, damage: 20 },
     ]);
-    expect(describeSkill('fighting', 10)).toBe('Damage +3 · accuracy +20%, in melee and with the bow');
+    expect(describeSkill('fighting', 10)).toBe('Damage +15 · accuracy +20%, in melee and with the bow');
   });
 });
 
@@ -154,10 +154,10 @@ describe('ranged stats', () => {
 
     // Assert
     expect(stats).toEqual([
-      { accuracy: 0.21, damage: 1 },
-      { accuracy: 0.315, damage: 1 },
-      { accuracy: 0.315, damage: 3 },
-      { accuracy: 0.675, damage: 3 },
+      { accuracy: 0.21, damage: 5 },
+      { accuracy: 0.315, damage: 5 },
+      { accuracy: 0.315, damage: 15 },
+      { accuracy: 0.675, damage: 15 },
     ]);
     expect([bad, wooden, stone, agile].map((state) => Math.round(ranged(state).accuracy * 100))).toEqual([21, 32, 32, 68]);
   });
@@ -174,8 +174,8 @@ describe('ranged stats', () => {
 
     // Assert
     expect(stats).toEqual([
-      { accuracy: 0.21, damage: 1 },
-      { accuracy: 0.35, damage: 4 },
+      { accuracy: 0.21, damage: 5 },
+      { accuracy: 0.35, damage: 20 },
     ]);
   });
 });

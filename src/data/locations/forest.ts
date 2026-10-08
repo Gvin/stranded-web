@@ -1,4 +1,5 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
+import { startHunt } from '../../engine/fight';
 import { perceptionGainChance, successGainChance } from '../../engine/gains';
 import { perceptionChance } from '../../engine/rules';
 import { type FindDef, findGains, rollFinds } from '../../engine/outcomes';
@@ -214,13 +215,14 @@ export const forest: LocationDef = {
         `You find a fresh trail ${TRACKING_CHANCE * 100}% of the time at 20 Perception, rising to ` +
         `${Math.round(TRACKING_CHANCE * TRACKING_PERCEPTION_AT_MAX * 100)}% at 100.`,
       gains: (state) => [
-        { text: 'A fresh animal trail', chance: perceptionGainChance(state, TRACKING_CHANCE, TRACKING_PERCEPTION_AT_MAX) },
+        { text: 'A trail to an animal (starts a fight)', chance: perceptionGainChance(state, TRACKING_CHANCE, TRACKING_PERCEPTION_AT_MAX) },
       ],
       minutes: hours(3),
       energy: 10,
+      trains: { perception: 3 },
       run: (ctx) => {
         if (ctx.chance(perceptionChance(TRACKING_CHANCE, ctx.attribute('perception'), TRACKING_PERCEPTION_AT_MAX))) {
-          ctx.log('You find a fresh animal trail.', 'good', { alert: true });
+          startHunt(ctx);
         } else {
           ctx.log('You search the undergrowth for hours, but find no fresh tracks.');
         }
