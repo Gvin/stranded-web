@@ -159,12 +159,12 @@ describe('performAction', () => {
     giveItem(state, 'knife');
 
     // Act
-    const right = blockedReason(state, 'equip:knife:rightHand');
-    const left = performAction(state, 'equip:knife:leftHand');
+    const right = blockedReason(state, 'equip:knife#0:rightHand');
+    const left = performAction(state, 'equip:knife#0:leftHand');
 
     // Assert
     expect(right).toBe('Your right arm cannot hold anything');
-    expect(left.player.equipment.leftHand).toEqual({ itemId: 'knife' });
+    expect(left.player.equipment.leftHand).toEqual({ itemId: 'knife', health: 50 });
   });
 
   it('applies the food risk with its severity', () => {
@@ -228,7 +228,7 @@ describe('crafting', () => {
       { itemId: 'stone', quantity: 1 },
       { itemId: 'rope', quantity: 1 },
       { itemId: 'vine', quantity: 1 },
-      { itemId: 'knife', quantity: 1 },
+      { itemId: 'knife', quantity: 1, health: 50 },
     ]);
   });
 
@@ -283,7 +283,7 @@ describe('crafting', () => {
 
     // Assert
     expect(reason).toBe('Requires: A workbench nearby');
-    expect(next.player.inventory).toEqual([{ itemId: 'hammer', quantity: 1 }]);
+    expect(next.player.inventory).toEqual([{ itemId: 'hammer', quantity: 1, health: 100 }]);
   });
 
   it('reports missing type ingredients by their type', () => {

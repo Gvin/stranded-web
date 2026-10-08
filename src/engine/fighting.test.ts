@@ -236,15 +236,15 @@ describe('the bow', () => {
     giveItem(state, 'bow');
 
     // Act
-    const next = performAction(state, 'equip:bow:rightHand');
+    const next = performAction(state, 'equip:bow#0:rightHand');
 
     // Assert
     expect(
       getActions(state)
-        .filter((a) => a.id.startsWith('equip:bow:'))
+        .filter((a) => a.id.startsWith('equip:bow#0:'))
         .map((a) => [a.id, a.label]),
-    ).toEqual([['equip:bow:rightHand', 'Hold in both hands']]);
-    expect(next.player.equipment.rightHand).toEqual({ itemId: 'bow' });
+    ).toEqual([['equip:bow#0:rightHand', 'Hold in both hands']]);
+    expect(next.player.equipment.rightHand).toEqual({ itemId: 'bow', health: 100 });
     expect(next.player.equipment.leftHand).toBeUndefined();
     expect(next.player.inventory.map((s) => s.itemId).sort()).toEqual(['hammer', 'knife']);
     expect(next.log.at(-1)?.text).toBe('You take the bow in both hands and put away the hammer and the knife.');
@@ -256,12 +256,12 @@ describe('the bow', () => {
     giveItem(state, 'knife');
 
     // Act
-    const swapped = performAction(state, 'equip:knife:rightHand');
+    const swapped = performAction(state, 'equip:knife#0:rightHand');
 
     // Assert
-    expect(blockedReason(state, 'equip:knife:leftHand')).toBe('The bow takes both hands');
-    expect(swapped.player.equipment.rightHand).toEqual({ itemId: 'knife' });
-    expect(swapped.player.inventory).toEqual([{ itemId: 'bow', quantity: 1 }]);
+    expect(blockedReason(state, 'equip:knife#0:leftHand')).toBe('The bow takes both hands');
+    expect(swapped.player.equipment.rightHand).toEqual({ itemId: 'knife', health: 50 });
+    expect(swapped.player.inventory).toEqual([{ itemId: 'bow', quantity: 1, health: 100 }]);
   });
 
   it('cannot be held with a fractured, splinted or missing arm', () => {
@@ -274,7 +274,7 @@ describe('the bow', () => {
     });
 
     // Act
-    const reasons = states.map((state) => blockedReason(state, 'equip:bow:rightHand'));
+    const reasons = states.map((state) => blockedReason(state, 'equip:bow#0:rightHand'));
 
     // Assert
     expect(reasons).toEqual(Array(3).fill('It needs both arms, and one of them cannot hold anything'));
@@ -289,7 +289,7 @@ describe('the bow', () => {
 
     // Assert
     expect(state.player.equipment.rightHand).toBeUndefined();
-    expect(state.player.inventory).toEqual([{ itemId: 'bow', quantity: 1 }]);
+    expect(state.player.inventory).toEqual([{ itemId: 'bow', quantity: 1, health: 100 }]);
     expect(getFightingStats(state).ranged).toBeUndefined();
   });
 });

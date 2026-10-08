@@ -149,44 +149,49 @@ describe('island content', () => {
     expect(duplicates).toEqual([]);
   });
 
-  it.each(LOCATIONS.map((l) => l.id))('performs every action at %s without errors', (locationId) => {
-    // Arrange
-    const state = createTestGame(locationId);
-    state.player.attributes.strength.base = 100;
-    for (const id of Object.keys(ITEMS)) {
-      giveItem(state, id, 3);
-    }
-    state.player.equipment = { leftHand: { itemId: 'knife' }, rightHand: { itemId: 'bow' } };
-    state.player.body.leftLeg = [{ id: 'fractured' }];
-    state.player.body.torso = [{ id: 'injured', remaining: 100 }];
-    state.locations[locationId] = {
-      visited: true,
-      constructions: {},
-      groundItems: [{ id: 999, itemId: 'stone', quantity: 2, droppedAt: 0 }],
-      stock: {},
-      finds: {},
-      buildings: {
-        house: { id: 'hut', builtAt: 0 },
-        fire: { id: 'campfire', builtAt: 0, fuel: 3, lit: true },
-        storage: { id: 'smallStorage', builtAt: 0, items: [{ itemId: 'rope', quantity: 2 }] },
-        workbench: { id: 'basicWorkbench', builtAt: 0 },
-        rainCollector: { id: 'rainCollector', builtAt: 0, water: 2 },
-      },
-    };
-    const torch = state.player.inventory.find((s) => s.itemId === 'torch');
-    if (torch) {
-      torch.lit = true;
-    }
-    state.player.stats.energy = 50;
+  it.each(LOCATIONS.map((l) => l.id))(
+    'performs every action at %s without errors',
+    (locationId) => {
+      // Arrange
+      const state = createTestGame(locationId);
+      state.player.attributes.strength.base = 100;
+      for (const id of Object.keys(ITEMS)) {
+        giveItem(state, id, 3);
+      }
+      state.player.equipment = { leftHand: { itemId: 'knife' }, rightHand: { itemId: 'bow' } };
+      state.player.body.leftLeg = [{ id: 'fractured' }];
+      state.player.body.torso = [{ id: 'injured', remaining: 100 }];
+      state.locations[locationId] = {
+        visited: true,
+        constructions: {},
+        groundItems: [{ id: 999, itemId: 'stone', quantity: 2, droppedAt: 0 }],
+        stock: {},
+        finds: {},
+        buildings: {
+          house: { id: 'hut', builtAt: 0 },
+          fire: { id: 'campfire', builtAt: 0, fuel: 3, lit: true },
+          storage: { id: 'smallStorage', builtAt: 0, items: [{ itemId: 'rope', quantity: 2 }] },
+          workbench: { id: 'basicWorkbench', builtAt: 0 },
+          rainCollector: { id: 'rainCollector', builtAt: 0, water: 2 },
+        },
+      };
+      const torch = state.player.inventory.find((s) => s.itemId === 'torch');
+      if (torch) {
+        torch.lit = true;
+      }
+      state.player.stats.energy = 50;
 
-    // Act
-    const actionIds = getActions(state).map((a) => a.id);
-    const results = actionIds.flatMap((id) => [1, 2, 3, 4, 5].map((seed) => performAction({ ...state, rng: seed }, id)));
+      // Act
+      const actionIds = getActions(state).map((a) => a.id);
+      const results = actionIds.flatMap((id) => [1, 2, 3, 4, 5].map((seed) => performAction({ ...state, rng: seed }, id)));
 
-    // Assert
-    expect(actionIds.length).toBeGreaterThan(10);
-    expect(results.every((r) => r.log.length > 0)).toBe(true);
-  });
+      // Assert
+      expect(actionIds.length).toBeGreaterThan(10);
+      expect(results.every((r) => r.log.length > 0)).toBe(true);
+      // why: every action five times over, with three of every item (weapons and clothes each their own entry), takes a while.
+    },
+    20_000,
+  );
 
   it('covers every body part with at least one treatable condition', () => {
     // Act

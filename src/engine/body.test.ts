@@ -120,7 +120,7 @@ describe('damage to a body part', () => {
     expect(result).toEqual({ conditions: ['missing'], released: ['knife'] });
     expect(state.player.body.leftArm).toEqual([{ id: 'missing' }]);
     expect(state.player.health.leftArm).toBe(0);
-    expect(state.player.inventory).toEqual([{ itemId: 'knife', quantity: 1 }]);
+    expect(state.player.inventory).toEqual([{ itemId: 'knife', quantity: 1, health: 50 }]);
   });
 
   it('leaves at least 1 health after a single hit on a part with 5 or more, but not on a part below 5', () => {

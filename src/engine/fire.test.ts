@@ -78,7 +78,7 @@ describe('fires', () => {
     expect(next.time).toBe(15);
     expect(next.player.stats.energy).toBe(47);
     expect(next.player.inventory).toEqual([
-      { itemId: 'bow', quantity: 1 },
+      { itemId: 'bow', quantity: 1, health: 100 },
       { itemId: 'stick', quantity: 1 },
     ]);
   });

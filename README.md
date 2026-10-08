@@ -192,6 +192,12 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
     of the fight. Before that, a fleeing or fighting enemy moves a space now and then (10% a turn, either way, never off the
     field). Once it has seen you: Flee runs away, off the right edge to escape; Stand attacks when you are next to it; Passive
     does nothing; Fight comes at you and attacks, but runs away at 20% health or below.
+  - Your weapons wear out in fights, and only there: every hit you make takes 1 durability off the weapon it is made with (the
+    item in the weapon hand, or the bow for a shot); misses and bare hands wear nothing, and a weapon at 0 falls apart.
+    Durability: Knife 50, Hammer 100, Axe 100, Spear 50, Bow 100, Torch 100 (a lit torch also burns down). Each weapon is
+    its own entry in the bag, since each has its own durability.
+  - Every enemy hit that lands takes 1 health off what you wear on the head and the body, even when Armor stops all its damage;
+    what reaches 0 falls apart.
   - An enemy's hit rolls its damage (see Fighting stats), then loses a point per Armor point. It lands on the arms 40% of the
     time (20% each), the torso 35%, the legs 20% (10% each) and the head 5%, never on a missing limb, and takes that part's
     health (see Body part health). A single hit leaves at least 1 health on a part that had 5 or more.
@@ -340,7 +346,7 @@ screen instead of being loaded.
 | 10          | 0.12.1       | The items the player has had and the foods they have tried.                                           |
 | 11          | 0.13.0       | The arrow slot; a held bow takes both hands (kept in the right hand, the left one empty).             |
 | 12          | 0.15.0       | A fight in progress.                                                                                  |
-| 13          | 0.16.0       | Health per body part instead of one health stat.                                                      |
+| 13          | 0.16.0       | Health per body part instead of one health stat; weapons as single entries with durability.           |
 
 A migration is needed when you:
 

@@ -275,6 +275,10 @@ export const FIGHT_RULES = {
   fleeAtHealth: 0.2,
   /** Armor that Protect adds for the turn, by Fighting level (index). */
   protectArmor: [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
+  /** Health every hit that lands takes off what the player wears on the head and the body, even when Armor stops all its damage. */
+  wornWearPerHit: 1,
+  /** Health every hit takes off the weapon it is made with: the item in the weapon hand, or the bow for a shot; misses take none. */
+  weaponWearPerHit: 1,
   /** A hit does between this share of its max damage (rounded up) and all of it, before Armor and Protect. */
   minDamageShare: 0.7,
   /** How likely each body part is to be hit. */

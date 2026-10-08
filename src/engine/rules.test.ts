@@ -121,13 +121,13 @@ describe('items', () => {
     // Act
     const one = performAction(state, 'drop:stick:one');
     const all = performAction(one, 'drop:stick:all');
-    const axe = performAction(all, 'drop:axe:one');
+    const axe = performAction(all, 'drop:axe#0:one');
 
     // Assert
     expect([one, all, axe].map((s) => s.log.at(-1)?.text)).toEqual([
       'You drop a stick on the ground.',
       'You drop 3 sticks on the ground.',
-      'You drop an axe on the ground.',
+      'You drop an axe (100/100) on the ground.',
     ]);
   });
 
@@ -304,7 +304,7 @@ describe('round of refinements', () => {
     const next = performAction(state, 'craft:axe');
 
     // Assert
-    expect(next.player.inventory).toEqual([{ itemId: 'axe', quantity: 1 }]);
+    expect(next.player.inventory).toEqual([{ itemId: 'axe', quantity: 1, health: 100 }]);
   });
 
   it('lights a fire by friction without a bow, using up one of the two sticks', () => {

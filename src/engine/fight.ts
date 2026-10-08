@@ -5,7 +5,7 @@ import { isFatallyHurt } from './body';
 import { bodyPartName, hasBodyCondition } from './conditions';
 import type { ActionContext } from './context';
 import type { EnemyDef, WeaponStats } from './definitions';
-import { type FightingStat, getFightingStats } from './fighting';
+import { type FightingStat, getFightingStats, weaponHand } from './fighting';
 import { armorPoints } from './inventory';
 import { FIGHT_RULES, minDamage, protectArmor } from './rules';
 import type { BodyConditionId, BodyPartId, EnemyId, FightState, GameState, LogTone } from './types';
@@ -102,8 +102,9 @@ function attackPlayer(ctx: ActionContext, enemy: EnemyDef, attack: WeaponStats, 
   }
   const player = ctx.state.player;
   const damage = Math.max(0, rollDamage(ctx, attack.damage) - armorPoints(player) - protect);
+  const worn = wearWornOnHit(ctx);
   if (damage === 0) {
-    return { said: [`${name} hits you, but your armor takes it all.`] };
+    return { said: [`${name} hits you, but your armor takes it all.`], after: worn };
   }
   const part = pickHitPart(ctx);
   const result = ctx.damage(part, damage, `${capitalize(enemy.singular)} killed you.`, { singleHit: true });
@@ -120,7 +121,33 @@ function attackPlayer(ctx: ActionContext, enemy: EnemyDef, attack: WeaponStats, 
       for (const itemId of result.released) {
         ctx.log(`You can no longer hold the ${getItemDef(itemId).name.toLowerCase()} with your ${bodyPartName(part)}.`, 'bad');
       }
+      worn();
     },
+  };
+}
+
+/**
+ * A hit that lands wears down what the player wears on the head and the body; what reaches 0 falls apart. Returns what
+ * logs that, to run once the turn is logged.
+ */
+function wearWornOnHit(ctx: ActionContext): () => void {
+  const { equipment } = ctx.state.player;
+  const fallen: string[] = [];
+  for (const slot of ['head', 'body'] as const) {
+    const item = equipment[slot];
+    if (item?.health === undefined) {
+      continue;
+    }
+    item.health -= FIGHT_RULES.wornWearPerHit;
+    if (item.health <= 0) {
+      delete equipment[slot];
+      fallen.push(getItemDef(item.itemId).name.toLowerCase());
+    }
+  }
+  return () => {
+    for (const name of fallen) {
+      ctx.log(`Your ${name} fell apart. It is gone.`, 'bad', { alert: true });
+    }
   };
 }
 
@@ -203,12 +230,33 @@ function strike(ctx: ActionContext, fight: FightState, enemy: EnemyDef, stat: Fi
   if (!ctx.chance(stat.accuracy)) {
     return { said: [verb === 'shoot' ? `You shoot at ${name} and miss.` : `You swing at ${name} and miss.`] };
   }
+  const worn = wearWeapon(ctx, verb === 'shoot' ? 'ranged' : 'melee');
   if (stat.damage <= 0) {
-    return { said: [`You hit ${name}, but too weakly to hurt it.`] };
+    return { said: [`You hit ${name}, but too weakly to hurt it.`], after: worn };
   }
   const damage = rollDamage(ctx, stat.damage);
   fight.enemyHealth = Math.max(0, fight.enemyHealth - damage);
-  return { said: [`You ${verb} ${name} for ${damage}.`] };
+  return { said: [`You ${verb} ${name} for ${damage}.`], after: worn };
+}
+
+/**
+ * A hit wears down the weapon it is made with: the melee weapon or the bow in the weapon hand (bare hands wear nothing).
+ * A weapon at 0 falls apart. Returns what logs that, to run once the turn is logged.
+ */
+function wearWeapon(ctx: ActionContext, kind: 'melee' | 'ranged'): () => void {
+  const { player } = ctx.state;
+  const hand = weaponHand(player);
+  const item = hand ? player.equipment[hand] : undefined;
+  const def = item ? getItemDef(item.itemId) : undefined;
+  if (!hand || !item || item.health === undefined || def?.category !== 'equipment' || !def[kind]) {
+    return () => {};
+  }
+  item.health -= FIGHT_RULES.weaponWearPerHit;
+  if (item.health > 0) {
+    return () => {};
+  }
+  delete player.equipment[hand];
+  return () => ctx.log(`Your ${def.name.toLowerCase()} fell apart. It is gone.`, 'bad', { alert: true });
 }
 
 /** Every shot uses up an arrow from the arrow slot; the arrow is always lost. */

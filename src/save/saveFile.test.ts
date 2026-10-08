@@ -182,7 +182,7 @@ describe('migration from save format 1', () => {
       { itemId: 'ship-biscuit', quantity: 2 },
       { itemId: 'flint', quantity: 1 },
     ]);
-    expect(state.player.equipment).toEqual({ leftHand: { itemId: 'hammer' }, body: { itemId: 'clothes', health: 60 } });
+    expect(state.player.equipment).toEqual({ leftHand: { itemId: 'hammer', health: 100 }, body: { itemId: 'clothes', health: 60 } });
     expect(state.player.stats).toMatchObject({ thirst: 40, hunger: 30 });
     expect(state.player.craftedRecipes.sort()).toEqual(['build-campfire', 'build-hut']);
     expect(state.player.body.leftArm).toEqual([{ id: 'injured', remaining: 4320 - 600 }]);
@@ -254,7 +254,7 @@ describe('migration from save format 2', () => {
     expect(result).toMatchObject({ status: 'ok', migratedFrom: 2 });
     const state = (result as { state: GameState }).state;
     expect(state.player.stats).toEqual({ health: 70, thirst: 25, hunger: 60, energy: 60 });
-    expect(state.player.equipment).toEqual({ leftHand: { itemId: 'knife' }, body: { itemId: 'clothes', health: 60 } });
+    expect(state.player.equipment).toEqual({ leftHand: { itemId: 'knife', health: 50 }, body: { itemId: 'clothes', health: 60 } });
     expect(state.player.craftedRecipes).toEqual(['build-workbench']);
     expect(state.locations.beach?.stock).toEqual({ 'palms:fallen': { amount: 1, updatedAt: 200 } });
   });
@@ -506,12 +506,16 @@ describe('migration from save format 10', () => {
     const broken = load([{ id: 'fractured' }]);
 
     // Assert
-    expect(healthy.player.equipment).toEqual({ rightHand: { itemId: 'bow' }, body: { itemId: 'clothes', health: 60 } });
-    expect(healthy.player.inventory).toEqual([{ itemId: 'knife', quantity: 2 }]);
+    expect(healthy.player.equipment).toEqual({ rightHand: { itemId: 'bow', health: 100 }, body: { itemId: 'clothes', health: 60 } });
+    expect(healthy.player.inventory).toEqual([
+      { itemId: 'knife', quantity: 1, health: 50 },
+      { itemId: 'knife', quantity: 1, health: 50 },
+    ]);
     expect(broken.player.equipment).toEqual({ body: { itemId: 'clothes', health: 60 } });
     expect(broken.player.inventory).toEqual([
-      { itemId: 'knife', quantity: 2 },
-      { itemId: 'bow', quantity: 1 },
+      { itemId: 'knife', quantity: 1, health: 50 },
+      { itemId: 'knife', quantity: 1, health: 50 },
+      { itemId: 'bow', quantity: 1, health: 100 },
     ]);
   });
 
@@ -583,6 +587,48 @@ describe('migration from save format 12', () => {
     const { player } = (result as { state: GameState }).state;
     expect(player.stats).toEqual({ thirst: 10, hunger: 20, energy: 60 });
     expect(player.health).toEqual({ head: 8, torso: 24, leftArm: 12, rightArm: 12, leftLeg: 0, rightLeg: 12 });
+  });
+
+  it('splits stacked weapons into single ones at full durability, in the bag, in hand, in storage and on the ground', () => {
+    // Arrange
+    const state = createNewGame(14) as unknown as { nextId: number; player: Record<string, unknown>; locations: Record<string, unknown> };
+    delete state.player.health;
+    state.player.stats = { health: 100, thirst: 0, hunger: 0, energy: 100 };
+    state.player.inventory = [
+      { itemId: 'knife', quantity: 2 },
+      { itemId: 'stick', quantity: 3 },
+    ];
+    state.player.equipment = { rightHand: { itemId: 'spear' }, body: { itemId: 'clothes', health: 60 } };
+    state.nextId = 500;
+    state.locations.camp = {
+      visited: true,
+      groundItems: [{ id: 40, itemId: 'axe', quantity: 2, droppedAt: 0 }],
+      stock: {},
+      finds: {},
+      constructions: {},
+      buildings: { storage: { id: 'smallStorage', builtAt: 0, items: [{ itemId: 'hammer', quantity: 2 }] } },
+    };
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 12, gameVersion: '0.15.0', savedAt: '', state }));
+
+    // Assert
+    const migrated = (result as { state: GameState }).state;
+    expect(migrated.player.inventory).toEqual([
+      { itemId: 'knife', quantity: 1, health: 50 },
+      { itemId: 'knife', quantity: 1, health: 50 },
+      { itemId: 'stick', quantity: 3 },
+    ]);
+    expect(migrated.player.equipment.rightHand).toEqual({ itemId: 'spear', health: 50 });
+    expect(migrated.locations.camp?.groundItems).toEqual([
+      { id: 40, itemId: 'axe', quantity: 1, droppedAt: 0, health: 100 },
+      { id: 500, itemId: 'axe', quantity: 1, droppedAt: 0, health: 100 },
+    ]);
+    expect(migrated.nextId).toBe(501);
+    expect(migrated.locations.camp?.buildings.storage?.items).toEqual([
+      { itemId: 'hammer', quantity: 1, health: 100 },
+      { itemId: 'hammer', quantity: 1, health: 100 },
+    ]);
   });
 
   it('rejects a save without the health of the body parts', () => {

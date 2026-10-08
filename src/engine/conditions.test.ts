@@ -171,7 +171,7 @@ describe('addBodyCondition', () => {
 
     // Assert
     expect(state.player.equipment.rightHand).toBeUndefined();
-    expect(state.player.inventory).toEqual([{ itemId: 'knife', quantity: 1 }]);
+    expect(state.player.inventory).toEqual([{ itemId: 'knife', quantity: 1, health: 50 }]);
     expect(canHoldWith(state.player, 'rightArm')).toBe(false);
     expect(state.log.at(-1)?.text).toBe('You can no longer hold the knife with your right arm.');
   });

@@ -109,6 +109,6 @@ describe('spear', () => {
     const next = performAction(state, 'craft:spear');
 
     // Assert
-    expect(next.player.inventory).toEqual([{ itemId: 'spear', quantity: 1 }]);
+    expect(next.player.inventory).toEqual([{ itemId: 'spear', quantity: 1, health: 50 }]);
   });
 });

@@ -109,8 +109,8 @@ describe('fight turns', () => {
       'fight:flee',
       'fight:attack',
       'fight:protect',
-      'equip:knife:leftHand',
-      'equip:knife:rightHand',
+      'equip:knife#0:leftHand',
+      'equip:knife#0:rightHand',
     ]);
     expect(next.time).toBe(state.time);
     expect(next.player.stats).toEqual(state.player.stats);
@@ -238,10 +238,10 @@ describe('fight turns', () => {
     giveItem(state, 'knife');
 
     // Act
-    const next = performAction(state, 'equip:knife:rightHand');
+    const next = performAction(state, 'equip:knife#0:rightHand');
 
     // Assert
-    expect(next.player.equipment.rightHand).toEqual({ itemId: 'knife' });
+    expect(next.player.equipment.rightHand).toEqual({ itemId: 'knife', health: 50 });
     expect(next.time).toBe(state.time);
     expect(lastText(next)).toMatch(/^You take the knife in your right hand\. The snake (attacks and misses|hits your)/);
   });
@@ -479,5 +479,98 @@ describe('more enemy rules', () => {
     // Assert
     expect(feathers('seagull', 'bow', 'fight:shoot')).toEqual(new Set([2, 3, 4]));
     expect(feathers('kiwi', 'knife', 'fight:attack')).toEqual(new Set([1, 2]));
+  });
+});
+
+describe('wear in a fight', () => {
+  it('takes 1 health off what is worn on the head and the body for every hit that lands, but not for a miss', () => {
+    // Arrange
+    const turns = SEEDS.slice(0, 40).map((seed) => {
+      const state = fightWith('snake', { player: 4, enemy: 5, seen: true }, seed);
+      state.player.equipment.head = { itemId: 'leather-hat', health: 100 };
+      state.player.equipment.body = { itemId: 'leather-jacket', health: 200 };
+      return performAction(state, 'fight:wait');
+    });
+
+    // Act
+    const worn = turns.map((state) => [state.player.equipment.head?.health, state.player.equipment.body?.health]);
+    const missed = turns.map((state) => lastText(state).includes('attacks and misses'));
+
+    // Assert
+    expect(missed.some(Boolean)).toBe(true);
+    expect(worn.every(([head, body], index) => (missed[index] ? head === 100 && body === 200 : head === 99 && body === 199))).toBe(true);
+  });
+
+  it('wears clothes down even when the armor takes all the damage, and lets them fall apart at 0', () => {
+    // Arrange
+    const hit = SEEDS.map((seed) => {
+      const state = fightWith('turtle', { player: 4, enemy: 5, seen: true }, seed);
+      state.player.equipment.head = { itemId: 'baseball-hat', health: 1 };
+      state.player.equipment.body = { itemId: 'leather-jacket', health: 200 };
+      return performAction(state, 'fight:wait');
+    }).find((state) => lastText(state).includes('fell apart'));
+
+    // Assert
+    expect(hit?.player.equipment.head).toBeUndefined();
+    expect(hit?.player.equipment.body?.health).toBe(199);
+    expect(hit?.log.map((e) => e.text)).toContain('You wait. The turtle hits you, but your armor takes it all.');
+    expect(hit?.log.at(-1)).toMatchObject({ text: 'Your baseball hat fell apart. It is gone.', alert: true });
+  });
+});
+
+describe('weapons wearing out in a fight', () => {
+  it('take 1 durability off the weapon for every hit, but none for a miss or with bare hands', () => {
+    // Arrange
+    const attacks = SEEDS.slice(0, 40).map((seed) => {
+      const state = fightWith('monkey', { player: 4, enemy: 5, seen: true }, seed);
+      state.player.equipment.rightHand = { itemId: 'knife', health: 50 };
+      return performAction(state, 'fight:attack');
+    });
+    const bare = performAction(fightWith('monkey', { player: 4, enemy: 5, seen: true }), 'fight:attack');
+
+    // Act
+    const knives = attacks.map((state) => [
+      state.log.some((e) => e.text.startsWith('You hit the monkey')),
+      state.player.equipment.rightHand?.health,
+    ]);
+
+    // Assert
+    expect(knives.some(([hit]) => hit)).toBe(true);
+    expect(knives.some(([hit]) => !hit)).toBe(true);
+    expect(knives.every(([hit, health]) => health === (hit ? 49 : 50))).toBe(true);
+    expect(bare.player.equipment.rightHand).toBeUndefined();
+  });
+
+  it('take 1 durability off the bow for every shot that hits', () => {
+    // Arrange
+    const shots = SEEDS.slice(0, 40).map((seed) => {
+      const state = fightWith('rabbit', {}, seed);
+      state.player.equipment.rightHand = { itemId: 'bow', health: 100 };
+      state.player.arrows = { itemId: 'stone-arrow', quantity: 3 };
+      return performAction(state, 'fight:shoot');
+    });
+
+    // Act
+    const bows = shots.map((state) => [
+      state.log.some((e) => e.text.startsWith('You shoot the rabbit')),
+      state.player.equipment.rightHand?.health,
+    ]);
+
+    // Assert
+    expect(bows.some(([hit]) => hit)).toBe(true);
+    expect(bows.every(([hit, health]) => health === (hit ? 99 : 100))).toBe(true);
+  });
+
+  it('let a weapon fall apart when a hit takes its last durability', () => {
+    // Act
+    const broken = SEEDS.map((seed) => {
+      const state = fightWith('monkey', { player: 4, enemy: 5, seen: true }, seed);
+      state.player.equipment.rightHand = { itemId: 'axe', health: 1 };
+      return performAction(state, 'fight:attack');
+    }).find((state) => state.log.some((e) => e.text === 'Your axe fell apart. It is gone.'));
+
+    // Assert
+    expect(broken?.player.equipment.rightHand).toBeUndefined();
+    expect(broken?.log.find((e) => e.text === 'Your axe fell apart. It is gone.')?.alert).toBe(true);
   });
 });

@@ -180,7 +180,7 @@ describe('getting resources back', () => {
     const next = performAction(crafter(10, { stick: 1, flint: 1 }), 'craft:knife');
 
     // Assert
-    expect(next.player.inventory).toEqual([{ itemId: 'knife', quantity: 1 }]);
+    expect(next.player.inventory).toEqual([{ itemId: 'knife', quantity: 1, health: 50 }]);
   });
 
   it('gives back a second resource half the time at level 10, never the last one of an ingredient', () => {
