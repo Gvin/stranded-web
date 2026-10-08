@@ -19,13 +19,9 @@ Rules every feature follows, taken from how the engine works today:
 
 ## Hunting
 
-Decided: hunting is where fights come from. Track animals in the forest shipped in game 0.14.0, and since 0.15.0 a found trail starts a fight (see the README).
+> **Suggestion, not decided.** Everything in this section, including every new item, action, building, object and recipe, waits for your approval.
 
-> **Suggestion, not decided.** The rest of this section, apart from the parts marked as decided, including every new item, action, building, object and recipe, waits for your approval.
-
-Hunting is its own activity, as decided when the forest boars were removed: track an animal, then fight it. It becomes the main source of meat, leather and feathers, and so feeds the Meat nutrition group and leather gear.
-
-**Leather** (decided): leather, which already exists as a resource and is needed for the leather tunic, hat, jacket, the small rain collector and the makeshift raincoat, comes straight from fights as a reward (in the game since 0.15.0).
+More ways to get meat, and animals that can be hunted out for a while.
 
 **Other ways to get meat**
 
@@ -69,7 +65,7 @@ Days are starting values.
 
 ## Events System
 
-Decided: one central system for game events, the things that happen to the player during actions, travel or rest, instead of each action rolling its own hazards. Some events start a fight, and in those fights who acts first depends on the event (when hunting, the player always acts first). Its design is still to come. Until then the game has no hazard events: the ones below were removed from the game and are kept here as candidates.
+Decided: one central system for game events, the things that happen to the player during actions, travel or rest, instead of each action rolling its own hazards. Some events start a fight, and in those fights who acts first depends on the event. Its design is still to come. Until then the game has no hazard events: the ones below were removed from the game and are kept here as candidates.
 
 | Event               | When it could happen                                   | What it did before it was removed                              |
 | ------------------- | ------------------------------------------------------ | -------------------------------------------------------------- |
@@ -91,7 +87,7 @@ Two releases take the game from 0.16.0 (save format 13) to 0.18.0 (save format 1
 
 | Release | Game version | Save format | Contents                                                                                  |
 | ------- | ------------ | ----------- | ----------------------------------------------------------------------------------------- |
-| Hunting | 0.17.0       | 14          | Animal populations, butchering, snares, spear fishing, nests                              |
+| Hunting | 0.17.0       | 14          | Animal populations, snares, spear fishing, nests                                          |
 | Farming | 0.18.0       | 15          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging |
 
 Farming relies on the existing rain to water the garden.
@@ -103,7 +99,7 @@ Farming relies on the existing rain to water the garden.
 
 **Testing each release**
 
-- Engine rules as unit tests on fixed seeds, as today (for example: a stone tip arrow hits harder than a bad wooden arrow; a plot left dry for two days loses its plant).
+- Engine rules as unit tests on fixed seeds, as today (for example: a plot left dry for two days loses its plant).
 - A migration test that loads the previous save format.
 - `npm run typecheck`, `npm test` and `npm run format:check`, then a browser check at phone size by day and at night.
 

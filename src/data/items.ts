@@ -691,7 +691,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'outback-hat',
     maxHealth: 100,
-    clothing: { shade: true, armor: 2 },
+    clothing: { shade: true, armor: 1 },
   },
   {
     id: 'makeshift-raincoat',

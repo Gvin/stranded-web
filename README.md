@@ -148,7 +148,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   | Makeshift hat      | head | 30     | Shade              | cloth, threads                     |
   | Rope armor         | body | 100    | Armor 2            | rope ×5, threads                   |
   | Leather tunic      | body | 100    | Warmth, Armor 2    | Leather ×3, threads, rope          |
-  | Leather hat        | head | 100    | Shade, Armor 2     | Leather ×2, threads                |
+  | Leather hat        | head | 100    | Shade, Armor 1     | Leather ×2, threads                |
   | Leather jacket     | body | 200    | Warmth, Armor 4    | Leather ×5, threads ×2, rope       |
   | Makeshift raincoat | body | 100    | Warmth, Waterproof | Leather ×3, glue ×2, threads, rope |
 
