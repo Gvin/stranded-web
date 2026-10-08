@@ -197,7 +197,7 @@ describe('performAction', () => {
   it('kills the player when an action deals lethal damage', () => {
     // Arrange
     const state = createTestGame('beach');
-    state.player.stats.health = 1;
+    state.player.health.torso = 0.1;
     state.player.stats.thirst = 100;
 
     // Act

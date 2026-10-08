@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { fullPartHealth, totalHealth } from './body';
 import { getActions } from './actions';
 import { getCharacterSheet } from './character';
 import { performAction } from './game';
 import { advanceTime } from './simulation';
 import { createTestGame } from './testUtils';
 import { hours } from './time';
-import type { BuildingId, GameState } from './types';
+import { BODY_PART_IDS, type BuildingId, type GameState } from './types';
 
 /** A tired test game at the camp, sleeping on the given level of the house slot (or on the bare ground). */
 function sleeper(bed?: BuildingId): GameState {
@@ -19,7 +20,10 @@ function sleeper(bed?: BuildingId): GameState {
     buildings: bed ? { house: { id: bed, builtAt: 0 } } : {},
   };
   state.player.stats.energy = 10;
-  state.player.stats.health = 50;
+  // why: every part at half its health, 50 in all, so the healing shared between them is never lost.
+  for (const part of BODY_PART_IDS) {
+    state.player.health[part] = fullPartHealth(state.player, part) / 2;
+  }
   return state;
 }
 
@@ -31,7 +35,7 @@ describe('sleep', () => {
     const results = BEDS.map((bed) => {
       const state = sleeper(bed);
       advanceTime(state, hours(2), 'sleeping');
-      return [state.player.stats.energy, state.player.stats.health].map((value) => Math.round(value * 100) / 100);
+      return [state.player.stats.energy, totalHealth(state.player)].map((value) => Math.round(value * 100) / 100);
     });
 
     // Assert
@@ -131,6 +135,6 @@ describe('resting', () => {
 
     // Assert
     expect(next.player.stats.energy).toBeCloseTo(55);
-    expect(next.player.stats.health).toBeCloseTo(50.5);
+    expect(totalHealth(next.player)).toBeCloseTo(50.5);
   });
 });

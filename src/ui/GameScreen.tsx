@@ -5,6 +5,7 @@ import { BODY_CONDITIONS } from '../engine/conditions';
 import type { GameState, LogEntry, LogTone } from '../engine/types';
 import { BODY_PART_IDS } from '../engine/types';
 import { type ActionView, toActionView } from './actionView';
+import { shownHealth } from './health';
 import type { IconName } from '../icons/gameIcons';
 import { EnvironmentBar } from './components/EnvironmentBar';
 import { Icon } from './components/Icon';
@@ -86,6 +87,7 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const sheet = useMemo(() => getCharacterSheet(state), [state]);
+  const shown = shownHealth(sheet);
   const actions = useMemo<ActionView[]>(() => getActions(state).map((action) => toActionView(state, action)), [state]);
   useDayPeriodTheme(state.time, state.environment.weather);
   const alerts = useLogAlerts(state);
@@ -178,7 +180,7 @@ export function GameScreen({ initialState, onNewGame }: GameScreenProps) {
       <header className="game__header">
         <TopBar state={state} onMenu={() => setMenuOpen(true)} />
         <EnvironmentBar state={state} />
-        <StatBars stats={state.player.stats} max={sheet.max} />
+        <StatBars stats={{ health: shown.health, ...state.player.stats }} max={{ ...sheet.max, health: shown.max }} />
         {saveFailed && <p className="save-warning">Could not save the game. Progress may be lost if you close the page.</p>}
       </header>
       {wide ? (

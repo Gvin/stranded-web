@@ -2,6 +2,7 @@ import { getItemDef } from '../data/items';
 import { getCharacterSheet } from './character';
 import { applyBodyCondition, BODY_CONDITIONS, bodyPartName, type Severity, stagedDuration, TIMED_CONDITIONS } from './conditions';
 import type { AttributeXp, ObjectDef } from './definitions';
+import { damagePart, type PartDamage } from './body';
 import { addToInventory, countItem, learnItem, releaseBlockedHands, removeFromInventory } from './inventory';
 import { nextRandom, pickRandom, randomInt, rollChance } from './random';
 import {
@@ -26,7 +27,7 @@ import {
   type LocationState,
   type LogTone,
   type SkillId,
-  type StatId,
+  type NeedId,
   type TimedConditionId,
 } from './types';
 
@@ -50,15 +51,18 @@ export interface ActionContext {
   findChance(baseChance: number, options?: { perception?: boolean }): number;
   /** Gathered items with the Foraging bonus; a fraction of an item becomes one more item with that chance. */
   gathered(quantity: number): number;
-  stat(id: StatId): number;
-  maxStat(id: StatId): number;
+  stat(id: NeedId): number;
+  maxStat(id: NeedId): number;
   /**
    * Changes a stat within [0, max] and returns the actual change. Thirst or hunger pushed past the maximum,
    * or energy below 0, cost health instead.
    */
-  changeStat(id: StatId, delta: number): number;
-  /** Removes health; the cause is shown if this kills the player. */
-  damage(amount: number, deathCause: string): void;
+  changeStat(id: NeedId, delta: number): number;
+  /**
+   * Takes health off a body part (see `damagePart`) and returns the conditions it caused and the items the hands let go of;
+   * the cause is shown if this kills the player.
+   */
+  damage(part: BodyPartId, amount: number, deathCause: string, options?: { singleHit?: boolean }): PartDamage;
   countItem(itemId: string): number;
   /** Adds items to the bag; whatever does not fit is left on the ground. Items that wear out come at full health unless given. */
   addItem(itemId: string, quantity?: number, options?: { silent?: boolean; health?: number; lit?: boolean }): void;
@@ -227,11 +231,14 @@ export function createActionContext(state: GameState, object?: ObjectDef): Actio
       if (change.deathCause) {
         lastDamageCause = change.deathCause;
       }
+      if (change.hurt) {
+        appendLog(state, change.hurt, 'bad');
+      }
       return change.applied;
     },
-    damage: (amount, deathCause) => {
-      state.player.stats.health = Math.max(0, state.player.stats.health - amount);
+    damage: (part, amount, deathCause, options) => {
       lastDamageCause = deathCause;
+      return damagePart(state.player, part, amount, options);
     },
     countItem: (itemId) => countItem(state.player, itemId),
     addItem: (itemId, quantity = 1, options) => {

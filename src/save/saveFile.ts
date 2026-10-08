@@ -1,7 +1,7 @@
 import { ENEMIES } from '../data/enemies';
 import { ITEMS } from '../data/items';
 import { isKnownLocation } from '../data/locations';
-import type { GameState } from '../engine/types';
+import { BODY_PART_IDS, type GameState } from '../engine/types';
 import { runMigrations } from './migrations';
 import { GAME_VERSION, MIN_SUPPORTED_SAVE_VERSION, SAVE_VERSION } from './version';
 
@@ -74,6 +74,8 @@ function looksLikeGameState(value: Record<string, unknown>): boolean {
     isRecord(player) &&
     typeof player.locationId === 'string' &&
     isRecord(player.stats) &&
+    isRecord(player.health) &&
+    BODY_PART_IDS.every((part) => typeof (player.health as Record<string, unknown>)[part] === 'number') &&
     isRecord(player.nutrition) &&
     isRecord(player.attributes) &&
     isRecord(player.skills) &&

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { getActions, getBlockedReason } from './actions';
-import { getCharacterSheet } from './character';
 import { applyBodyCondition } from './conditions';
 import { findAction, performAction } from './game';
 import { successChance } from './rules';
@@ -16,7 +15,7 @@ const blockedReason = (state: ReturnType<typeof createTestGame>, actionId: strin
 };
 
 describe('overflow damage', () => {
-  it('takes missing energy from health instead of blocking the action', () => {
+  it("takes missing energy from the torso's health instead of blocking the action", () => {
     // Arrange
     const state = createTestGame('beach');
     state.player.stats.energy = 3;
@@ -27,15 +26,16 @@ describe('overflow damage', () => {
     // Assert
     expect(blockedReason(state, 'obj:wreckage:search')).toBeUndefined();
     expect(next.player.stats.energy).toBe(0);
-    expect(next.player.stats.health).toBeCloseTo(100 - 2 + 0.5 * 0.5);
-    expect(next.log.some((e) => e.text === 'You push yourself past exhaustion. (−2 health)')).toBe(true);
+    // why: 2 missing energy cost 0.6 torso health; the half hour of healing after it is shared by the six body parts.
+    expect(next.player.health.torso).toBeCloseTo(30 - 0.6 + (0.5 * 0.5) / 6);
+    expect(next.log.some((e) => e.text === 'You push yourself past exhaustion. (−0.6 health)')).toBe(true);
   });
 
   it('kills the player who pushes past exhaustion with too little health', () => {
     // Arrange
     const state = createTestGame('forest');
     state.player.stats.energy = 0;
-    state.player.stats.health = 5;
+    state.player.health.torso = 5;
     giveItem(state, 'axe');
 
     // Act
@@ -46,7 +46,7 @@ describe('overflow damage', () => {
     expect(next.deathCause).toBe('You pushed yourself past exhaustion and collapsed for good.');
   });
 
-  it('turns thirst pushed past the maximum into health damage', () => {
+  it('turns thirst pushed past the maximum into damage to the torso', () => {
     // Arrange
     const state = createTestGame('beach');
     state.player.stats.thirst = 96;
@@ -57,8 +57,8 @@ describe('overflow damage', () => {
     // Assert
     const thirstAfterTime = 96 + 4 * (2 / 60);
     expect(next.player.stats.thirst).toBe(100);
-    const maxHealth = getCharacterSheet(state).max.health;
-    expect(next.player.stats.health).toBeCloseTo(maxHealth - (thirstAfterTime + 8 - 100) * 1.25);
+    expect(next.player.health.torso).toBeCloseTo(30 - (thirstAfterTime + 8 - 100) * 0.375);
+    expect(next.player.health.head).toBe(10);
   });
 });
 

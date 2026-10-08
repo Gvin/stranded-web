@@ -9,6 +9,7 @@ import { migrateV8ToV9 } from './steps/v8ToV9';
 import { migrateV9ToV10 } from './steps/v9ToV10';
 import { migrateV10ToV11 } from './steps/v10ToV11';
 import { migrateV11ToV12 } from './steps/v11ToV12';
+import { migrateV12ToV13 } from './steps/v12ToV13';
 import { SAVE_VERSION } from './version';
 
 /** Upgrades raw save data from one format version to the next. */
@@ -30,6 +31,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   9: migrateV9ToV10,
   10: migrateV10ToV11,
   11: migrateV11ToV12,
+  12: migrateV12ToV13,
 };
 
 /** Runs the chain of migrations that brings data from `fromVersion` up to `toVersion`. */

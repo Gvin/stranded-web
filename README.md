@@ -22,14 +22,15 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   as time passes and drop when you drink or eat (the spring quenches thirst completely). Energy is spent by actions and restored by
   resting (5 an hour) and sleeping (see Sleep). Sleep is only offered below 50 energy, or at any energy once you are Sleepy (hidden
   otherwise): either for 8 hours, or — in the evening and at night — until 06:00.
-  Health reaching 0 kills the player.
+  Health is the sum of the body parts' health (see Body part health).
 - **Overflow damage** — an action never needs enough energy: whatever energy you lack, and any thirst or hunger pushed past the
-  maximum (also while time passes), is taken from health instead (rates in `overflowDamage` in `src/engine/rules.ts`).
+  maximum (also while time passes), is taken from the torso's health instead: 0.3 per missing point of energy, 0.375 per point
+  of thirst and 0.45 per point of hunger (`overflowDamage` in `src/engine/rules.ts`).
 - **Attributes** — Strength, Endurance, Perception, Agility. They start at 20 (max 100) and slowly improve with use. Every
   building step trains a little Strength; crafting trains no attributes, only the Crafting skill.
   - 20 is the basic value: above it an attribute helps the actions it affects, below it penalizes them (`ATTRIBUTE_RULES` in
     `src/engine/rules.ts`).
-  - Strength: max health (80 + Strength), carry capacity (10 + Strength / 2 kg), tearing down vines, melee damage.
+  - Strength: max health (80 + Strength, from the Strength before modifiers), carry capacity (10 + Strength / 2 kg), tearing down vines, melee damage.
   - Endurance: max energy, thirst and hunger (80 + Endurance each).
   - Perception: multiplies the chance of every foraging find (not the amounts) by 1 at 20, rising evenly to 2 at 100,
     and the chance of finding a trail when tracking animals by 1 at 20, rising evenly to 3 at 100 (30% to 90%); these
@@ -50,12 +51,25 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
     stones and pebbles, chopping wood). Each level adds 10% to every find chance (20% becomes 22% at level 1) and 5% to the
     gathered items, a fraction becoming one more item by chance, never more than is left.
   - Fighting: 1 point per attack, shot and Protect in a fight. +2% accuracy per level, and +5 damage from level 4, +10 from 7,
-    +15 at 10, in melee and with the bow; Protect gives +5 Armor, +10 from level 5, +15 at 10.
+    +15 at 10, in melee and with the bow; Protect gives +1 Armor, +2 from level 5, +3 at 10.
   - Farming has no effect yet.
 - **Modifiers** — all bonuses and penalties to attributes are percentages. They add up and are shown per source in the Body tab.
 - **Body parts** — head, torso, two arms, two legs. Conditions: Injured, Bleeding, Fractured, Burnt, Missing, Bandaged and Splinted
-  (a set fracture). Bandaged replaces Injured, Burnt and Bleeding; Splinted replaces Fractured. A fractured, splinted or missing arm
+  (a set fracture). A part never bleeds without being Injured: Bleeding always comes with Injured. Bandaged replaces Injured, Burnt and Bleeding; Splinted replaces Fractured. A fractured, splinted or missing arm
   cannot hold items.
+- **Body part health** — every body part has its own health, shown in the Body tab, and the player's health is their sum
+  (`BODY_HEALTH_RULES` in `src/engine/rules.ts`, `src/engine/body.ts`).
+  - The full max health, 80 + Strength (the Strength before modifiers), is split: torso 30%, head 10%, each arm and leg 15%.
+  - Conditions lower a part's max health and add up: Injured and Burnt 25% each (Bandaged 10% instead), Fractured 50% (Splinted
+    25% instead). The Body tab shades what they take off.
+  - A part that drops below 50% of its full max health becomes Injured; an arm or a leg that drops below 25% gets Fractured.
+    Neither goes away when the health comes back: Injured heals with time, a fracture needs a splint. A bandaged part that
+    drops below 50% again is Injured again (the bandage comes off), and a splinted limb that drops below 25% is Fractured
+    again (the splint comes off).
+  - An arm or a leg at 0 health is lost (Missing, and its hand lets go of what it held). The torso or the head at 0 means death.
+  - Poison, bleeding (wherever it bleeds) and the overflow damage above take the torso's health: Bleeding light / medium / heavy
+    0.45 / 1.2 / 2.4 per hour, Poisoned 0.3 / 0.9 / 1.8 per hour.
+  - Healing (awake, resting and sleeping) is shared evenly between the six parts; the share of a part with no damage is lost.
 - **Healing** — injuries and burns heal with time; a bandage keeps the healing going at twice the speed. Fractures only heal once
   splinted. Bleeding, Poisoned and Dizzy have a severity (light, medium, heavy) that eases over time until they wear off; getting
   hurt again makes them worse.
@@ -102,7 +116,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   | House           | 15              | 3               | Perfect Sleep (+20%)   |
 
   Thirst and hunger grow slower while you sleep. Awake or resting, health recovers 0.5 an hour. Health only comes back while
-  thirst and hunger are at most half full and nothing drains it. After 20 hours without sleep you are **Sleepy** (−20% to all
+  thirst and hunger are at most half full and nothing drains it, and it is shared evenly between the body parts. After 20 hours without sleep you are **Sleepy** (−20% to all
   attributes): you can sleep at any energy, and the next sleep ends it.
 
 - **Time** — every action shows its duration and energy cost (instant actions show no time). While time passes, stats change, wounds bleed or heal, and dropped items
@@ -132,10 +146,10 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   | Baseball hat       | head | 30/100 | Shade              | the wreckage                       |
   | Makeshift clothes  | body | 60     | Warmth             | cloth ×2, threads, rope            |
   | Makeshift hat      | head | 30     | Shade              | cloth, threads                     |
-  | Rope armor         | body | 100    | Armor 5            | rope ×5, threads                   |
-  | Leather tunic      | body | 100    | Warmth, Armor 5    | Leather ×3, threads, rope          |
-  | Leather hat        | head | 100    | Shade, Armor 5     | Leather ×2, threads                |
-  | Leather jacket     | body | 200    | Warmth, Armor 10   | Leather ×5, threads ×2, rope       |
+  | Rope armor         | body | 100    | Armor 2            | rope ×5, threads                   |
+  | Leather tunic      | body | 100    | Warmth, Armor 2    | Leather ×3, threads, rope          |
+  | Leather hat        | head | 100    | Shade, Armor 2     | Leather ×2, threads                |
+  | Leather jacket     | body | 200    | Warmth, Armor 4    | Leather ×5, threads ×2, rope       |
   | Makeshift raincoat | body | 100    | Warmth, Waterproof | Leather ×3, glue ×2, threads, rope |
 
   Leather comes from fights with rabbits, snakes and monkeys.
@@ -172,16 +186,15 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   - Each of your actions is a turn, then the enemy acts; when hunting you always act first. Time, thirst, hunger and energy
     stand still.
   - Actions: Wait (the enemy acts), Chase, Flee (from the left edge it gets you away), Attack (only next to the enemy, never a
-    flying one), Protect (+5 Armor for the turn, more with the Fighting skill) and Shoot (with the Bow and arrows in the arrow
+    flying one), Protect (+1 Armor for the turn, more with the Fighting skill) and Shoot (with the Bow and arrows in the arrow
     slot, at any distance). In the Bag you can only change weapons and arrows, and it costs a turn.
   - An enemy sees you at its vision distance or closer, and as soon as you shoot at it; then it keeps reacting for the rest
     of the fight. Before that, a fleeing or fighting enemy moves a space now and then (10% a turn, either way, never off the
     field). Once it has seen you: Flee runs away, off the right edge to escape; Stand attacks when you are next to it; Passive
     does nothing; Fight comes at you and attacks, but runs away at 20% health or below.
-  - An enemy's hit rolls its damage (see Fighting stats), then loses a point per Armor point. It lands on the arms 40% of the time (20% each), the torso 30%, the
-    legs 20% and the head 10%. Each point of damage received gives a 2% chance of a wound (Injured) there; a part keeps one
-    Injured, so a second wound on it is discarded, but an arm or a leg with an unbandaged wound that is wounded again fractures
-    25% of the time. A wound on a bandaged part takes the bandage off.
+  - An enemy's hit rolls its damage (see Fighting stats), then loses a point per Armor point. It lands on the arms 40% of the
+    time (20% each), the torso 35%, the legs 20% (10% each) and the head 5%, never on a missing limb, and takes that part's
+    health (see Body part health). A single hit leaves at least 1 health on a part that had 5 or more.
   - The fight ends when you kill the enemy (its reward goes into your bag), when it gets away, when you get away, or when you
     die.
 
@@ -190,9 +203,9 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   | Seagull | 10     | 4      | Flee, flying |                | 30%          | Feather ×2–4, Raw meat  |
   | Rabbit  | 10     | 5      | Flee         |                | 20%          | Raw meat ×2, Leather    |
   | Kiwi    | 10     | 5      | Flee         |                | 15%          | Feather ×1–2, Raw meat  |
-  | Turtle  | 25     | 3      | Stand        | 10 damage, 40% | 15%          | Raw meat ×2             |
-  | Snake   | 15     | 3      | Stand        | 15 damage, 60% | 12%          | Raw meat, Leather       |
-  | Monkey  | 100    | 7      | Fight        | 25 damage, 70% | 8%           | Raw meat ×4, Leather ×3 |
+  | Turtle  | 25     | 3      | Stand        | 4 damage, 40%  | 15%          | Raw meat ×2             |
+  | Snake   | 15     | 3      | Stand        | 6 damage, 60%  | 12%          | Raw meat, Leather       |
+  | Monkey  | 100    | 7      | Fight        | 10 damage, 70% | 8%           | Raw meat ×4, Leather ×3 |
 
 - **Crafting** — every recipe costs 1 energy (`CRAFT_ENERGY` in `src/engine/rules.ts`) and trains the Crafting skill, no attributes. Recipes ask for types, so "any rope" accepts a vine or a rope; the cheapest matching items are used first. Some tools
   are needed but not used up (the heavy item that opens a coconut, the knife that whittles arrows). A recipe can also require a
@@ -327,6 +340,7 @@ screen instead of being loaded.
 | 10          | 0.12.1       | The items the player has had and the foods they have tried.                                           |
 | 11          | 0.13.0       | The arrow slot; a held bow takes both hands (kept in the right hand, the left one empty).             |
 | 12          | 0.15.0       | A fight in progress.                                                                                  |
+| 13          | 0.16.0       | Health per body part instead of one health stat.                                                      |
 
 A migration is needed when you:
 

@@ -55,7 +55,7 @@ const ENEMY_LIST: readonly EnemyDef[] = [
     health: 25,
     vision: 3,
     pattern: 'stand',
-    attack: { damage: 10, accuracy: 0.4 },
+    attack: { damage: 4, accuracy: 0.4 },
     trailChance: 0.15,
     rewards: [{ itemId: 'raw-meat', quantity: 2 }],
   },
@@ -67,7 +67,7 @@ const ENEMY_LIST: readonly EnemyDef[] = [
     health: 100,
     vision: 7,
     pattern: 'fight',
-    attack: { damage: 25, accuracy: 0.7 },
+    attack: { damage: 10, accuracy: 0.7 },
     trailChance: 0.08,
     rewards: [
       { itemId: 'raw-meat', quantity: 4 },
@@ -82,7 +82,7 @@ const ENEMY_LIST: readonly EnemyDef[] = [
     health: 15,
     vision: 3,
     pattern: 'stand',
-    attack: { damage: 15, accuracy: 0.6 },
+    attack: { damage: 6, accuracy: 0.6 },
     trailChance: 0.12,
     rewards: [
       { itemId: 'raw-meat', quantity: 1 },

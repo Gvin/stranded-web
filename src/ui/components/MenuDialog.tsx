@@ -21,6 +21,10 @@ export function MenuDialog({ onClose, onNewGame }: MenuDialogProps) {
         </li>
         <li>Bandage wounds with rags to stop bleeding. Splint broken bones with sticks and a binding.</li>
         <li>
+          Your health is the sum of your body parts. A badly hurt part gets injured, a badly hurt arm or leg breaks, and one with no health
+          left is lost. With no health left in your torso or head, you die.
+        </li>
+        <li>
           Sleep when your energy is below 50, or once you are sleepy after 20 hours awake. Where you sleep matters: the bare ground leaves
           you aching, a mat, shelter, hut or house each rest you better. Working on with no energy left costs health.
         </li>

@@ -566,3 +566,34 @@ describe('migration from save format 11', () => {
     expect(result).toMatchObject({ status: 'corrupt' });
   });
 });
+
+describe('migration from save format 12', () => {
+  it('splits the health between the body parts by their shares, giving a missing limb none', () => {
+    // Arrange
+    const state = createNewGame(14) as unknown as { player: Record<string, unknown> };
+    delete state.player.health;
+    state.player.stats = { health: 80, thirst: 10, hunger: 20, energy: 60 };
+    state.player.body = { head: [], torso: [], leftArm: [], rightArm: [], leftLeg: [{ id: 'missing' }], rightLeg: [] };
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 12, gameVersion: '0.15.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 12 });
+    const { player } = (result as { state: GameState }).state;
+    expect(player.stats).toEqual({ thirst: 10, hunger: 20, energy: 60 });
+    expect(player.health).toEqual({ head: 8, torso: 24, leftArm: 12, rightArm: 12, leftLeg: 0, rightLeg: 12 });
+  });
+
+  it('rejects a save without the health of the body parts', () => {
+    // Arrange
+    const state = createNewGame(14) as unknown as { player: Record<string, unknown> };
+    delete state.player.health;
+
+    // Act
+    const result = deserializeGame(envelope(SAVE_VERSION, state));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'corrupt' });
+  });
+});

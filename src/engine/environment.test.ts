@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { WEATHERS } from '../data/weather';
 import { deserializeGame, serializeGame } from '../save/saveFile';
 import { getActions, getBlockedReason } from './actions';
+import { fullHealthByPart } from './body';
 import { getCharacterSheet } from './character';
-import { createActionContext } from './context';
 import { getBodyTemperature, rollNextWeather, temperatureId } from './environment';
 import { findAction, performAction } from './game';
-import { hit } from './outcomes';
 import { advanceTime } from './simulation';
 import { createTestGame, giveItem } from './testUtils';
 import { days, hours } from './time';
@@ -27,7 +26,8 @@ function gameAt(time: number, weather: WeatherId, locationId = 'beach'): GameSta
 
 /** Fills the player up again, so long waits in a test do not end in thirst. */
 function refreshed(state: GameState): GameState {
-  state.player.stats = { health: 100, thirst: 0, hunger: 0, energy: 100 };
+  state.player.stats = { thirst: 0, hunger: 0, energy: 100 };
+  state.player.health = fullHealthByPart(state.player.attributes.strength.base);
   return state;
 }
 
@@ -468,7 +468,7 @@ describe('travelling', () => {
   it('is on the way when the player dies while travelling, and such a game still saves and loads', () => {
     // Arrange
     const state = gameAt(0, 'cloudy', 'camp');
-    state.player.stats.health = 1;
+    state.player.health.torso = 0.1;
     state.player.body.torso = [{ id: 'bleeding', remaining: hours(4) }];
 
     // Act
@@ -562,23 +562,6 @@ describe('cooling down and warming up', () => {
     expect(next.player.exposure.veryCold).toBe(0);
     expect(next.player.conditions).toEqual([{ id: 'freezing', remaining: 30 - 5 - 15 }]);
     expect(next.log.map((e) => e.text)).toContain('You are dry again.');
-  });
-});
-
-describe('armor', () => {
-  it('stops one point of damage from every hit for each armor point worn', () => {
-    // Arrange
-    const state = createTestGame();
-    state.player.equipment.body = { itemId: 'leather-jacket', health: 200 };
-    state.player.equipment.head = { itemId: 'leather-hat', health: 100 };
-    const ctx = createActionContext(state);
-
-    // Act
-    hit(ctx, 40, 'Hit.');
-    hit(ctx, 3, 'Hit.');
-
-    // Assert
-    expect(state.player.stats.health).toBe(100 - (40 - 15));
   });
 });
 

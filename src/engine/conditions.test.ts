@@ -124,8 +124,23 @@ describe('applyBodyCondition', () => {
     applyBodyCondition(player, 'rightLeg', 'bleeding', 'heavy');
 
     // Assert
-    expect(player.body.leftLeg[0] && bodyConditionSeverity(player.body.leftLeg[0])).toBe('light');
-    expect(player.body.rightLeg[0] && bodyConditionSeverity(player.body.rightLeg[0])).toBe('heavy');
+    const bleeding = (part: 'leftLeg' | 'rightLeg') => player.body[part].find((c) => c.id === 'bleeding');
+    expect(bodyConditionSeverity(bleeding('leftLeg') ?? { id: 'bleeding' })).toBe('light');
+    expect(bodyConditionSeverity(bleeding('rightLeg') ?? { id: 'bleeding' })).toBe('heavy');
+  });
+
+  it('never lets a part bleed without an injury: bleeding brings Injured along, taking a bandage off', () => {
+    // Arrange
+    const { player } = createTestGame();
+    applyBodyCondition(player, 'rightArm', 'bandaged');
+
+    // Act
+    applyBodyCondition(player, 'leftArm', 'bleeding', 'light');
+    applyBodyCondition(player, 'rightArm', 'bleeding', 'light');
+
+    // Assert
+    expect(player.body.leftArm.map((c) => c.id)).toEqual(['injured', 'bleeding']);
+    expect(player.body.rightArm.map((c) => c.id)).toEqual(['injured', 'bleeding']);
   });
 
   it('makes existing bleeding worse instead of adding a second one', () => {
@@ -137,9 +152,10 @@ describe('applyBodyCondition', () => {
     applyBodyCondition(player, 'torso', 'bleeding', 'medium');
 
     // Assert
-    expect(player.body.torso).toHaveLength(1);
-    expect(player.body.torso[0] && bodyConditionSeverity(player.body.torso[0])).toBe('heavy');
-    expect(player.body.torso[0]?.remaining).toBe(hours(1) + hours(2.5));
+    const bleeding = player.body.torso.filter((c) => c.id === 'bleeding');
+    expect(bleeding).toHaveLength(1);
+    expect(bleeding[0] && bodyConditionSeverity(bleeding[0])).toBe('heavy');
+    expect(bleeding[0]?.remaining).toBe(hours(1) + hours(2.5));
   });
 });
 

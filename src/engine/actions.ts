@@ -20,6 +20,7 @@ import type {
 } from './definitions';
 import { type Gain, resolveGains } from './gains';
 import { canCoolDown, canWarmUp, coolDown, isRaining, warmUp } from './environment';
+import { healingFor } from './body';
 import { fightActions, passTurn } from './fight';
 import { fireDef, fireRoom, rainReaches } from './fire';
 import {
@@ -291,7 +292,7 @@ function sleepAction(state: GameState, id: string, label: string, minutes: numbe
   const { stats } = state.player;
   const sleptHours = minutes / 60;
   const energy = Math.min(Math.round(sleptHours * sleep.energyPerHour), Math.max(0, Math.round(sheet.max.energy - stats.energy)));
-  const health = Math.min(Math.round(sleptHours * sleep.healthPerHour), Math.max(0, Math.round(sheet.max.health - stats.health)));
+  const health = Math.round(healingFor(state.player, sleptHours * sleep.healthPerHour));
   const condition = sleep.condition && TIMED_CONDITIONS[sleep.condition];
   const percent = condition?.fixedModifiers?.strength ?? 0;
   const perHour =
@@ -306,7 +307,10 @@ function sleepAction(state: GameState, id: string, label: string, minutes: numbe
       id === 'sleep'
         ? `Sleep for ${formatDuration(minutes)} ${sleep.where}.`
         : `Sleep until ${String(SURVIVAL_RULES.wakeUpHour).padStart(2, '0')}:00 ${sleep.where}.`,
-    details: `Sleeping ${sleep.where} gives back ${perHour} an hour. Thirst and hunger grow more slowly while you sleep.`,
+    details:
+      `Sleeping ${sleep.where} gives back ${perHour} an hour` +
+      (sleep.healthPerHour > 0 ? '; the health is shared evenly between your body parts, and what a part does not need is lost' : '') +
+      '. Thirst and hunger grow more slowly while you sleep.',
     gains: [
       { label: `+${energy} energy` },
       ...(health > 0 ? [{ label: `Up to +${health} health` }] : []),
@@ -1228,8 +1232,10 @@ function bodyActions(state: GameState): GameAction[] {
         label: `Bandage ${name}`,
         category: 'body',
         description: 'Stops bleeding at once; bandaged wounds and burns heal twice as fast.',
-        details: 'A bandage replaces the injury, burn and bleeding on this body part. It still hurts a little until it heals.',
-        gains: [{ label: 'Bleeding stops' }, { label: 'Heals twice as fast' }],
+        details:
+          'A bandage replaces the injury, burn and bleeding on this body part. It still hurts a little until it heals, and the part ' +
+          'gets back most of the max health its wound took: a bandage takes 10% off it instead of 25%.',
+        gains: [{ label: 'Bleeding stops' }, { label: 'Heals twice as fast' }, { label: 'Max health: −10% instead of −25%' }],
         minutes: 10,
         energy: 0,
         timeMode: 'awake',
@@ -1249,8 +1255,10 @@ function bodyActions(state: GameState): GameAction[] {
         label: `Splint ${name}`,
         category: 'body',
         description: 'Sets the broken bone between two sticks so it can heal.',
-        details: 'A fracture never heals on its own. A splinted arm still cannot hold anything until it has knitted.',
-        gains: [{ label: 'The bone starts to heal (5 days)' }],
+        details:
+          'A fracture never heals on its own. A splinted arm still cannot hold anything until it has knitted. A splint takes 25% off ' +
+          "the limb's max health instead of the fracture's 50%.",
+        gains: [{ label: 'The bone starts to heal (5 days)' }, { label: 'Max health: −25% instead of −50%' }],
         minutes: 20,
         energy: 3,
         timeMode: 'awake',

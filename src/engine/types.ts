@@ -4,9 +4,16 @@
 export type AttributeId = 'strength' | 'endurance' | 'perception' | 'agility';
 export const ATTRIBUTE_IDS: readonly AttributeId[] = ['strength', 'endurance', 'perception', 'agility'];
 
-/** Health and energy: higher is better. Thirst and hunger: lower is better (0 = not thirsty or hungry at all). */
+/**
+ * The stats shown in the bars. Health and energy: higher is better. Thirst and hunger: lower is better (0 = not thirsty or
+ * hungry at all). Health is not stored as one value: it is the sum of the body parts' health (PlayerState.health).
+ */
 export type StatId = 'health' | 'thirst' | 'hunger' | 'energy';
 export const STAT_IDS: readonly StatId[] = ['health', 'thirst', 'hunger', 'energy'];
+
+/** The stats stored as one value each. */
+export type NeedId = Exclude<StatId, 'health'>;
+export const NEED_IDS: readonly NeedId[] = ['thirst', 'hunger', 'energy'];
 
 /** Food groups the player needs a balance of. */
 export type NutrientId = 'vegetables' | 'meat' | 'fruits';
@@ -185,7 +192,9 @@ export interface LocationBuildings {
 
 export interface PlayerState {
   locationId: string;
-  stats: Record<StatId, number>;
+  stats: Record<NeedId, number>;
+  /** Health of every body part; the player's health is their sum. */
+  health: Record<BodyPartId, number>;
   /** How well fed the player is on each food group; together they never exceed NUTRITION_RULES.total. */
   nutrition: Record<NutrientId, number>;
   attributes: Record<AttributeId, AttributeState>;

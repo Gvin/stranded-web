@@ -7,6 +7,7 @@ import type { ActionView, PerformAction } from '../actionView';
 import { ActionButton } from '../components/ActionButton';
 import { Icon } from '../components/Icon';
 import { LogList } from '../components/LogList';
+import { shownHealth } from '../health';
 
 interface FightPanelProps {
   state: GameState;
@@ -66,7 +67,7 @@ export function FightPanel({ state, fight, sheet, actions, freshAfterLogId, onPe
           {enemy.flying && <span className="badge">Flying</span>}
         </div>
         <div className="fight__bars">
-          <HealthBar label="You" value={state.player.stats.health} max={sheet.max.health} />
+          <HealthBar label="You" value={shownHealth(sheet).health} max={shownHealth(sheet).max} />
           <HealthBar label={enemy.name} value={fight.enemyHealth} max={enemy.health} />
         </div>
         <ol

@@ -1,6 +1,7 @@
 import { TRAVEL_LOCATION_ID } from '../data/locations';
 import { createStartingState } from '../data/start';
 import { type GameAction, getActions, getBlockedReason } from './actions';
+import { isFatallyHurt } from './body';
 import { appendLog, createActionContext, trainAttributes, trainSkill } from './context';
 import { applyRain } from './environment';
 import { createSeed } from './random';
@@ -36,8 +37,11 @@ export function performAction(state: GameState, actionId: string): GameState {
 
   const exertion = changeStat(next, 'energy', -action.energy);
   if (exertion.damage > 0) {
-    appendLog(next, `You push yourself past exhaustion. (−${Math.round(exertion.damage)} health)`, 'bad');
-    if (next.player.stats.health <= 0) {
+    appendLog(next, `You push yourself past exhaustion. (−${Math.round(exertion.damage * 10) / 10} health)`, 'bad');
+    if (exertion.hurt) {
+      appendLog(next, exertion.hurt, 'bad');
+    }
+    if (isFatallyHurt(next.player)) {
       killPlayer(next, exertion.deathCause ?? 'You succumbed to exhaustion.');
       return next;
     }
@@ -61,7 +65,7 @@ export function performAction(state: GameState, actionId: string): GameState {
   // why: the action may have lit a fire under the open sky in the rain.
   applyRain(next);
   clampStats(next);
-  if (next.player.stats.health <= 0) {
+  if (isFatallyHurt(next.player)) {
     killPlayer(next, ctx.lastDamageCause ?? 'You succumbed to your injuries.');
   } else {
     logWorsenedConditions(next, conditionsBefore);

@@ -1,4 +1,4 @@
-import type { ActiveCondition, CharacterSheet } from '../../engine/character';
+import type { ActiveCondition, CharacterSheet, PartHealthView } from '../../engine/character';
 import { BODY_CONDITIONS, BODY_PARTS, bodyConditionHealsIn, bodyConditionSeverity } from '../../engine/conditions';
 import { getBodyTemperature, getWeather, temperatureId } from '../../engine/environment';
 import {
@@ -72,6 +72,32 @@ function formatPercent(percent: number): string {
   return `${percent > 0 ? '+' : percent < 0 ? '−' : ''}${Math.abs(percent)}%`;
 }
 
+/** A body part's health against its full max health; what its conditions take off the max is shaded at the end. */
+function PartHealth({ view }: { view: PartHealthView }) {
+  const percent = (value: number) => (view.full > 0 ? Math.min(100, (value / view.full) * 100) : 0);
+  // why: health rounds up, so a part that still has some health never reads 0.
+  const health = Math.ceil(view.health);
+  const max = Math.ceil(view.max);
+  return (
+    <div className="body__health stat--health">
+      <div
+        className="stat__track body__track"
+        role="progressbar"
+        aria-label="Health"
+        aria-valuemin={0}
+        aria-valuemax={max}
+        aria-valuenow={health}
+      >
+        <div className="stat__fill" style={{ width: `${percent(view.health)}%` }} />
+        {view.max < view.full && <div className="body__lost" style={{ width: `${100 - percent(view.max)}%` }} />}
+      </div>
+      <span className="body__value">
+        {health}/{max}
+      </span>
+    </div>
+  );
+}
+
 export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPanelProps) {
   const bodyActions = (part: string) => actions.filter((a) => a.action.category === 'body' && a.action.targetId === part);
 
@@ -125,6 +151,7 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
                     })}
                   </span>
                 </div>
+                <PartHealth view={sheet.body[part]} />
                 {bodyActions(part).length > 0 && (
                   <div className="actions actions--inline">
                     {bodyActions(part).map((a) => (
@@ -136,7 +163,10 @@ export function CharacterPanel({ state, sheet, actions, onPerform }: CharacterPa
             );
           })}
         </ul>
-        <p className="muted small">Times show how long until a condition heals. Bandaged wounds heal twice as fast.</p>
+        <p className="muted small body__note">
+          Your health is the sum of your body parts. Conditions lower a part's max health (the shaded end of its bar). Times show how long
+          until a condition heals; bandaged wounds heal twice as fast.
+        </p>
       </section>
 
       <section>

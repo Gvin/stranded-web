@@ -1,16 +1,9 @@
-import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, canHaveCondition, hasBodyCondition, type Severity } from './conditions';
 import type { ActionContext } from './context';
 import type { GainDef } from './definitions';
-import { armorPoints } from './inventory';
-import type { BodyPartId, GameState } from './types';
+import type { GameState } from './types';
 import { getLocationState } from './world';
 
-// Reusable outcome helpers for content actions: loot rolls, injuries and hits.
-
-const SEVERITY_ADVERBS: Record<Severity, string> = { light: 'lightly', medium: 'badly', heavy: 'heavily' };
-
-export const ARMS: readonly BodyPartId[] = ['leftArm', 'rightArm'];
-export const LEGS: readonly BodyPartId[] = ['leftLeg', 'rightLeg'];
+// Reusable outcome helpers for content actions: finds and their limits.
 
 export interface FindDef {
   itemId: string;
@@ -67,62 +60,4 @@ export function rollFinds(ctx: ActionContext, objectId: string, finds: readonly 
     foundAny = true;
   }
   return foundAny;
-}
-
-export interface InjuryOptions {
-  /** Body parts that can be hit; missing ones are skipped. */
-  parts: readonly BodyPartId[];
-  bleedingChance?: number;
-  /** Severity of the bleeding; random (mostly light) when not given. */
-  bleedingSeverity?: Severity;
-  fractureChance?: number;
-  /** Chance that a limb is lost entirely. */
-  lossChance?: number;
-}
-
-/** Injures one random body part and logs the result; returns the part that was hit. */
-export function injure(ctx: ActionContext, options: InjuryOptions): BodyPartId | undefined {
-  const candidates = options.parts.filter((p) => !hasBodyCondition(ctx.state.player, p, 'missing'));
-  if (candidates.length === 0) {
-    return undefined;
-  }
-  const part = ctx.pick(candidates);
-  const applied: string[] = [];
-  const apply = (id: Parameters<typeof canHaveCondition>[1], severity?: Severity): void => {
-    if (canHaveCondition(part, id) && ctx.addBodyCondition(part, id, severity)) {
-      const condition = ctx.state.player.body[part].find((c) => c.id === id);
-      const level = condition && bodyConditionSeverity(condition);
-      applied.push(`${level ? `${SEVERITY_ADVERBS[level]} ` : ''}${BODY_CONDITIONS[id].name.toLowerCase()}`);
-    }
-  };
-  if (options.lossChance && canHaveCondition(part, 'missing') && ctx.chance(options.lossChance)) {
-    apply('missing');
-    ctx.log(`Your ${bodyPartName(part)} is gone.`, 'bad');
-    return part;
-  }
-  apply('injured');
-  if (options.bleedingChance && ctx.chance(options.bleedingChance)) {
-    apply('bleeding', options.bleedingSeverity ?? randomBleeding(ctx));
-  }
-  if (options.fractureChance && ctx.chance(options.fractureChance)) {
-    apply('fractured');
-  }
-  if (applied.length > 0) {
-    ctx.log(`Your ${bodyPartName(part)} is ${joinWords(applied)}.`, 'bad');
-  }
-  return part;
-}
-
-/** Damage from a hit; every armor point worn stops one point of it. */
-export function hit(ctx: ActionContext, damage: number, deathCause: string): void {
-  ctx.damage(Math.max(0, damage - armorPoints(ctx.state.player)), deathCause);
-}
-
-function randomBleeding(ctx: ActionContext): Severity {
-  const roll = ctx.random();
-  return roll < 0.5 ? 'light' : roll < 0.85 ? 'medium' : 'heavy';
-}
-
-function joinWords(words: string[]): string {
-  return words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
 }

@@ -42,6 +42,8 @@ export interface BodyConditionDef {
   modifiers?: Partial<Record<BodyPartKind, AttributeModifiers>>;
   /** Conditions removed from the body part when this one is applied. */
   replaces: readonly BodyConditionId[];
+  /** Never on its own: applying it also applies this condition, unless the part has it already. */
+  comesWith?: BodyConditionId;
   /** Healing time in game minutes when applied; undefined means the condition never heals by itself. */
   duration?: number;
   /** Severity stages for conditions that get better over time; replaces `duration`. */
@@ -50,6 +52,7 @@ export interface BodyConditionDef {
   healRate?: number;
   /** Takes over the healing still left on the conditions it replaces, if that is longer than its own duration. */
   inheritsHealing?: boolean;
+  /** Torso health lost per hour (negative), whatever part the condition is on. */
   healthPerHour?: Partial<Record<Severity, number>>;
   /** Nothing can be held in the hand of an arm with this condition. */
   blocksEquip?: boolean;
@@ -81,12 +84,13 @@ export const BODY_CONDITIONS: Record<BodyConditionId, BodyConditionDef> = {
   },
   bleeding: {
     id: 'bleeding',
+    comesWith: 'injured',
     name: 'Bleeding',
     description: 'You are losing blood. It slows down and stops with time; a bandage stops it at once.',
     allowedOn: ['head', 'torso', 'arm', 'leg'],
     replaces: ['bandaged'],
     stages: { light: hours(1), medium: hours(1.5), heavy: hours(2) },
-    healthPerHour: { light: -1.5, medium: -4, heavy: -8 },
+    healthPerHour: { light: -0.45, medium: -1.2, heavy: -2.4 },
     healedMessage: 'The bleeding from your {part} has stopped.',
     easedMessage: 'The bleeding from your {part} is slowing down.',
   },
@@ -176,6 +180,7 @@ export interface TimedConditionDef {
   modifiers?: Record<Severity, AttributeModifiers>;
   /** Attribute penalties in percent for conditions without stages. */
   fixedModifiers?: AttributeModifiers;
+  /** Torso health lost per hour (negative) by severity. */
   healthPerHour?: Record<Severity, number>;
   easedMessage?: string;
   endMessage: string;
@@ -194,7 +199,7 @@ export const TIMED_CONDITIONS: Record<TimedConditionId, TimedConditionDef> = {
     name: 'Poisoned',
     description: 'Poison is working through your body, draining your health. It weakens with time.',
     stages: { light: hours(2), medium: hours(2), heavy: hours(2) },
-    healthPerHour: { light: -1, medium: -3, heavy: -6 },
+    healthPerHour: { light: -0.3, medium: -0.9, heavy: -1.8 },
     easedMessage: 'The nausea is easing a little.',
     endMessage: 'The nausea fades. The poison has passed through you.',
   },
@@ -324,11 +329,15 @@ function initialRemaining(id: BodyConditionId, severity: Severity, replaced: Bod
  * other conditions restart their healing. A missing body part takes no conditions.
  */
 export function applyBodyCondition(player: PlayerState, part: BodyPartId, id: BodyConditionId, severity: Severity = 'medium'): boolean {
-  const conditions = player.body[part];
-  if (!canHaveCondition(part, id) || conditions.some((c) => c.id === 'missing')) {
+  if (!canHaveCondition(part, id) || player.body[part].some((c) => c.id === 'missing')) {
     return false;
   }
   const def = BODY_CONDITIONS[id];
+  if (def.comesWith && !player.body[part].some((c) => c.id === def.comesWith)) {
+    applyBodyCondition(player, part, def.comesWith);
+  }
+  // why: read after the condition it comes with, which may have replaced the list.
+  const conditions = player.body[part];
   const existing = conditions.find((c) => c.id === id);
   if (existing && def.stages) {
     const added = stagedDuration(def.stages, severity);

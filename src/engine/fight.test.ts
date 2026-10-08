@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { ENEMIES } from '../data/enemies';
 import { getActions, getBlockedReason } from './actions';
+import { damagePart, fullPartHealth, isLimb } from './body';
 import { applyBodyCondition } from './conditions';
 import { createActionContext } from './context';
 import { startFight, startHunt } from './fight';
 import { findAction, performAction } from './game';
-import { minDamage, protectArmor, woundChance } from './rules';
+import { minDamage, protectArmor } from './rules';
 import { createTestGame, giveItem } from './testUtils';
-import { BODY_PART_IDS, type EnemyId, type FightState, type GameState } from './types';
+import { BODY_PART_IDS, type BodyPartId, type EnemyId, type FightState, type GameState } from './types';
 
 const SEEDS = Array.from({ length: 300 }, (_, i) => i + 1);
 
@@ -35,16 +37,30 @@ const blockedReason = (state: GameState, actionId: string) => {
 const lastText = (state: GameState) => state.log.at(-1)?.text ?? '';
 const count = (state: GameState, itemId: string) => state.player.inventory.find((s) => s.itemId === itemId)?.quantity ?? 0;
 
-/** The monkey's hits over many seeds, while the player waits next to it. */
-function monkeyHits(prepare: (state: GameState) => void = () => {}, seeds: readonly number[] = SEEDS): string[] {
+/** The monkey's hits over many seeds, while the player waits next to it: the turn's log line and the state after it. */
+function monkeyHits(
+  prepare: (state: GameState) => void = () => {},
+  seeds: readonly number[] = SEEDS,
+): { text: string; state: GameState }[] {
   return seeds
     .map((seed) => {
       const state = fightWith('monkey', { player: 5, enemy: 6, seen: true }, seed);
       prepare(state);
-      return lastText(performAction(state, 'fight:wait'));
+      const next = performAction(state, 'fight:wait');
+      return { text: next.log.filter((e) => e.text.includes('The monkey hits your')).at(-1)?.text ?? '', state: next };
     })
-    .filter((text) => text.includes('The monkey hits your'));
+    .filter((hit) => hit.text !== '');
 }
+
+const PART_NAMES: Record<string, BodyPartId> = {
+  head: 'head',
+  torso: 'torso',
+  'left arm': 'leftArm',
+  'right arm': 'rightArm',
+  'left leg': 'leftLeg',
+  'right leg': 'rightLeg',
+};
+const hitPart = (text: string) => PART_NAMES[/hits your ([a-z ]+?) for/.exec(text)?.[1] ?? ''] as BodyPartId;
 
 describe('starting a fight', () => {
   it('follows a found trail to an enemy one space from the right edge, with the player one space from the left', () => {
@@ -308,12 +324,12 @@ describe('enemies', () => {
 });
 
 describe('getting hit', () => {
-  it('loses a point of damage for every Armor point, and Protect adds +5, +10 from Fighting 5, +15 at 10', () => {
+  it('loses a point of damage for every Armor point, and Protect adds +1, +2 from Fighting 5, +3 at 10', () => {
     // Arrange
     const hits = (action: string) =>
       SEEDS.slice(0, 30).map((seed) => {
         const state = fightWith('snake', { player: 4, enemy: 5 }, seed);
-        state.player.equipment.body = { itemId: 'leather-jacket', health: 200 };
+        state.player.equipment.body = { itemId: 'rope-armor', health: 100 };
         return lastText(performAction(state, action));
       });
 
@@ -322,86 +338,84 @@ describe('getting hit', () => {
     const protecting = hits('fight:protect');
 
     // Assert
+    // why: the snake hits for 5 or 6; the rope armor's 2 points leave 3 or 4, and Protect's 1 more leaves 2 or 3.
     expect(waiting.some((text) => text.includes(' hits your '))).toBe(true);
-    expect(waiting.every((text) => /The snake (attacks and misses|hits your [a-z ]+ for [1-5]\b)/.test(text))).toBe(true);
-    expect(protecting.every((text) => /The snake (attacks and misses|hits you, but your armor takes it all)/.test(text))).toBe(true);
-    expect([0, 4, 5, 9, 10].map(protectArmor)).toEqual([5, 5, 10, 10, 15]);
+    expect(waiting.every((text) => /The snake (attacks and misses|hits your [a-z ]+ for [34]\.)/.test(text))).toBe(true);
+    expect(protecting.some((text) => text.includes(' hits your '))).toBe(true);
+    expect(protecting.every((text) => /The snake (attacks and misses|hits your [a-z ]+ for [23]\.)/.test(text))).toBe(true);
+    expect([0, 4, 5, 9, 10].map(protectArmor)).toEqual([1, 1, 2, 2, 3]);
   });
 
-  it('wounds 2% of the time per damage point', () => {
-    // Act
-    const wounds = [5, 15, 25, 60].map(woundChance);
-
-    // Assert
-    expect(wounds.map((c) => Math.round(c * 100))).toEqual([10, 30, 50, 100]);
-  });
-
-  it('lands on the arms most often, wounds a fresh body part about 40% of the time, and never fractures it', () => {
+  it('land on the arms most often and on the head least often, taking the health of the part they hit', () => {
     // Act
     const hits = monkeyHits();
-    const arms = hits.filter((text) => /your (left|right) arm/.test(text)).length / hits.length;
-    const wounded = hits.filter((text) => text.includes('Injured')).length / hits.length;
+    const share = (parts: readonly BodyPartId[]) => hits.filter((hit) => parts.includes(hitPart(hit.text))).length / hits.length;
 
     // Assert
-    expect(arms).toBeGreaterThan(0.3);
-    expect(arms).toBeLessThan(0.5);
-    expect(wounded).toBeGreaterThan(0.35);
-    expect(wounded).toBeLessThan(0.65);
-    expect(hits.some((text) => text.includes('Fractured'))).toBe(false);
+    expect(share(['leftArm', 'rightArm'])).toBeGreaterThan(0.3);
+    expect(share(['leftArm', 'rightArm'])).toBeLessThan(0.5);
+    expect(share(['head'])).toBeLessThan(0.1);
+    expect(hits.every((hit) => hit.state.player.health[hitPart(hit.text)] < fullPartHealth(hit.state.player, hitPart(hit.text)))).toBe(
+      true,
+    );
   });
 
-  it('wounds every body part only once; wounding an injured arm or leg again fractures it a quarter of the time', () => {
+  it('take at least three monkey hits to take off an arm', () => {
     // Arrange
-    const injured = (state: GameState) => {
-      for (const part of BODY_PART_IDS) {
-        applyBodyCondition(state.player, part, 'injured');
-      }
-    };
+    const state = createTestGame();
+    const strongest = ENEMIES.monkey.attack?.damage ?? 0;
 
     // Act
-    const hits = monkeyHits(
-      injured,
-      Array.from({ length: 2000 }, (_, i) => i + 1),
-    );
-    const onLimbs = hits.filter((text) => /your (left|right) (arm|leg)/.test(text));
-    const fractured = onLimbs.filter((text) => text.endsWith(': Fractured.')).length / onLimbs.length;
+    const gone = [1, 2, 3].map(() => {
+      damagePart(state.player, 'leftArm', strongest, { singleHit: true });
+      return state.player.body.leftArm.some((c) => c.id === 'missing');
+    });
+    const limbHits = monkeyHits().filter((hit) => isLimb(hitPart(hit.text)));
 
     // Assert
-    expect(hits.some((text) => text.includes('Injured'))).toBe(false);
-    expect(hits.some((text) => /your (head|torso) .*Fractured/.test(text))).toBe(false);
-    // why: a limb hit is wounded again about 43% of the time at the monkey's 18–25 damage, and a quarter of those fracture.
-    expect(fractured).toBeGreaterThan(0.07);
-    expect(fractured).toBeLessThan(0.15);
+    expect(gone).toEqual([false, false, true]);
+    expect(limbHits.length).toBeGreaterThan(20);
+    expect(limbHits.every((hit) => hit.state.player.health[hitPart(hit.text)] >= 5)).toBe(true);
   });
 
-  it('only take the bandage off a bandaged limb they wound, without fracturing it', () => {
+  it('never pick a missing limb', () => {
     // Act
     const hits = monkeyHits((state) => {
-      for (const part of BODY_PART_IDS) {
-        applyBodyCondition(state.player, part, 'bandaged');
-      }
+      state.player.body.leftArm = [{ id: 'missing' }];
+      state.player.health.leftArm = 0;
     });
 
     // Assert
-    expect(hits.some((text) => text.includes('Injured'))).toBe(true);
-    expect(hits.some((text) => text.includes('Fractured'))).toBe(false);
+    expect(hits.some((hit) => hitPart(hit.text) === 'leftArm')).toBe(false);
+  });
+
+  it('take off an arm or a leg that is below 5 health', () => {
+    // Act
+    const lost = monkeyHits((state) => {
+      state.player.health.leftArm = 4;
+    }).find((hit) => hitPart(hit.text) === 'leftArm');
+
+    // Assert
+    expect(lost?.text).toMatch(/^You wait\. The monkey hits your left arm for \d+\. Your left arm is gone\.$/);
+    expect(lost?.state.player.body.leftArm).toEqual([{ id: 'missing' }]);
   });
 
   it('does between 70% of the max damage, rounded up, and all of it, before Armor', () => {
     // Act
     const least = [0, 5, 10, 15, 25].map(minDamage);
-    const rolled = new Set(monkeyHits().map((text) => Number(/ for (\d+)/.exec(text)?.[1])));
+    const rolled = new Set(monkeyHits().map((hit) => Number(/ for (\d+)/.exec(hit.text)?.[1])));
 
     // Assert
     expect(least).toEqual([0, 4, 7, 11, 18]);
-    expect(rolled).toEqual(new Set([18, 19, 20, 21, 22, 23, 24, 25]));
+    expect(rolled).toEqual(new Set([7, 8, 9, 10]));
   });
 
-  it('kills you at 0 health, and the game is lost', () => {
+  it('kill you when the torso or the head drops to 0, and the game is lost', () => {
     // Act
     const dead = SEEDS.map((seed) => {
       const state = fightWith('monkey', { player: 4, enemy: 5, seen: true }, seed);
-      state.player.stats.health = 3;
+      state.player.health.torso = 4;
+      state.player.health.head = 4;
       return performAction(state, 'fight:wait');
     }).find((state) => state.status === 'dead');
 

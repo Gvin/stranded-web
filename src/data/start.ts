@@ -1,9 +1,10 @@
+import { clampPartHealth, fullHealthByPart } from '../engine/body';
 import { BODY_CONDITIONS } from '../engine/conditions';
 import { startWeather } from '../engine/environment';
 import { startingNutrition } from '../engine/nutrition';
 import { startingSkills } from '../engine/skills';
 import { BASE_ATTRIBUTE } from '../engine/rules';
-import type { GameState } from '../engine/types';
+import { BODY_PART_IDS, type BodyPartId, type GameState } from '../engine/types';
 import { START_LOCATION_ID } from './locations';
 
 const attribute = () => ({ base: BASE_ATTRIBUTE, xp: 0 });
@@ -13,6 +14,14 @@ const INTRO: readonly string[] = [
   'Splintered wreckage litters the beach. Your left arm throbs where something struck it in the dark.',
   'Your throat is dry and the sun is climbing. You need water, food and a place to sleep.',
 ];
+
+/** Every body part starts with this share of its full max health; the injured left arm with no more than its max. */
+const STARTING_HEALTH_SHARE = 0.9;
+
+function startingHealth(): Record<BodyPartId, number> {
+  const full = fullHealthByPart(BASE_ATTRIBUTE);
+  return Object.fromEntries(BODY_PART_IDS.map((part) => [part, full[part] * STARTING_HEALTH_SHARE])) as Record<BodyPartId, number>;
+}
 
 /** Health of the clothes the player washes ashore in. */
 const STARTING_CLOTHES_HEALTH = 60;
@@ -25,7 +34,8 @@ export function createStartingState(seed: number): GameState {
     status: 'alive',
     player: {
       locationId: START_LOCATION_ID,
-      stats: { health: 90, thirst: 45, hunger: 30, energy: 70 },
+      stats: { thirst: 45, hunger: 30, energy: 70 },
+      health: startingHealth(),
       nutrition: startingNutrition(),
       attributes: {
         strength: attribute(),
@@ -60,5 +70,6 @@ export function createStartingState(seed: number): GameState {
   };
   // why: the storm of the shipwreck is over; the first day starts clear, for a random time like any other weather.
   startWeather(state, 'clear', 0);
+  clampPartHealth(state.player);
   return state;
 }

@@ -1,5 +1,5 @@
 import type { Severity } from './conditions';
-import type { AttributeId, BodyPartId, NutrientId, SkillId, StatId } from './types';
+import type { AttributeId, BodyConditionId, BodyPartId, NeedId, NutrientId, SkillId, StatId } from './types';
 
 // Balance constants and formulas in one place, so the game can be tuned without hunting through the engine.
 
@@ -149,14 +149,35 @@ export const ENVIRONMENT_RULES = {
   recoveryMinutes: 15,
 } as const;
 
-export function maxStatsFor(attributes: Record<AttributeId, number>): Record<StatId, number> {
+/** Max thirst, hunger and energy from the effective Endurance. */
+export function maxNeedsFor(attributes: Record<AttributeId, number>): Record<NeedId, number> {
   return {
-    health: Math.round(80 + attributes.strength),
     thirst: Math.round(80 + attributes.endurance),
     hunger: Math.round(80 + attributes.endurance),
     energy: Math.round(80 + attributes.endurance),
   };
 }
+
+/** Full max health of the whole body, from the Strength before any modifiers: being weaker for a while does not make the body more vulnerable. */
+export function maxHealthFor(baseStrength: number): number {
+  return Math.round(80 + baseStrength);
+}
+
+/** Every body part has its own health; the player's health is their sum. */
+export const BODY_HEALTH_RULES = {
+  /** Each part's share of the full max health. */
+  shares: { head: 0.1, torso: 0.3, leftArm: 0.15, rightArm: 0.15, leftLeg: 0.15, rightLeg: 0.15 } satisfies Record<BodyPartId, number>,
+  /** Max health a condition takes off its part, as a share of the part's full max health; they add up on the same part. */
+  conditionLoss: { injured: 0.25, burnt: 0.25, bandaged: 0.1, fractured: 0.5, splinted: 0.25 } satisfies Partial<
+    Record<BodyConditionId, number>
+  >,
+  /** A part that drops below this share of its full max health becomes Injured; an arm or a leg below the second gets Fractured. */
+  injuredBelow: 0.5,
+  fracturedBelow: 0.25,
+  /** A single hit leaves at least `hitFloor` health on a part that had at least `hitFloorFrom`. */
+  hitFloorFrom: 5,
+  hitFloor: 1,
+} as const;
 
 /** Carry capacity in kg. */
 export function carryCapacityFor(strength: number): number {
@@ -253,25 +274,16 @@ export const FIGHT_RULES = {
   /** A Fight enemy runs away at or below this share of its health. */
   fleeAtHealth: 0.2,
   /** Armor that Protect adds for the turn, by Fighting level (index). */
-  protectArmor: [5, 5, 5, 5, 5, 10, 10, 10, 10, 10, 15],
-  /** Chance of a wound (Injured) per point of damage received. */
-  woundChancePerDamage: 0.02,
-  /** Chance that an arm or a leg with an unbandaged wound (Injured) fractures when it is wounded again. */
-  fractureOnSecondWound: 0.25,
+  protectArmor: [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3],
   /** A hit does between this share of its max damage (rounded up) and all of it, before Armor and Protect. */
   minDamageShare: 0.7,
   /** How likely each body part is to be hit. */
-  hitParts: { leftArm: 0.2, rightArm: 0.2, torso: 0.3, leftLeg: 0.1, rightLeg: 0.1, head: 0.1 } satisfies Record<BodyPartId, number>,
+  hitParts: { leftArm: 0.2, rightArm: 0.2, torso: 0.35, leftLeg: 0.1, rightLeg: 0.1, head: 0.05 } satisfies Record<BodyPartId, number>,
 } as const;
 
-/** Armor Protect adds for one turn at a Fighting level: +5, +10 from level 5, +15 at 10. */
+/** Armor Protect adds for one turn at a Fighting level: +1, +2 from level 5, +3 at 10. */
 export function protectArmor(level: number): number {
   return FIGHT_RULES.protectArmor[level] ?? FIGHT_RULES.protectArmor[0];
-}
-
-/** Chance that a hit wounds the body part it lands on: 2% per point of damage received. */
-export function woundChance(damage: number): number {
-  return Math.min(1, damage * FIGHT_RULES.woundChancePerDamage);
 }
 
 /** The least damage a hit of the given max damage does: 70% of it, rounded up (7 at 10, 18 at 25). */
@@ -287,13 +299,13 @@ export const SURVIVAL_RULES = {
   /** Hunger and thirst grow slower while sleeping. */
   sleepingDrainFactor: 0.6,
   /**
-   * Health lost per point of thirst or hunger pushed past the maximum, or per point of energy missing for an action.
-   * Keeps dehydration at 5 health/hour and starvation at 3 health/hour once the bars are full.
+   * Torso health lost per point of thirst or hunger pushed past the maximum, or per point of energy missing for an action.
+   * Keeps dehydration at 1.5 health/hour and starvation at 0.9 health/hour once the bars are full.
    */
-  overflowDamage: { thirst: 1.25, hunger: 1.5, energy: 1 },
+  overflowDamage: { thirst: 0.375, hunger: 0.45, energy: 0.3 },
   /** Natural healing only happens while both hunger and thirst are at or below this fraction. */
   healingMaxFraction: 0.5,
-  /** While sleeping, health and energy come back by where the player sleeps (see SLEEP_RULES). */
+  /** Health comes back shared evenly between the body parts; while sleeping, by where the player sleeps (see SLEEP_RULES). */
   healthRegenPerHour: { awake: 0.5, resting: 0.5 },
   energyRegenPerHour: { awake: 0, resting: 5 },
   /** Below this energy fraction the player becomes dizzy from exhaustion. */

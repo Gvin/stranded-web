@@ -37,7 +37,7 @@ describe('advanceTime', () => {
     const state = createTestGame();
     applyBodyCondition(state.player, 'leftLeg', 'bleeding', 'heavy');
     const severityAt = () => {
-      const bleeding = state.player.body.leftLeg[0];
+      const bleeding = state.player.body.leftLeg.find((c) => c.id === 'bleeding');
       return bleeding ? bodyConditionSeverity(bleeding) : 'stopped';
     };
 
@@ -50,7 +50,10 @@ describe('advanceTime', () => {
 
     // Assert
     expect(severities).toEqual(['heavy', 'medium', 'medium', 'light', 'stopped']);
-    expect(state.player.stats.health).toBeCloseTo(100 - 16 - 6 - 1.5 + 0.25, 0);
+    // why: bleeding takes the torso's health, whatever part bleeds: 2.4 an hour heavy, 1.2 medium, 0.45 light.
+    expect(state.player.health.torso).toBeCloseTo(30 - 2.4 * 2 - 1.2 * 1.5 - 0.45, 0);
+    // why: the leg is injured along with the bleeding, which takes a quarter off its max health.
+    expect(state.player.health.leftLeg).toBe(11.25);
     expect(state.log.some((e) => e.text === 'The bleeding from your left leg is slowing down.')).toBe(true);
     expect(state.log.some((e) => e.text === 'The bleeding from your left leg has stopped.')).toBe(true);
   });
@@ -58,7 +61,7 @@ describe('advanceTime', () => {
   it('kills the player and records the cause when health runs out', () => {
     // Arrange
     const state = createTestGame();
-    state.player.stats.health = 3.9;
+    state.player.health.torso = 1.1;
     applyBodyCondition(state.player, 'torso', 'bleeding', 'heavy');
 
     // Act
@@ -74,7 +77,7 @@ describe('advanceTime', () => {
     // Arrange
     const state = createTestGame();
     state.player.stats.thirst = 100;
-    state.player.stats.health = 10;
+    state.player.health.torso = 4;
 
     // Act
     advanceTime(state, hours(3), 'awake');
@@ -91,7 +94,7 @@ describe('advanceTime', () => {
 
     // Act
     for (let half = 0; half < 6; half++) {
-      state.player.stats = { health: 100, thirst: 0, hunger: 0, energy: 100 };
+      state.player.stats = { thirst: 0, hunger: 0, energy: 100 };
       advanceTime(state, days(0.5), 'resting');
     }
 
@@ -141,7 +144,8 @@ describe('advanceTime', () => {
     // Assert
     expect(halfway).toBe(hours(3));
     expect(state.player.conditions).toEqual([]);
-    expect(state.player.stats.health).toBeCloseTo(100 - 12 - 6 - 2, 0);
+    // why: poison takes the torso's health: 1.8 an hour heavy, 0.9 medium, 0.3 light, two hours each.
+    expect(state.player.health.torso).toBeCloseTo(30 - 1.8 * 2 - 0.9 * 2 - 0.3 * 2, 0);
     expect(state.log.some((e) => e.text === 'The nausea is easing a little.')).toBe(true);
   });
 

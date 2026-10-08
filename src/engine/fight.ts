@@ -1,17 +1,18 @@
 import { ENEMIES, ENEMY_ORDER } from '../data/enemies';
+import { getItemDef } from '../data/items';
 import type { GameAction } from './actions';
+import { isFatallyHurt } from './body';
 import { bodyPartName, hasBodyCondition } from './conditions';
 import type { ActionContext } from './context';
 import type { EnemyDef, WeaponStats } from './definitions';
 import { type FightingStat, getFightingStats } from './fighting';
 import { armorPoints } from './inventory';
-import { FIGHT_RULES, minDamage, protectArmor, woundChance } from './rules';
-import type { BodyPartId, EnemyId, FightState, GameState, LogTone } from './types';
+import { FIGHT_RULES, minDamage, protectArmor } from './rules';
+import type { BodyConditionId, BodyPartId, EnemyId, FightState, GameState, LogTone } from './types';
 
 // Fights: each of the player's actions is a turn, after which the enemy acts. Time, thirst, hunger and energy stand still.
 
 const LAST_SPACE = FIGHT_RULES.fieldSize - 1;
-const LIMBS: readonly BodyPartId[] = ['leftArm', 'rightArm', 'leftLeg', 'rightLeg'];
 
 /** What happened in one side's part of a turn; `after` runs once the turn is logged, so its own messages follow. */
 interface TurnPart {
@@ -76,9 +77,13 @@ export function startHunt(ctx: ActionContext): void {
   ctx.log(`You find a fresh trail and follow it to ${ENEMIES[enemyId].singular}.`, 'good');
 }
 
+/** The body part a hit lands on, by the hit chances; a missing limb is never picked, so its chance goes to the other parts. */
 function pickHitPart(ctx: ActionContext): BodyPartId {
-  let roll = ctx.random();
-  for (const [part, chance] of Object.entries(FIGHT_RULES.hitParts) as [BodyPartId, number][]) {
+  const parts = (Object.entries(FIGHT_RULES.hitParts) as [BodyPartId, number][]).filter(
+    ([part]) => !hasBodyCondition(ctx.state.player, part, 'missing'),
+  );
+  let roll = ctx.random() * parts.reduce((sum, [, chance]) => sum + chance, 0);
+  for (const [part, chance] of parts) {
     roll -= chance;
     if (roll < 0) {
       return part;
@@ -87,7 +92,9 @@ function pickHitPart(ctx: ActionContext): BodyPartId {
   return 'torso';
 }
 
-/** The enemy's hit: Armor and Protect take a point of damage each, then the hit part may be wounded, and a wounded limb fractured. */
+const CONDITION_WORDS: Partial<Record<BodyConditionId, string>> = { injured: 'Injured', fractured: 'Fractured' };
+
+/** The enemy's hit: Armor and Protect take a point of damage each, then the rest goes to the body part it lands on. */
 function attackPlayer(ctx: ActionContext, enemy: EnemyDef, attack: WeaponStats, protect: number): TurnPart {
   const name = capitalize(theEnemy(enemy));
   if (!ctx.chance(attack.accuracy)) {
@@ -99,30 +106,19 @@ function attackPlayer(ctx: ActionContext, enemy: EnemyDef, attack: WeaponStats, 
     return { said: [`${name} hits you, but your armor takes it all.`] };
   }
   const part = pickHitPart(ctx);
-  const wounded = !hasBodyCondition(player, part, 'missing') && ctx.chance(woundChance(damage));
-  // why: one Injured per body part, so a second wound on an injured part is discarded; on an arm or a leg it may break it instead.
-  const injuredBefore = hasBodyCondition(player, part, 'injured');
-  const wound = wounded && !injuredBefore;
-  const fracture =
-    wounded &&
-    injuredBefore &&
-    LIMBS.includes(part) &&
-    !hasBodyCondition(player, part, 'fractured') &&
-    ctx.chance(FIGHT_RULES.fractureOnSecondWound);
-  ctx.damage(damage, `${capitalize(enemy.singular)} killed you.`);
-  if (player.stats.health <= 0) {
+  const result = ctx.damage(part, damage, `${capitalize(enemy.singular)} killed you.`, { singleHit: true });
+  if (isFatallyHurt(player)) {
     delete ctx.state.fight;
   }
-  const conditions = [wound ? 'Injured' : undefined, fracture ? 'Fractured' : undefined].filter((c) => c !== undefined);
+  const words = result.conditions.map((id) => CONDITION_WORDS[id]).filter((word) => word !== undefined);
+  const hit = `${name} hits your ${bodyPartName(part)} for ${damage}${words.length > 0 ? `: ${words.join(', ')}` : ''}.`;
+  const lost = result.conditions.includes('missing') ? [`Your ${bodyPartName(part)} is gone.`] : [];
   return {
-    said: [`${name} hits your ${bodyPartName(part)} for ${damage}${conditions.length > 0 ? `: ${conditions.join(', ')}` : ''}.`],
+    said: [hit, ...lost],
     tone: 'bad',
     after: () => {
-      if (wound) {
-        ctx.addBodyCondition(part, 'injured');
-      }
-      if (fracture) {
-        ctx.addBodyCondition(part, 'fractured');
+      for (const itemId of result.released) {
+        ctx.log(`You can no longer hold the ${getItemDef(itemId).name.toLowerCase()} with your ${bodyPartName(part)}.`, 'bad');
       }
     },
   };

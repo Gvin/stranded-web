@@ -4,7 +4,7 @@ Last updated: 2026-10-08
 
 ## Overview
 
-Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11), tracking animals in 0.14.0, and fighting in 0.15.0 (save format 12, with tracking now training Perception); the README describes how they work. Next come body part health, then the rest of hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
+Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11), tracking animals in 0.14.0, fighting in 0.15.0 (save format 12, with tracking now training Perception) and body part health in 0.16.0 (save format 13); the README describes how they work. Next comes the rest of hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
 
 Every section below is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
 
@@ -16,38 +16,6 @@ Rules every feature follows, taken from how the engine works today:
 - Every change to the persisted state bumps `SAVE_VERSION`, with a migration step in `src/save/steps/` and a test loading the old format.
 - Every new item, building, animal and plant gets a game-icons.net icon.
 - Every new action shows its time, energy, requirements and possible gains in the popup, like the existing ones.
-
-## Body part health
-
-Decided: every body part has its own health, and the player's health is the sum of the parts. This replaces today's single health stat. It comes as a separate release.
-
-**Max health**
-
-- The total max health stays 80 + Strength, but uses the Strength before any modifiers: being weaker for a while does not make the body more vulnerable.
-- It is split between the parts: torso 30%, head 10%, each arm 15%, each leg 15% (at Strength 20: torso 30, head 10, arms and legs 15 each).
-- Conditions lower a part's max health, and add up on the same part: Injured by 25% (10% once bandaged), Burnt by 25% like Injured (10% once bandaged), Fractured by 50% (25% once splinted). An injured, fractured limb is at −75% (−35% once bandaged and splinted).
-
-**Damage**
-
-- A fight hit damages the body part it lands on. A hit on a missing limb picks another part.
-- Head hits become 5% of hits (today 10%), and the torso takes the other 5%: arms 40% (20% each), torso 35%, legs 20% (10% each), head 5%.
-- A single hit can't drop a body part with 5 or more health to 0: it leaves it at 1. A part below 5 health can be taken to 0 by a hit.
-- Poison and bleeding damage the torso, scaled to the torso's health (its 30% share): bleeding light / medium / heavy 0.45 / 1.2 / 2.4 per hour (today 1.5 / 4 / 8), poisoned 0.3 / 0.9 / 1.8 per hour (today 1 / 3 / 6).
-- Thirst or hunger pushed past the maximum, and working with no energy left, damage the torso too, also scaled to its 30% share: 0.375 health per point of thirst, 0.45 per point of hunger and 0.3 per missing point of energy (today 1.25 / 1.5 / 1).
-
-**Conditions from a part's health**
-
-- A part becomes Injured when its health drops below 50% of its full max health. Injured never goes away when the part's health comes back: it only heals with time, as today. This replaces the fight wound chance (2% per damage point).
-- An arm or a leg that drops below 25% of its full max health gets Fractured. A fracture never heals by itself either, as today. This replaces the fracture chance on a second wound (25%).
-- An arm or a leg at 0 health is lost (Missing). The torso or the head at 0 health means death.
-
-**Healing**: natural healing (awake, resting and sleeping) is shared evenly between the body parts; the share of a part with no damage is lost. Each part heals at a sixth of today's rate, so a torso at 0 of 30 takes about 360 hours awake to heal, or 60 hours asleep in a house.
-
-> **Suggestion, not decided:** engine and UI.
-
-- Each body part in the state gets its health; the Health bar shows the sum of the parts against the sum of their max health.
-- The Body tab shows a health bar for each part, next to its conditions.
-- Save change: existing games split their current health between the parts by the shares above.
 
 ## Hunting
 
@@ -119,20 +87,18 @@ Decided: one central system for game events, the things that happen to the playe
 
 ## Roadmap
 
-Three releases take the game from 0.15.0 (save format 12) to 0.18.0 (save format 15), made of the sections above.
+Two releases take the game from 0.16.0 (save format 13) to 0.18.0 (save format 15), made of the sections above.
 
-| Release          | Game version | Save format | Contents                                                                                    |
-| ---------------- | ------------ | ----------- | ------------------------------------------------------------------------------------------- |
-| Body part health | 0.16.0       | 13          | Health per body part, conditions from it, losing limbs, damage to the torso, shared healing |
-| Hunting          | 0.17.0       | 14          | Animal populations, butchering, snares, spear fishing, nests                                |
-| Farming          | 0.18.0       | 15          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging   |
+| Release | Game version | Save format | Contents                                                                                  |
+| ------- | ------------ | ----------- | ----------------------------------------------------------------------------------------- |
+| Hunting | 0.17.0       | 14          | Animal populations, butchering, snares, spear fishing, nests                              |
+| Farming | 0.18.0       | 15          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging |
 
 Farming relies on the existing rain to water the garden.
 
 **Why this order**
 
-- Body part health comes first: it changes how fights and survival hurt the player, before more fights come.
-- The rest of hunting follows: more ways to get meat, now that fights give it.
+- The rest of hunting comes next: more ways to get meat, now that fights give it.
 - Farming comes last: it leans on rain, the Farming skill and the nutrition groups.
 
 **Testing each release**

@@ -649,7 +649,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'belt-armor',
     maxHealth: 100,
-    clothing: { armor: 5 },
+    clothing: { armor: 2 },
   },
   {
     id: 'leather-tunic',
@@ -663,7 +663,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'leather-vest',
     maxHealth: 100,
-    clothing: { warmth: true, armor: 5 },
+    clothing: { warmth: true, armor: 2 },
   },
   {
     id: 'leather-jacket',
@@ -677,7 +677,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'leather-armor',
     maxHealth: 200,
-    clothing: { warmth: true, armor: 10 },
+    clothing: { warmth: true, armor: 4 },
   },
   {
     id: 'leather-hat',
@@ -691,7 +691,7 @@ const ITEM_LIST: ItemDef[] = [
     groundLifetime: days(30),
     icon: 'outback-hat',
     maxHealth: 100,
-    clothing: { shade: true, armor: 5 },
+    clothing: { shade: true, armor: 2 },
   },
   {
     id: 'makeshift-raincoat',

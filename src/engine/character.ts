@@ -9,6 +9,7 @@ import {
   TIMED_CONDITIONS,
   timedConditionSeverity,
 } from './conditions';
+import { fullPartHealth, partMaxHealth } from './body';
 import { carriedWeight } from './inventory';
 import { emptyFoodGroups, foodGroupList } from './nutrition';
 import {
@@ -16,7 +17,7 @@ import {
   carryCapacityFor,
   MAX_ATTRIBUTE,
   MAX_TOTAL_PENALTY,
-  maxStatsFor,
+  maxNeedsFor,
   MIN_EFFECTIVE_ATTRIBUTE,
   NUTRITION_RULES,
   SLEEP_RULES,
@@ -28,7 +29,9 @@ import {
   ATTRIBUTE_IDS,
   BODY_PART_IDS,
   type AttributeId,
+  type BodyPartId,
   type GameState,
+  type NeedId,
   type PlayerState,
   type StatId,
   type TimedCondition,
@@ -67,9 +70,20 @@ export interface AttributeView {
   modifiers: AttributeModifierEntry[];
 }
 
+/** A body part's health: now, its max health now (after its conditions) and its full max health. */
+export interface PartHealthView {
+  health: number;
+  max: number;
+  full: number;
+}
+
 export interface CharacterSheet {
   attributes: Record<AttributeId, AttributeView>;
+  /** Max of every stat; max health is the sum of the body parts' max health. */
   max: Record<StatId, number>;
+  /** The player's health: the sum of the body parts' health. */
+  health: number;
+  body: Record<BodyPartId, PartHealthView>;
   conditions: ActiveCondition[];
   carryCapacity: number;
   carriedWeight: number;
@@ -200,7 +214,7 @@ function sleepyCondition(state: GameState): ActiveCondition | undefined {
 }
 
 /** Player-wide conditions: stored timed ones with severities plus the ones derived from hunger, thirst and energy. */
-function playerConditions(state: GameState, max: Record<StatId, number>): ActiveCondition[] {
+function playerConditions(state: GameState, max: Record<NeedId, number>): ActiveCondition[] {
   const { player } = state;
   const result: ActiveCondition[] = player.conditions.filter((c) => !isFixedCondition(c)).map(timedCondition);
   const starving = deprivationCondition('starving', player.stats.hunger, max.hunger);
@@ -236,18 +250,21 @@ export function getCharacterSheet(state: GameState): CharacterSheet {
   const fixed = [...player.conditions.filter(isFixedCondition).map(timedCondition), ...derivedFixed];
   const stored = [...storedModifiers(player), ...fixed.map((c) => ({ source: c.name, modifiers: c.modifiers }))];
   const preliminary = buildAttributes(player, stored);
-  const preliminaryMax = maxStatsFor(effectiveValues(preliminary));
+  const preliminaryMax = maxNeedsFor(effectiveValues(preliminary));
   const derived = playerConditions(state, preliminaryMax);
   const attributes = buildAttributes(player, [...stored, ...derived.map((c) => ({ source: c.name, modifiers: c.modifiers }))]);
-  const max = {
-    ...maxStatsFor(effectiveValues(attributes)),
-    thirst: preliminaryMax.thirst,
-    hunger: preliminaryMax.hunger,
-    energy: preliminaryMax.energy,
-  };
+  const body = Object.fromEntries(
+    BODY_PART_IDS.map((part) => {
+      const max = partMaxHealth(player, part);
+      return [part, { health: Math.min(max, player.health[part]), max, full: fullPartHealth(player, part) }];
+    }),
+  ) as Record<BodyPartId, PartHealthView>;
+  const sum = (pick: (view: PartHealthView) => number) => BODY_PART_IDS.reduce((total, part) => total + pick(body[part]), 0);
   return {
     attributes,
-    max,
+    max: { health: sum((view) => view.max), ...preliminaryMax },
+    health: sum((view) => view.health),
+    body,
     conditions: [...derived, ...fixed],
     carryCapacity: carryCapacityFor(attributes.strength.effective),
     carriedWeight: carriedWeight(player),

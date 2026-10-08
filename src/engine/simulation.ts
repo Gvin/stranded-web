@@ -1,4 +1,5 @@
 import { getItemDef } from '../data/items';
+import { clampPartHealth, damagePart, healParts, isFatallyHurt, partDamageMessage } from './body';
 import { type ActiveCondition, getCharacterSheet } from './character';
 import { BODY_CONDITIONS, bodyConditionSeverity, bodyPartName, TIMED_CONDITIONS, timedConditionSeverity } from './conditions';
 import { appendLog, itemAmount, theItem } from './context';
@@ -9,7 +10,7 @@ import { ENVIRONMENT_RULES, ITEM_WEAR_PER_DAY, SURVIVAL_RULES } from './rules';
 import { changeStat } from './stats';
 import { MINUTES_PER_DAY } from './time';
 import { sleepAt } from './sleep';
-import { BODY_PART_IDS, type GameState, STAT_IDS } from './types';
+import { BODY_PART_IDS, type GameState, NEED_IDS } from './types';
 import { removeExpiredGroundItems } from './world';
 
 interface HealthDrain {
@@ -59,16 +60,20 @@ export function logWorsenedConditions(state: GameState, before: Map<string, numb
 export function killPlayer(state: GameState, deathCause: string): void {
   state.status = 'dead';
   state.deathCause = deathCause;
-  state.player.stats.health = 0;
+  // why: the Health bar behind the death screen reads 0, not what the other body parts still had.
+  for (const part of BODY_PART_IDS) {
+    state.player.health[part] = 0;
+  }
   appendLog(state, deathCause, 'bad');
 }
 
-/** Keeps every stat within [0, max]; maxima shift as attributes change. */
+/** Keeps every stat and every body part's health within [0, max]; maxima shift as attributes and conditions change. */
 export function clampStats(state: GameState): void {
   const { max } = getCharacterSheet(state);
-  for (const id of STAT_IDS) {
+  for (const id of NEED_IDS) {
     state.player.stats[id] = Math.min(max[id], Math.max(0, state.player.stats[id]));
   }
+  clampPartHealth(state.player);
 }
 
 function collectHealthDrains(state: GameState, conditions: ActiveCondition[]): HealthDrain[] {
@@ -160,6 +165,9 @@ function tick(state: GameState, minutes: number, mode: TimeMode): void {
   for (const id of ['thirst', 'hunger'] as const) {
     const perHour = id === 'thirst' ? SURVIVAL_RULES.thirstPerHour * rates.thirst : SURVIVAL_RULES.hungerPerHour * rates.hunger;
     const change = changeStat(state, id, perHour * drainFactor * elapsedHours, sheet.max[id]);
+    if (change.hurt) {
+      appendLog(state, change.hurt, 'bad');
+    }
     if (change.damage > 0) {
       drains.push({ perHour: -change.damage / elapsedHours, deathCause: change.deathCause ?? 'Your body gave out.', alreadyApplied: true });
     }
@@ -171,14 +179,21 @@ function tick(state: GameState, minutes: number, mode: TimeMode): void {
   const healthPerHour = sleep ? sleep.healthPerHour : SURVIVAL_RULES.healthRegenPerHour[mode === 'resting' ? 'resting' : 'awake'];
   const regen = drains.length === 0 && wellFed ? healthPerHour : 0;
   const pending = drains.filter((d) => !d.alreadyApplied).reduce((sum, d) => sum + d.perHour, 0);
-  stats.health += (regen + pending) * elapsedHours;
+  // why: poison, bleeding and the other drains all take the torso's health; healing is shared between the parts.
+  if (pending < 0) {
+    const hurt = partDamageMessage('torso', damagePart(state.player, 'torso', -pending * elapsedHours).conditions);
+    if (hurt) {
+      appendLog(state, hurt, 'bad');
+    }
+  }
+  healParts(state.player, regen * elapsedHours);
   stats.energy +=
     (sleep ? sleep.energyPerHour : SURVIVAL_RULES.energyRegenPerHour[mode === 'resting' ? 'resting' : 'awake']) * elapsedHours;
 
   state.time += minutes;
   clampStats(state);
 
-  if (stats.health <= 0) {
+  if (isFatallyHurt(state.player)) {
     const worst = drains.reduce<HealthDrain | undefined>((a, d) => (!a || d.perHour < a.perHour ? d : a), undefined);
     killPlayer(state, worst?.deathCause ?? 'Your body gave out.');
     return;
