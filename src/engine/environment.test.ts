@@ -128,9 +128,9 @@ describe('body temperature', () => {
 
     // Assert
     expect(hot.player.stats.thirst).toBeCloseTo(5);
-    expect(hot.player.stats.hunger).toBeCloseTo(2);
+    expect(hot.player.stats.hunger).toBeCloseTo(1.5);
     expect(cold.player.stats.thirst).toBeCloseTo(3.6);
-    expect(cold.player.stats.hunger).toBeCloseTo(2.5);
+    expect(cold.player.stats.hunger).toBeCloseTo(1.875);
   });
 });
 

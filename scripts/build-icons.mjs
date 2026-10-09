@@ -79,6 +79,7 @@ const GAME_ICONS = [
   'table',
   'chest',
   'barn',
+  'lasso',
   // Animals
   'rabbit',
   'seagull',

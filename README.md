@@ -19,7 +19,7 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 ## Game rules
 
 - **Stats** — Health, Thirst, Hunger, Energy. Health and energy: higher is better. Thirst and hunger: lower is better — they grow
-  as time passes and drop when you drink or eat (the spring quenches thirst completely). Energy is spent by actions and restored by
+  as time passes (thirst 4 an hour, hunger 1.5 an hour, both 40% slower while sleeping) and drop when you drink or eat (the spring quenches thirst completely). Energy is spent by actions and restored by
   resting (5 an hour) and sleeping (see Sleep). Sleep is only offered below 50 energy, or at any energy once you are Sleepy (hidden
   otherwise): either for 8 hours, or — in the evening and at night — until 06:00.
   Health is the sum of the body parts' health (see Body part health).
@@ -179,6 +179,11 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   (arrows of another kind go back into the bag), and Put away returns them. Arrows made or found later go into the bag. They
   weigh the same in the slot. Bad wooden arrows add nothing, wooden arrows add 15% accuracy, stone tip arrows add 10 damage and
   15% accuracy. Every shot in a fight uses up an arrow, which is always lost.
+- **Animal populations** — hidden from the player (`stocks` of the locations in `src/data/locations/`): the forest has 10
+  animals, one more every 12 hours; the beach 20 fish, one more every 3 hours; the rocks 8 nests, one more every 6 hours.
+  Every kill after tracking and every snare catch takes an animal, every fish caught (spear fishing or diving at the reef)
+  takes a fish, every nest found takes a nest. Once a population is empty, those actions find nothing: no trail, an empty
+  snare, no fish, no nest.
 - **Fights** — a found trail starts a fight (`src/engine/fight.ts`, `FIGHT_RULES` in `src/engine/rules.ts`, enemies in
   `src/data/enemies.ts`). The Explore panel turns into the fight: both healths, the battle field and the fight actions.
   - The field is 12 spaces long. You start 1 space from the left edge and the enemy 1 space from the right; nobody can pass
@@ -241,8 +246,8 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 - **Buildings** — a separate thing from crafting. Every location has building slots, each holding one building at a time
   (`src/data/buildings.ts`). The buildings of a slot are levels: a level is offered under "Build here" only once the level below
   it stands, is built on top of it, and replaces it when finished (until then the one below keeps working). Each location lists
-  what can be built there (`buildings` in its file): a sleeping mat and a shelter anywhere you can stay, everything at the
-  Clearing, which becomes your Camp as soon as building starts, and nothing on the way. Buildings are built in steps of 15
+  what can be built there (`buildings` in its file): a sleeping mat and a shelter anywhere you can stay, a snare in the
+  Forest, everything else at the Clearing, which becomes your Camp as soon as building starts, and nothing on the way. Buildings are built in steps of 15
   minutes and 2 energy each (`BUILDING_STEP_MINUTES` and `BUILDING_STEP_ENERGY` in `src/engine/rules.ts`); the materials
   are used up by the first step, tools are needed for every step, and an unfinished building waits among the location's
   objects until you continue. "Build here" on the Explore screen is collapsed until opened.
@@ -262,8 +267,15 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
   | Storage   | 2     | Medium storage       | 8     | Log ×4, stick ×10, rope ×4, Leaves ×8             | Hammer             | holds 80 kg, keeps what was stored     |
   | Storage   | 3     | Big storage          | 12    | Log ×8, stick ×16, rope ×6, Clay ×6               | Hammer, Axe        | holds 150 kg, keeps what was stored    |
   | Collector | 1     | Small rain collector | 5     | Log ×5, rope ×4, threads ×3, glue ×2, Leather ×3  | Hammer, Axe        | collects rainwater                     |
+  | Snare     | 1     | Snare                | 1     | stick ×2, rope                                    |                    | catches an animal (forest only)        |
 
-  The fire slot only exists at the Camp; so do the workbench, storage and collector.
+  The fire slot only exists at the Camp; so do the workbench, storage and collector. The snare is set in the Forest only, one
+  at a time.
+
+  A **Snare** can be checked once a day has passed since it was set (15 min, 1 energy; the forest shows how long is left).
+  Checking it uses the snare up. Half the time it has caught an animal, a fixed chance that no skill or attribute changes: a
+  seagull (37.5%), a rabbit (25%), a turtle (18.75%) or a kiwi (18.75%), the same chances as tracking. You get that animal's
+  reward, as for killing it in a fight, with no fight.
 
   The **Small rain collector** fills while it rains, whatever roof the camp has: 10 bottles of water per hour of Rainy weather,
   15 per hour of Stormy weather, up to 2 bottles. The camp shows what it holds ("1.5 / 2 bottles of water"). Drink (1 bottle,
@@ -297,13 +309,13 @@ The build uses relative paths, so `dist/` can be hosted from any static web serv
 - **Island** — the Forest connects to all the other places. Locations can have objects with actions, and actions of their own
   (listed under "Around you").
 
-  | Location        | What is there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-  | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-  | Beach (start)   | Wreckage (gone for good once everything is found, including a worn baseball hat), coconut palms (a coconut grows every 3 days, one falls every 6 days), the sea (comb the tideline — a few finds at a time, renewed every 8 hours — dive at the reef except in storms, drink seawater)                                                                                                                                                                                                                                         |
-  | Forest          | Berry bushes, vines, mushrooms (one regrows every 3 days); gather grass (unlimited), gather sticks (30 lying around, 10 more every day; sometimes resin, leaves, moss), chop wood (needs an axe; 2 h: 8–10 logs, 15–20 sticks, up to 3 vines, 20–30 leaves, sometimes resin; what you cannot carry is left on the ground); track animals (3 h, 10 energy: a fresh animal trail 30% of the time at 20 Perception and 90% at 100, with no Foraging bonus; a trail starts a fight with the animal; trains Perception by 3 points) |
-  | Spring          | The pool: clean water, wash your face                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-  | Rocks           | The rocky interior: gather stones (sometimes flint or clay) and pebbles, both unlimited                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-  | Clearing / Camp | Building site: every building, with all its levels                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+  | Location        | What is there                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+  | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Beach (start)   | Wreckage (gone for good once everything is found, including a worn baseball hat), coconut palms (a coconut grows every 3 days, one falls every 6 days), the sea (comb the tideline — a few finds at a time, renewed every 8 hours — dive at the reef except in storms, spear fishing with a spear in hand except in storms: 1 h, 6 energy, a raw fish with the Agility success chance, trains Agility by 1; drink seawater)                                                                                                                 |
+  | Forest          | Berry bushes, vines, mushrooms (one regrows every 3 days); gather grass (unlimited), gather sticks (30 lying around, 10 more every day; sometimes resin, leaves, moss), chop wood (needs an axe; 2 h: 8–10 logs, 15–20 sticks, up to 3 vines, 20–30 leaves, sometimes resin; what you cannot carry is left on the ground); track animals (3 h, 10 energy: a fresh animal trail 30% of the time at 20 Perception and 90% at 100, with no Foraging bonus; a trail starts a fight with the animal; trains Perception by 3 points); set a snare |
+  | Spring          | The pool: clean water, wash your face                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+  | Rocks           | The rocky interior: gather stones (sometimes flint or clay) and pebbles, both unlimited; look for nests (30 min, 3 energy: 1–3 bird eggs 30% of the time with Perception and Agility at 20, each adding half of the rise to 60% with both at 100; trains Perception by 1)                                                                                                                                                                                                                                                                   |
+  | Clearing / Camp | Building site: every building but the snare, with all its levels                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 - **Objects** — each location has objects that provide actions. Hidden objects are not listed but still offer actions
   (shown under "Around you").
@@ -347,6 +359,7 @@ screen instead of being loaded.
 | 11          | 0.13.0       | The arrow slot; a held bow takes both hands (kept in the right hand, the left one empty).             |
 | 12          | 0.15.0       | A fight in progress.                                                                                  |
 | 13          | 0.16.0       | Health per body part instead of one health stat; weapons as single entries with durability.           |
+| 14          | 0.17.0       | The snare, a new building.                                                                            |
 
 A migration is needed when you:
 

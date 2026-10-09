@@ -1,10 +1,10 @@
 # Stranded — feature plan
 
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
 ## Overview
 
-Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11), tracking animals in 0.14.0, fighting in 0.15.0 (save format 12, with tracking now training Perception) and body part health in 0.16.0 (save format 13); the README describes how they work. Next comes the rest of hunting, and farming last; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
+Environment and clothing protection shipped in game 0.8.0, the rain collector, resin and the 15-minute building steps in 0.9.0 (save format 7), the makeshift raincoat in 0.10.0, skills in 0.11.0 (save format 8), building upgrades in 0.12.0 (save format 9), unknown finds and untried food in 0.12.1 (save format 10), the attributes refactoring in 0.12.2, weapon stats in 0.13.0 (save format 11), tracking animals in 0.14.0, fighting in 0.15.0 (save format 12, with tracking now training Perception), body part health in 0.16.0 (save format 13) and the rest of hunting (snares, spear fishing, nests and hidden animal populations) in 0.17.0 (save format 14); the README describes how they work. Next comes farming; the Events System gets designed separately. Each release is its own game version with its own save migration, so the game stays playable between them.
 
 Every section below is a suggestion, marked at the top of its section, and nothing in it gets built until you approve it, apart from the parts marked as decided.
 
@@ -16,23 +16,6 @@ Rules every feature follows, taken from how the engine works today:
 - Every change to the persisted state bumps `SAVE_VERSION`, with a migration step in `src/save/steps/` and a test loading the old format.
 - Every new item, building, animal and plant gets a game-icons.net icon.
 - Every new action shows its time, energy, requirements and possible gains in the popup, like the existing ones.
-
-## Hunting
-
-> **Suggestion, not decided.** Everything in this section, including every new item, action, building, object and recipe, waits for your approval.
-
-More ways to get meat, and animals that can be hunted out for a while.
-
-**Other ways to get meat**
-
-- **Snare** (stick ×2, rope): set in the forest, checked hours later; may catch a small animal.
-- **Spear fishing** at the sea while holding a spear; gives raw fish.
-- **Look for nests** at the rocks; gives bird eggs, which have no source today.
-
-**Engine and UI**
-
-- Each location keeps an animal population as a named stock that regrows slowly, so over-hunting empties an area for a few days.
-- Save change: none; animal stocks reuse the existing stock map.
 
 ## Farming
 
@@ -83,18 +66,16 @@ Decided: one central system for game events, the things that happen to the playe
 
 ## Roadmap
 
-Two releases take the game from 0.16.0 (save format 13) to 0.18.0 (save format 15), made of the sections above.
+One release takes the game from 0.17.0 (save format 14) to 0.18.0 (save format 15), made of the section above.
 
 | Release | Game version | Save format | Contents                                                                                  |
 | ------- | ------------ | ----------- | ----------------------------------------------------------------------------------------- |
-| Hunting | 0.17.0       | 14          | Animal populations, snares, spear fishing, nests                                          |
 | Farming | 0.18.0       | 15          | Garden with 3 plots, taro, berry bushes and palms, watering and rain, seeds from foraging |
 
 Farming relies on the existing rain to water the garden.
 
 **Why this order**
 
-- The rest of hunting comes next: more ways to get meat, now that fights give it.
 - Farming comes last: it leans on rain, the Farming skill and the nutrition groups.
 
 **Testing each release**

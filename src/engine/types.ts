@@ -75,7 +75,8 @@ export type BuildingId =
   | 'smallStorage'
   | 'mediumStorage'
   | 'bigStorage'
-  | 'rainCollector';
+  | 'rainCollector'
+  | 'snare';
 export const BUILDING_IDS: readonly BuildingId[] = [
   'sleepingMat',
   'shelter',
@@ -90,11 +91,12 @@ export const BUILDING_IDS: readonly BuildingId[] = [
   'mediumStorage',
   'bigStorage',
   'rainCollector',
+  'snare',
 ];
 
 /** A place for one building per location; its buildings are levels, each built on top of the one before. */
-export type BuildingSlot = 'house' | 'fire' | 'workbench' | 'storage' | 'rainCollector';
-export const BUILDING_SLOTS: readonly BuildingSlot[] = ['house', 'fire', 'workbench', 'storage', 'rainCollector'];
+export type BuildingSlot = 'house' | 'fire' | 'workbench' | 'storage' | 'rainCollector' | 'snare';
+export const BUILDING_SLOTS: readonly BuildingSlot[] = ['house', 'fire', 'workbench', 'storage', 'rainCollector', 'snare'];
 
 export type LogTone = 'neutral' | 'good' | 'bad' | 'info';
 
@@ -188,6 +190,8 @@ export interface LocationBuildings {
   storage?: BuildingState & { items: InventoryStack[] };
   /** Holds the water it has collected, in bottles. */
   rainCollector?: BuildingState & { water: number };
+  /** A snare set to catch an animal; it was set when it was built. */
+  snare?: BuildingState;
 }
 
 export interface PlayerState {

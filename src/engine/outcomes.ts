@@ -1,7 +1,7 @@
 import type { ActionContext } from './context';
 import type { GainDef } from './definitions';
 import type { GameState } from './types';
-import { getLocationState } from './world';
+import { getLocationState, takeLocationStock } from './world';
 
 // Reusable outcome helpers for content actions: finds and their limits.
 
@@ -13,6 +13,8 @@ export interface FindDef {
   limit?: number;
   /** The chance is not improved by perception: for what is always there, such as the stones of the scree. */
   fixedChance?: boolean;
+  /** A hidden population of the location (such as the beach's fish) that every one found takes from; none are found once it is empty. */
+  population?: string;
   /** Health of a found item that wears out; full when not given. */
   health?: number;
 }
@@ -55,6 +57,12 @@ export function rollFinds(ctx: ActionContext, objectId: string, finds: readonly 
     if (find.limit !== undefined) {
       quantity = Math.min(quantity, find.limit - (taken[key] ?? 0));
       taken[key] = (taken[key] ?? 0) + quantity;
+    }
+    if (find.population) {
+      quantity = takeLocationStock(ctx.state, ctx.state.player.locationId, find.population, quantity);
+    }
+    if (quantity <= 0) {
+      continue;
     }
     ctx.addItem(find.itemId, quantity, { health: find.health });
     foundAny = true;

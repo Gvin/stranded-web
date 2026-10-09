@@ -1,4 +1,5 @@
 import { BUILDINGS, COLLECTOR_WASH_WATER, nextLevel, previousLevel } from '../data/buildings';
+import { ENEMIES } from '../data/enemies';
 import { getItemDef } from '../data/items';
 import { getLocationDef, getRoutesFrom } from '../data/locations';
 import { RECIPES } from '../data/recipes';
@@ -21,7 +22,7 @@ import type {
 import { type Gain, resolveGains } from './gains';
 import { canCoolDown, canWarmUp, coolDown, isRaining, warmUp } from './environment';
 import { healingFor } from './body';
-import { fightActions, passTurn } from './fight';
+import { fightActions, passTurn, pickByTrailChance, rollRewards } from './fight';
 import { fireDef, fireRoom, rainReaches } from './fire';
 import {
   addToInventory,
@@ -46,6 +47,7 @@ import {
 import { emptyFoodGroups, feedFoodGroup, foodGroupList } from './nutrition';
 import { carried, flame, ingredient, litTorch, station, workingArm } from './requirements';
 import {
+  ANIMAL_POPULATION,
   BUILDING_STEP_ENERGY,
   BUILDING_STEP_MINUTES,
   CRAFT_ENERGY,
@@ -76,7 +78,19 @@ import {
   type PlayerState,
   type SkillId,
 } from './types';
-import { dropOnGround, ensureLocationState, getLocationInfo, getLocationState, getStock, getStockRegrowIn, roofAt } from './world';
+import {
+  dropOnGround,
+  ensureLocationState,
+  getLocationInfo,
+  getLocationState,
+  getStock,
+  getStockRegrowIn,
+  LOCATION_OBJECT_ID,
+  roofAt,
+  takeLocationStock,
+} from './world';
+
+export { LOCATION_OBJECT_ID };
 
 export type ActionCategory =
   'location' | 'object' | 'building' | 'travel' | 'pickup' | 'item' | 'storage' | 'craft' | 'build' | 'body' | 'fight';
@@ -149,6 +163,7 @@ export function getActions(state: GameState): GameAction[] {
     ...objectActions(state),
     ...fireActions(state),
     ...rainCollectorActions(state),
+    ...snareActions(state),
     ...travelActions(state),
     ...pickupActions(state),
     ...inventoryActions(state),
@@ -368,9 +383,6 @@ function fromActionDef(state: GameState, def: ActionDef, object: ObjectDef): Gam
 export function isObjectPresent(state: GameState, object: ObjectDef): boolean {
   return object.visibleIf?.(state) ?? true;
 }
-
-/** Id under which a location's own actions and stocks are kept, as if they belonged to a hidden object. */
-export const LOCATION_OBJECT_ID = 'location';
 
 function locationObject(def: LocationDef): ObjectDef {
   return {
@@ -593,6 +605,41 @@ function fireActions(state: GameState): GameAction[] {
 /** Water in a rain collector for display: rounded down to tenths of a bottle, e.g. "1.5". */
 export function formatWater(water: number): string {
   return String(Math.floor(water * 10 + 1e-9) / 10);
+}
+
+/** Checking a snare, once a day has passed since it was set; checking it uses the snare up, catch or not. */
+function snareActions(state: GameState): GameAction[] {
+  const snare = getLocationState(state, state.player.locationId).buildings.snare;
+  const def = snare && BUILDINGS[snare.id].snare;
+  if (!snare || !def || state.time < snare.builtAt + def.checkAfterMinutes) {
+    return [];
+  }
+  return [
+    {
+      id: 'snare:check',
+      label: 'Check snare',
+      category: 'building',
+      targetId: 'snare',
+      description: 'See whether anything has walked into the noose.',
+      details: `A snare catches something ${def.catchChance * 100}% of the time. Checking it uses the snare up, whatever it holds.`,
+      gains: [{ label: 'An animal, with its meat, leather or feathers', chance: def.catchChance }],
+      minutes: def.check.minutes,
+      energy: def.check.energy,
+      timeMode: 'awake',
+      requirements: [],
+      run: (ctx) => {
+        delete ctx.location().buildings.snare;
+        const caught = ctx.chance(def.catchChance) ? pickByTrailChance(ctx, def.animals) : undefined;
+        // why: with the animals hunted out, nothing walks into the snare, whatever the roll.
+        if (caught && takeLocationStock(ctx.state, ctx.state.player.locationId, ANIMAL_POPULATION, 1) > 0) {
+          ctx.log(`Your snare has caught ${ENEMIES[caught].singular}. The snare is spent.`, 'good');
+          ctx.addItems(rollRewards(ctx, ENEMIES[caught]));
+        } else {
+          ctx.log('The snare is empty, and too worn to set again.');
+        }
+      },
+    },
+  ];
 }
 
 /** Drinking, filling a bottle and washing your face with the water of a rain collector where the player is. */

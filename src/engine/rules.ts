@@ -263,6 +263,9 @@ export function fightingSkillBonus(level: number): { damage: number; accuracy: n
   return { damage: FIGHTING_RULES.skillDamage[level] ?? 0, accuracy: FIGHTING_RULES.skillAccuracyPerLevel * level };
 }
 
+/** The forest's hidden animal population, which every kill from hunting and every snare catch takes from. */
+export const ANIMAL_POPULATION = 'animals';
+
 /** Fights: turn-based, on a battle field of `fieldSize` spaces (0 is the left edge). Every move is 1 space. */
 export const FIGHT_RULES = {
   fieldSize: 12,
@@ -299,12 +302,12 @@ export function minDamage(maxDamage: number): number {
 export const SURVIVAL_RULES = {
   /** Thirst and hunger grow by these amounts per hour. */
   thirstPerHour: 4,
-  hungerPerHour: 2,
+  hungerPerHour: 1.5,
   /** Hunger and thirst grow slower while sleeping. */
   sleepingDrainFactor: 0.6,
   /**
    * Torso health lost per point of thirst or hunger pushed past the maximum, or per point of energy missing for an action.
-   * Keeps dehydration at 1.5 health/hour and starvation at 0.9 health/hour once the bars are full.
+   * Makes dehydration cost 1.5 health/hour and starvation 0.675 health/hour once the bars are full.
    */
   overflowDamage: { thirst: 0.375, hunger: 0.45, energy: 0.3 },
   /** Natural healing only happens while both hunger and thirst are at or below this fraction. */

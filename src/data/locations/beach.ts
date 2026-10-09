@@ -2,8 +2,9 @@ import type { LocationDef, ObjectDef } from '../../engine/definitions';
 import { isStormy } from '../../engine/environment';
 import { successGainChance } from '../../engine/gains';
 import { type FindDef, findGains, hasLimitedFindsLeft, rollFinds } from '../../engine/outcomes';
-import { unbrokenLimbs } from '../../engine/requirements';
+import { holdingThe, unbrokenLimbs } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
+import { takeLocationStock } from '../../engine/world';
 import { hasBrokenLimb, plentyText, SHELTER_BUILDINGS } from './shared';
 
 const WRECKAGE_FINDS: FindDef[] = [
@@ -26,9 +27,12 @@ const TIDELINE_FINDS: FindDef[] = [
   { itemId: 'empty-bottle', chance: 0.05 },
 ];
 
+/** The beach's hidden fish population, which diving at the reef and spear fishing take from. */
+const FISH = 'fish';
+
 const REEF_FINDS: FindDef[] = [
   { itemId: 'raw-mussels', chance: 0.5, quantity: [1, 3] },
-  { itemId: 'raw-fish', chance: 0.3 },
+  { itemId: 'raw-fish', chance: 0.3, population: FISH },
   { itemId: 'rope', chance: 0.15, limit: 2 },
 ];
 
@@ -184,6 +188,28 @@ const sea: ObjectDef = {
         }
       },
     },
+    {
+      id: 'spearfish',
+      label: 'Spear fishing',
+      description: 'Wade into the shallows and wait for a fish to come close enough to spear.',
+      details: 'Agility decides whether your strike finds a fish. You need a spear in either hand.',
+      // why: like diving, a fish the player never had shows as an unknown find; the chance is Agility's alone.
+      gains: (state) => [{ itemId: 'raw-fish', chance: successGainChance(state, 'agility'), find: true, exact: true }],
+      minutes: 60,
+      energy: 6,
+      block: (state) => (isStormy(state) ? 'The sea is too rough to fish in a storm' : undefined),
+      requires: [holdingThe('spear')],
+      trains: { agility: 1 },
+      run: (ctx) => {
+        // why: with the fish caught out, no strike finds one, whatever the roll.
+        if (ctx.succeeds('agility') && takeLocationStock(ctx.state, 'beach', FISH, 1) > 0) {
+          ctx.log('You stand still in the shallows, then strike. A fish wriggles on the end of your spear.', 'good');
+          ctx.addItem('raw-fish');
+        } else {
+          ctx.log('You stand in the shallows for an hour, but every fish slips away from your spear.');
+        }
+      },
+    },
   ],
 };
 
@@ -195,5 +221,7 @@ export const beach: LocationDef = {
     'Pale sand curves around a turquoise bay. The wreck of your ship lies broken on the reef, and the tide keeps washing ' +
     'timber and torn cloth ashore. Tall palms lean over the sand, and behind them rises the dark wall of a forest.',
   objects: [wreckage, palms, sea],
+  // why: hidden from the player; every fish caught takes one.
+  stocks: { [FISH]: { initial: 20, max: 20, regenMinutes: hours(3) } },
   buildings: SHELTER_BUILDINGS,
 };

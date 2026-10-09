@@ -1,10 +1,11 @@
 import type { LocationDef, ObjectDef } from '../../engine/definitions';
 import { startHunt } from '../../engine/fight';
 import { perceptionGainChance, successGainChance } from '../../engine/gains';
-import { perceptionChance } from '../../engine/rules';
+import { ANIMAL_POPULATION as ANIMALS, perceptionChance } from '../../engine/rules';
 import { type FindDef, findGains, rollFinds } from '../../engine/outcomes';
 import { carried, holding } from '../../engine/requirements';
 import { days, hours } from '../../engine/time';
+import { getLocationStock } from '../../engine/world';
 import { plentyText, SHELTER_BUILDINGS } from './shared';
 
 /** Chance of a piece of resin while gathering sticks, and while chopping wood. */
@@ -137,8 +138,13 @@ export const forest: LocationDef = {
     'wind between the trunks in every direction. Something large has been rooting in the undergrowth.',
   objects: [berryBushes, vines, mushrooms],
   // why: 30 sticks lie around and 10 more drop every day, enough for building, crafting and keeping a fire going.
-  stocks: { sticks: { initial: 30, max: 30, regenMinutes: days(1) / 10 } },
-  buildings: SHELTER_BUILDINGS,
+  stocks: {
+    sticks: { initial: 30, max: 30, regenMinutes: days(1) / 10 },
+    // why: hidden from the player; every kill from tracking and every snare catch takes one.
+    [ANIMALS]: { initial: 10, max: 10, regenMinutes: hours(12) },
+  },
+  // why: hunting and snares happen only in the forest.
+  buildings: [...SHELTER_BUILDINGS, 'snare'],
   actions: [
     {
       id: 'grass',
@@ -221,7 +227,9 @@ export const forest: LocationDef = {
       energy: 10,
       trains: { perception: 3 },
       run: (ctx) => {
-        if (ctx.chance(perceptionChance(TRACKING_CHANCE, ctx.attribute('perception'), TRACKING_PERCEPTION_AT_MAX))) {
+        const found = ctx.chance(perceptionChance(TRACKING_CHANCE, ctx.attribute('perception'), TRACKING_PERCEPTION_AT_MAX));
+        // why: with the animals hunted out, there are no fresh tracks to find, whatever the roll.
+        if (found && getLocationStock(ctx.state, 'forest', ANIMALS) > 0) {
           startHunt(ctx);
         } else {
           ctx.log('You search the undergrowth for hours, but find no fresh tracks.');

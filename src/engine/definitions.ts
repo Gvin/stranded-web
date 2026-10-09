@@ -157,8 +157,10 @@ export type GainDef =
       chance?: number;
       /** The chance improves with perception, like searching. */
       perception?: boolean;
-      /** A find: its chance improves with the Foraging skill. */
+      /** A find: its chance improves with the Foraging skill, and an item never had shows as an unknown find. */
       find?: boolean;
+      /** The chance is final: neither Perception nor the Foraging skill changes it. */
+      exact?: boolean;
     }
   | { text: string; chance?: number };
 
@@ -288,6 +290,19 @@ export interface BuildingDef {
   storage?: { capacity: number };
   /** Collects rainwater, whatever roof the location has: holds `capacity` bottles, filling at `bottlesPerHour` times the rainfall. */
   collector?: { capacity: number; bottlesPerHour: number };
+  /** A snare: checked once `checkAfterMinutes` have passed since it was set, which uses it up. */
+  snare?: SnareDef;
+}
+
+/** What a snare can catch and how it is checked. */
+export interface SnareDef {
+  checkAfterMinutes: number;
+  /** Checking it takes this long and this much energy. */
+  check: { minutes: number; energy: number };
+  /** Chance it caught something; no skill or attribute changes it. */
+  catchChance: number;
+  /** What it can catch, picked by their trail chances; it takes one animal of its location's population. */
+  animals: readonly EnemyId[];
 }
 
 export interface WeatherDef {

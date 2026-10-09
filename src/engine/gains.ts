@@ -35,7 +35,9 @@ export function resolveGains(state: GameState, defs: readonly GainDef[]): Gain[]
       return { label: def.text, chance: def.chance };
     }
     let chance = def.chance === undefined || def.chance >= 1 ? undefined : def.chance;
-    if (chance !== undefined && def.perception) {
+    if (chance !== undefined && def.exact) {
+      // why: the action worked the chance out itself, from its own attributes.
+    } else if (chance !== undefined && def.perception) {
       chance = perceptionChance(chance * (def.find ? foraging : 1), perception);
     } else if (chance !== undefined && def.find) {
       chance = chance * foraging >= 1 ? undefined : chance * foraging;

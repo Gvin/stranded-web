@@ -16,7 +16,7 @@ describe('advanceTime', () => {
     // Assert
     expect(state.time).toBe(hours(4));
     expect(state.player.stats.thirst).toBeCloseTo(16);
-    expect(state.player.stats.hunger).toBeCloseTo(8);
+    expect(state.player.stats.hunger).toBeCloseTo(6);
   });
 
   it('raises thirst and hunger less while sleeping and restores energy, 7 an hour on the bare ground', () => {

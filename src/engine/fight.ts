@@ -7,7 +7,8 @@ import type { ActionContext } from './context';
 import type { EnemyDef, WeaponStats } from './definitions';
 import { type FightingStat, getFightingStats, weaponHand } from './fighting';
 import { armorPoints } from './inventory';
-import { FIGHT_RULES, minDamage, protectArmor } from './rules';
+import { takeLocationStock } from './world';
+import { ANIMAL_POPULATION, FIGHT_RULES, minDamage, protectArmor } from './rules';
 import type { BodyConditionId, BodyPartId, EnemyId, FightState, GameState, LogTone } from './types';
 
 // Fights: each of the player's actions is a turn, after which the enemy acts. Time, thirst, hunger and energy stand still.
@@ -62,17 +63,29 @@ export function startFight(state: GameState, enemyId: EnemyId): void {
   };
 }
 
-/** Follows a found trail to an enemy picked by the trail chances and starts the fight; when hunting, the player acts first. */
-export function startHunt(ctx: ActionContext): void {
-  let roll = ctx.random();
-  let enemyId = ENEMY_ORDER[ENEMY_ORDER.length - 1] as EnemyId;
-  for (const id of ENEMY_ORDER) {
+/** Picks one of the animals by their trail chances, relative to each other. */
+export function pickByTrailChance(ctx: ActionContext, ids: readonly EnemyId[]): EnemyId {
+  let roll = ctx.random() * ids.reduce((sum, id) => sum + ENEMIES[id].trailChance, 0);
+  for (const id of ids) {
     roll -= ENEMIES[id].trailChance;
     if (roll < 0) {
-      enemyId = id;
-      break;
+      return id;
     }
   }
+  return ids[ids.length - 1] as EnemyId;
+}
+
+/** What an animal gives, with its ranges rolled. */
+export function rollRewards(ctx: ActionContext, enemy: EnemyDef): { itemId: string; quantity: number }[] {
+  return enemy.rewards.map(({ itemId, quantity }) => ({
+    itemId,
+    quantity: typeof quantity === 'number' ? quantity : ctx.randomInt(quantity[0], quantity[1]),
+  }));
+}
+
+/** Follows a found trail to an enemy picked by the trail chances and starts the fight; when hunting, the player acts first. */
+export function startHunt(ctx: ActionContext): void {
+  const enemyId = pickByTrailChance(ctx, ENEMY_ORDER);
   startFight(ctx.state, enemyId);
   ctx.log(`You find a fresh trail and follow it to ${ENEMIES[enemyId].singular}.`, 'good');
 }
@@ -192,13 +205,11 @@ function enemyTurn(ctx: ActionContext, fight: FightState, enemy: EnemyDef, prote
   return { said: [] };
 }
 
-/** Killing the enemy ends the fight and gives its rewards. */
+/** Killing the enemy ends the fight, takes one animal from the population where it lived and gives its rewards. */
 function win(ctx: ActionContext, enemy: EnemyDef): TurnPart {
   delete ctx.state.fight;
-  const rewards = enemy.rewards.map(({ itemId, quantity }) => ({
-    itemId,
-    quantity: typeof quantity === 'number' ? quantity : ctx.randomInt(quantity[0], quantity[1]),
-  }));
+  takeLocationStock(ctx.state, ctx.state.player.locationId, ANIMAL_POPULATION, 1);
+  const rewards = rollRewards(ctx, enemy);
   return { said: [`You kill ${theEnemy(enemy)}.`], tone: 'good', after: () => ctx.addItems(rewards) };
 }
 

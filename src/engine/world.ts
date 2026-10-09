@@ -23,6 +23,25 @@ export function ensureLocationState(state: GameState, locationId: string): Locat
   return location;
 }
 
+/** Id under which a location's own actions and stocks are kept, as if they belonged to a hidden object. */
+export const LOCATION_OBJECT_ID = 'location';
+
+/** The hidden object that holds a location's own stocks (such as the forest's sticks and animals). */
+function locationStocks(locationId: string): ObjectDef {
+  const def = getLocationDef(locationId);
+  return { id: LOCATION_OBJECT_ID, name: def.name, description: def.description, hidden: true, stocks: def.stocks, actions: [] };
+}
+
+/** A location's own named stock, such as an animal population; Infinity where the location has no such stock. */
+export function getLocationStock(state: GameState, locationId: string, stockName: string): number {
+  return getStock(state, locationId, locationStocks(locationId), stockName);
+}
+
+/** Takes up to the amount from a location's own named stock and returns how much was taken (all of it where there is no such stock). */
+export function takeLocationStock(state: GameState, locationId: string, stockName: string, amount: number): number {
+  return takeStock(state, locationId, locationStocks(locationId), amount, stockName);
+}
+
 /** Definition and state key of an object's main stock, or of one of its named stocks. */
 function stockRef(object: ObjectDef, stockName?: string): { key: string; def: StockDef | undefined } {
   return stockName ? { key: `${object.id}:${stockName}`, def: object.stocks?.[stockName] } : { key: object.id, def: object.stock };
@@ -156,6 +175,7 @@ const STATION_NAMES: Record<BuildingSlot, string> = {
   workbench: 'A workbench',
   storage: 'A storage',
   rainCollector: 'A rain collector',
+  snare: 'A snare',
 };
 
 export function stationName(id: string): string {

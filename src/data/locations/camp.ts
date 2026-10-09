@@ -15,6 +15,7 @@ export const camp: LocationDef = {
     description:
       'Your camp in the forest clearing. Flat, dry ground sheltered from the sea wind — the closest thing to home on this island.',
   },
-  buildings: BUILDING_IDS,
+  // why: a snare is set in the forest only, where the animals are.
+  buildings: BUILDING_IDS.filter((id) => id !== 'snare'),
   objects: [],
 };

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getActions } from '../engine/actions';
 import { createNewGame, findAction, performAction } from '../engine/game';
 import { hours } from '../engine/time';
+import { getLocationStock } from '../engine/world';
 import type { GameState } from '../engine/types';
 import { MIGRATIONS, runMigrations } from './migrations';
 import { deserializeGame, serializeGame } from './saveFile';
@@ -641,5 +642,26 @@ describe('migration from save format 12', () => {
 
     // Assert
     expect(result).toMatchObject({ status: 'corrupt' });
+  });
+});
+
+describe('migration from save format 13', () => {
+  it('loads a game without a snare, with the animals, fish and nests full', () => {
+    // Arrange
+    const state = createNewGame(15) as unknown as { locations: Record<string, Record<string, unknown>> };
+    for (const location of Object.values(state.locations)) {
+      delete (location.buildings as Record<string, unknown>).snare;
+    }
+
+    // Act
+    const result = deserializeGame(JSON.stringify({ saveVersion: 13, gameVersion: '0.16.0', savedAt: '', state }));
+
+    // Assert
+    expect(result).toMatchObject({ status: 'ok', migratedFrom: 13 });
+    const migrated = (result as { state: GameState }).state;
+    expect(Object.values(migrated.locations).every((location) => location.buildings.snare === undefined)).toBe(true);
+    expect(getLocationStock(migrated, 'forest', 'animals')).toBe(10);
+    expect(getLocationStock(migrated, 'beach', 'fish')).toBe(20);
+    expect(getLocationStock(migrated, 'rocks', 'nests')).toBe(8);
   });
 });

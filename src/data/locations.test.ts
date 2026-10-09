@@ -274,7 +274,7 @@ describe('leaves, moss and clay', () => {
 });
 
 describe('rocks, camp and spring', () => {
-  it('lets the player gather stones and pebbles in the rocky interior without limit', () => {
+  it('lets the player gather stones and pebbles in the rocky interior without limit, and look for nests', () => {
     // Arrange
     let state = createTestGame('rocks');
 
@@ -285,7 +285,11 @@ describe('rocks, camp and spring', () => {
 
     // Assert
     expect(getLocationView(state).objects).toEqual([]);
-    expect(actionIds(state).filter((id) => id.startsWith('obj:'))).toEqual(['obj:location:stones', 'obj:location:pebbles']);
+    expect(actionIds(state).filter((id) => id.startsWith('obj:'))).toEqual([
+      'obj:location:stones',
+      'obj:location:pebbles',
+      'obj:location:nests',
+    ]);
     expect(count(state, 'pebble')).toBeGreaterThanOrEqual(16);
     expect(findAction(state, 'obj:location:stones')?.gains?.map((g) => g.itemId)).toEqual(['stone', 'flint', 'clay']);
   });

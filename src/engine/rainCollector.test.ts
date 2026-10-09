@@ -53,6 +53,7 @@ describe('building steps', () => {
       mediumStorage: 8,
       bigStorage: 12,
       rainCollector: 5,
+      snare: 1,
     });
     expect(mat).toMatchObject({ minutes: 15, energy: 2 });
   });

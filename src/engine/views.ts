@@ -71,7 +71,7 @@ function buildingViews(state: GameState): ObjectView[] {
     }
     const def = BUILDINGS[building.id];
     const view: ObjectView = { id: slot, name: def.name, description: def.description, building: true, icon: def.icon };
-    const { fire, storage, rainCollector } = location.buildings;
+    const { fire, storage, rainCollector, snare } = location.buildings;
     if (slot === 'fire' && fire) {
       const { capacity, burnPerHour } = fireDef(fire);
       const fuel = `${formatFuel(fire.fuel)} / ${capacity} fuel`;
@@ -86,6 +86,10 @@ function buildingViews(state: GameState): ObjectView[] {
     }
     if (slot === 'rainCollector' && rainCollector) {
       view.status = `${formatWater(rainCollector.water)} / ${def.collector?.capacity ?? 0} bottles of water`;
+    }
+    if (slot === 'snare' && snare && def.snare) {
+      const left = snare.builtAt + def.snare.checkAfterMinutes - state.time;
+      view.status = left > 0 ? `set · check it in ${formatDuration(left)}` : 'ready to check';
     }
     return [view];
   });

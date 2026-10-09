@@ -1,6 +1,7 @@
 import type { BuildingDef, SleepDef } from '../engine/definitions';
 import { carried, ofType } from '../engine/requirements';
 import type { BuildingId, BuildingSlot } from '../engine/types';
+import { hours } from '../engine/time';
 
 /** Water a wash at the rain collector uses, in bottles; drinking and filling a bottle use 1. */
 export const COLLECTOR_WASH_WATER = 0.5;
@@ -287,6 +288,27 @@ export const BUILDINGS: Readonly<Record<BuildingId, BuildingDef>> = {
     trains: BUILDING_TRAINS,
     collector: { capacity: 2, bottlesPerHour: 10 },
     message: 'You seal the last seam of the basin. The rain collector is ready for the next shower.',
+  },
+  snare: {
+    id: 'snare',
+    slot: 'snare',
+    level: 1,
+    name: 'Snare',
+    description: 'A noose of rope tied to a bent stick, set across an animal trail. Check it after a day.',
+    icon: 'lasso',
+    steps: 1,
+    ingredients: [
+      { type: 'stick', quantity: 2 },
+      { type: 'rope', quantity: 1 },
+    ],
+    trains: BUILDING_TRAINS,
+    snare: {
+      checkAfterMinutes: hours(24),
+      check: { minutes: 15, energy: 1 },
+      catchChance: 0.5,
+      animals: ['seagull', 'rabbit', 'turtle', 'kiwi'],
+    },
+    message: 'You set the snare across an animal trail. Now it is a matter of waiting.',
   },
 };
 
